@@ -13,7 +13,7 @@ from botocore.exceptions import ClientError
 ####################################################################################
 
 
-# Whoever designed the response schema hates developers
+# Opinion: Whoever designed the response schema hates developers
 def standardize_athena_query_result(results, **kwargs):
     results = [x["Data"] for x in results['ResultSet']['Rows']]
     for n, row in enumerate(results):
