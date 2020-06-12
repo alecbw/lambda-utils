@@ -54,9 +54,11 @@ def query_athena_table(sql_query, database, **kwargs):
     results = standardize_athena_query_result(results, **kwargs)
     return results
 
+
 ################################### ~ Dynamo Operations ~  ############################################
 
 
+# Both reads and writes
 def standardize_dynamo_query(input_data, **kwargs):
     if not isinstance(input_data, dict):
         logging.error("wrong data type for dynamodb")
@@ -78,10 +80,10 @@ def standardize_dynamo_query(input_data, **kwargs):
         elif isinstance(v, float):
             input_data[k] = Decimal(str(v))
 
-    # print(input_data)
     return input_data
 
 
+# Converts timestamps back to human readable
 def standardize_dynamo_output(output_data):
     datetime_keys = [key for key in output_data.keys() if key in ["updatedAt", "createdAt", 'ttl']]
     for key in datetime_keys:
@@ -207,13 +209,14 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table, **kwargs):
     return result.get('Attributes')
 
 
-def query_dynamodb_table(operation_parameters_dict, table, **kwargs):
-    table = boto3.resource('dynamodb').Table(table)
+# TODO implement
+# def query_dynamodb_table(operation_parameters_dict, table, **kwargs):
+#     table = boto3.resource('dynamodb').Table(table)
     # dict_of_attributes = standardize_dynamo_query(dict_of_attributes, **kwargs)
 
-    operation_parameters_dict["TableName"] = table
-    result = table.query(**operation_parameters_dict)
-    # client = boto3.client('dynamodb')
+#     operation_parameters_dict["TableName"] = table
+#     result = table.query(**operation_parameters_dict)
+#     # client = boto3.client('dynamodb')
     # paginator = client.get_paginator('query')
     # operation_parameters = {
       # 'TableName': table,
@@ -231,7 +234,7 @@ def query_dynamodb_table(operation_parameters_dict, table, **kwargs):
     # # result = table.query(
     #     KeyConditionExpression=boto3.dynamodb.conditions.Key(primary_key).eq(primary_key_value)
     # )
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Query on {table}")
+    # if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Query on {table}")
     # return data
 # TODO decimal encoding? https://github.com/serverless/examples/blob/master/aws-python-rest-api-with-dynamodb/todos/decimalencoder.py
 # TODO Upsert https://github.com/serverless/examples/blob/master/aws-python-rest-api-with-dynamodb/todos/update.py
@@ -260,6 +263,7 @@ def get_s3_file(bucket, filename, **kwargs):
         logging.error(e)
         raise e
 
+
 # for use with `for line in body`
 def stream_s3_file(bucket, filename, **kwargs):
     s3 = boto3.resource('s3')
@@ -275,6 +279,7 @@ def write_s3_file(bucket, filename, json_data, **kwargs):
     if not kwargs.get("disable_print"): logging.info(f"Successful write to {filename} / {status_code}")
     return status_code
 
+
 def delete_s3_file(bucket, filename):
     s3 = boto3.resource("s3")
     try:
@@ -284,6 +289,8 @@ def delete_s3_file(bucket, filename):
         logging.error(e)
         return e
 
+# TODO implement this to list and download every content of a s3 bucket
+# you can't just download you have to list and then iterate over
 # https://stackoverflow.com/questions/31918960/boto3-to-download-all-files-from-a-s3-bucket
 # def download_dir(client, resource, dist, local='/tmp', bucket='your_bucket'):
 #     paginator = client.get_paginator('list_objects')

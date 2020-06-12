@@ -3,6 +3,7 @@ from google.oauth2 import service_account
 
 import os
 
+
 def auth_gspread():
     auth = {
         "private_key": os.environ["GSHEETS_PRIVATE_KEY"].replace("\\n", "\n").replace('"', ''),
@@ -12,6 +13,7 @@ def auth_gspread():
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     credentials = service_account.Credentials.from_service_account_info(auth, scopes=scopes)
     return gspread.authorize(credentials)
+
 
 def open_gsheet(sheet_name):
     gc = auth_gspread()

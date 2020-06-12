@@ -9,6 +9,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
+# Allows enforcing of querystrings' presence
 def validate_params(event, required_params, **kwargs):
     event = standardize_event(event)
     commom_required_params = get_list_overlap(event, required_params)
@@ -24,7 +25,7 @@ def validate_params(event, required_params, **kwargs):
 
     return param_only_dict, False
 
-
+# unpack the k:v pairs into the top level dict. Standard across invoke types.
 def standardize_event(event):
     # if event.get("body"):  # POST, synchronous API Gateawy TODO
     #     event.update(event["body"])
@@ -36,6 +37,7 @@ def standardize_event(event):
     return standardize_dict(event)
 
 
+# Necessary for API Gateway to return
 def package_response(message, status_code, **kwargs):
     if kwargs.get("log"):
         logging.info(message)
@@ -78,9 +80,9 @@ def invoke_lambda(params, function_name, invoke_type):
     return json_body["data"], status_code
 
 
-##################################################################################
+######################### ~ General str/list Formatting ~ ########################################################
 
-
+# This corrects for an edge case where some None values may convert to str "None" by API Gateway
 def standardize_dict(input_dict):
     return {k.title().strip().replace(" ", "_"):(False if is_none(v) else v) for (k, v) in input_dict.items()}
 
@@ -201,7 +203,6 @@ def format_url(url, **kwargs):
     if kwargs.get("remove_trailing_slash") and url.endswith("/"):
         url = ez_split(url, "/", 0)
 
-    # print(url)
     return url.rstrip()
 
 
@@ -218,10 +219,11 @@ def deduplicate_lod(input_lod, primary_key):
 
     return list(output_dict.values())
 
+# e.g. checking if any tld exists in a string
 def find_substrings_in_string(value, list_of_substrings):
     return [sub_str for sub_str in list_of_substrings if sub_str.lower().strip() in value.lower().strip()]
 
-
+# e.g. split a list of len n into x smaller lists of len (n/x)
 def split_list_to_fixed_length_lol(full_list, subsection_size):
     if not len(full_list) > subsection_size:
         return [full_list] # Return list as LoL

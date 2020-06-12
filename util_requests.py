@@ -12,7 +12,6 @@ from requests.exceptions import ProxyError, ConnectionError, HTTPError, SSLError
 from gevent import pool
 
 
-
 def api_request(url, request_type, **kwargs):
     verbose_print = kwargs.pop("print", False)
     raw_response = kwargs.pop("raw_response", False)
@@ -98,6 +97,8 @@ def rotate_accept():
 
 ################################# ~ Outbound Requests ~ ####################################
 
+
+# Sorts the list of proxies by location so the specified locations' proxies are first
 def prioritize_proxy(proxies, location):
     output_proxies_list = []
     for proxy in proxies:
@@ -106,6 +107,7 @@ def prioritize_proxy(proxies, location):
         else:
             output_proxies_list.append(proxy)
     return output_proxies_list
+
 
 # Mock a browser and visit a site
 def site_request(url, proxy, wait, **kwargs):
