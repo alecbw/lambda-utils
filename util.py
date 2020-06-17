@@ -6,9 +6,10 @@ import logging
 
 try:
     import sentry_sdk
+    from sentry_sdk.integrations.aws_lambda import AwsLambdaIntegration
     sentry_sdk.init(
         dsn=os.environ["SENTRY_DSN"],
-        integrations=[sentry_sdk.integrations.aws_lambda.AwsLambdaIntegration()]
+        integrations=[AwsLambdaIntegration()]
     )
 except ImportError:
     logging.warning("Sentry did not init")
