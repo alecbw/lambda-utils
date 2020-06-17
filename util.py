@@ -1,7 +1,17 @@
+import os
 import json
 from datetime import datetime, timedelta
 from functools import reduce
 import logging
+
+try:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=os.environ["SENTRY_DSN"],
+        integrations=[sentry_sdk.integrations.aws_lambda.AwsLambdaIntegration()]
+    )
+except ImportError:
+    logging.warning("Sentry did not init")
 
 import boto3
 
