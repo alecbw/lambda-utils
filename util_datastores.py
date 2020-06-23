@@ -106,6 +106,7 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
     except Exception as e:
         logging.error(e)
         logging.error(dict_to_write)
+        return False
 
     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Write to {table}")
     return True
@@ -244,19 +245,23 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table, **kwargs):
 #################### ~ S3 Specific ~ ##########################################
 
 
-# TODO test
-def list_s3_bucket_contents(bucket, path):
+# The path should be `folder/` NOT `/folderÅ`
+def list_s3_bucket_contents(bucket, path, **kwargs):
     s3 = boto3.resource("s3")
     bucket = s3.Bucket(bucket)
-    list_files = []
+    if kwargs.get("ignore_glacier"):
+        return [x.key for x in bucket.objects.filter(Prefix=path) if x.storage_class == 'STANDARD']
+
     return [x.key for x in bucket.objects.filter(Prefix=path)]
 
 
 # default encoding of ISO-8859-1? TODO
 def get_s3_file(bucket, filename, **kwargs):
+    s3 = boto3.client("s3")
+    
     try:
-        s3 = boto3.client("s3")
-        return s3.get_object(Bucket=bucket, Key=filename)["Body"]
+        s3_obj = s3.get_object(Bucket=bucket, Key=filename)["Body"]
+        return s3_obj if kwargs.get("raw") else s3_obj.read().decode('utf-8')
     except s3.exceptions.NoSuchKey:
         logging.error(f"S3 file requested: {filename} does not exist")
     except Exception as e:
@@ -288,6 +293,21 @@ def delete_s3_file(bucket, filename):
     except ClientError as e:
         logging.error(e)
         return e
+
+""" 
+Minimums for storage classes:
+    Normal - None
+    1Z Infrequent - 30 days
+    Glacier - 90 days
+"""
+def move_s3_file_to_glacier(bucket, path):
+    s3 = boto3.client('s3')
+
+    s3.copy({"Bucket": bucket, "Key": path}, bucket, path,
+        ExtraArgs={'StorageClass': 'GLACIER', 'MetadataDirective': 'COPY'})
+    return
+
+
 
 # TODO implement this to list and download every content of a s3 bucket
 # you can't just download you have to list and then iterate over
