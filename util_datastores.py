@@ -60,7 +60,6 @@ def query_athena_table(sql_query, database, **kwargs):
 
 # Both reads and writes
 def standardize_dynamo_query(input_data, **kwargs):
-    print(input_data)
     if not isinstance(input_data, dict):
         logging.error("wrong data type for dynamodb")
         return None
@@ -81,7 +80,6 @@ def standardize_dynamo_query(input_data, **kwargs):
         elif isinstance(v, float):
             input_data[k] = Decimal(str(v))
 
-    print(input_data)
     return input_data
 
 
