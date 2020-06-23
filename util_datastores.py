@@ -106,6 +106,7 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
     except Exception as e:
         logging.error(e)
         logging.error(dict_to_write)
+        return False
 
     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Write to {table}")
     return True
