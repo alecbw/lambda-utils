@@ -3,7 +3,7 @@ from utility.util import is_none, ez_try_and_get
 import os
 from time import sleep
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from decimal import *
 import json
 
@@ -57,6 +57,23 @@ def query_athena_table(sql_query, database, **kwargs):
 
 ################################### ~ Dynamo Operations ~  ############################################
 
+# def decimal_default(obj):
+#     # print(obj)
+#     if isinstance(obj, Decimal):
+#         return float(obj)
+#     print( TypeError)
+
+# Helper class to convert a DynamoDB item to JSON.
+class DynamoReadEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, Decimal):
+            if o % 1 > 0:
+                return float(o)
+            else:
+                return int(o)
+        elif isinstance(o, date):
+            return o.strftime("%m/%d/%Y"),
+        return super(DecimalEncoder, self).default(o)
 
 # Both reads and writes
 def standardize_dynamo_query(input_data, **kwargs):
@@ -84,13 +101,12 @@ def standardize_dynamo_query(input_data, **kwargs):
 
 
 # Converts timestamps back to human readable
-def standardize_dynamo_output(output_data):
+def standardize_dynamo_output(output_data, **kwargs):
     datetime_keys = [key for key in output_data.keys() if key in ["updatedAt", "createdAt", 'ttl']]
     for key in datetime_keys:
         output_data[key] = datetime.fromtimestamp(output_data[key])#.replace(tzinfo=timezone.utc)
 
-    return output_data
-
+    return json.dumps(output_data, cls=DynamoReadEncoder) if kwargs.get("output") == "json" else output_data
 
 # Note this will BY DEFAULT overwrite items with the same primary key (upsert)
 def write_dynamodb_item(dict_to_write, table, **kwargs):
