@@ -9,7 +9,6 @@ from bs4 import BeautifulSoup, element, NavigableString
 import requests
 from urllib3.exceptions import MaxRetryError, ProtocolError
 from requests.exceptions import ProxyError, ConnectionError, HTTPError, SSLError, Timeout
-from gevent import pool
 
 
 def api_request(url, request_type, **kwargs):
