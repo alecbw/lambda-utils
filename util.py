@@ -44,6 +44,9 @@ def standardize_event(event):
         event.update(event["queryStringParameters"])
     if event.get("query"):  # GET, async API Gateway
         event.update(event["query"])
+    if event.get("Records"):  # triggered directly by SQS queue
+        event.update(ez_try_and_get(event, "Records", 0, "body"))
+
 
     return standardize_dict(event)
 
