@@ -138,6 +138,7 @@ def site_request(url, proxy, wait, **kwargs):
         if kwargs.get("prevent_redirects"):
             request_kwargs["allow_redirects"] = False
 
+        print(url)
         response = requests.get(url, headers=headers, **request_kwargs)
 
     except (MaxRetryError, ProxyError, SSLError, ProtocolError, Timeout, ConnectionError, HTTPError) as e:
@@ -166,7 +167,6 @@ def iterative_managed_site_request(url_list, **kwargs):
     result_list = []
     for url in url_list:
         response, status_code = site_request(url, proxy, kwargs.pop("wait", 1), **kwargs)
-
 
         while isinstance(response, str): # Returned error messaged
             if "SSLError" in response:
