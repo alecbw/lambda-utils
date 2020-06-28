@@ -199,7 +199,7 @@ def increment_dynamodb_item_counter(primary_key_value, counter_attr, table, **kw
     return result.get('Attributes')
 
 
-# TODO ExpressionAttributeNames
+
 def upsert_dynamodb_item(key_dict, dict_of_attributes, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
     dict_of_attributes = standardize_dynamo_query(dict_of_attributes, **kwargs)

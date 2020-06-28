@@ -167,7 +167,11 @@ def iterative_managed_site_request(url_list, **kwargs):
     for url in url_list:
         response, status_code = site_request(url, proxy, kwargs.pop("wait", 1), **kwargs)
 
+
         while isinstance(response, str): # Returned error messaged
+            if "SSLError" in response:
+                logging.info("Trying without HTTPS")
+                url = url.replace("https", "http")
             proxy = proxies.pop(0).get("full")
             response, status_code = site_request(url, proxy, wait=kwargs.pop("wait", 1), **kwargs)
 
