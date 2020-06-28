@@ -143,10 +143,10 @@ def site_request(url, proxy, wait, **kwargs):
 
     except (MaxRetryError, ProxyError, SSLError, ProtocolError, Timeout, ConnectionError, HTTPError) as e:
         logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
-        return '-----> ERROR. ROTATE YOUR PROXY. <-----', 666
+        return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 666
     except Exception as e:
         logging.warning(f'-----> ERROR. Request Threw: Unknown Error. {e}<-----')
-        return '-----> ERROR. Request Threw: Unknown Error. <-----', 666
+        return f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 666
 
     if response.status_code not in [200, 202, 301, 302]:
         logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
