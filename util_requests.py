@@ -3,6 +3,7 @@ from utility.util_datastores import scan_dynamodb
 
 import random
 import logging
+import os
 from time import sleep
 
 from bs4 import BeautifulSoup, element, NavigableString
@@ -96,6 +97,22 @@ def rotate_accept():
 
 ################################# ~ Outbound Requests ~ ####################################
 
+def get_ds_proxy_list(**kwargs):
+    countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
+    url = os.environ["DS_URL"] + f"&showcountry=no&level=1|2&country={countries}&https=yes"
+    response = api_request(url, "GET", raw_response=True)
+    proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
+    logging.info(f"{len(proxies)} proxies were found")
+    return proxies
+
+def rotate_ds_proxy(proxies):
+    if len(proxies) == 0:
+        logging.info("Exhasuted list; getting another")
+        proxies = get_ds_proxy_list()
+
+    proxy = proxies.pop(0)
+    return proxy, proxies
+
 
 # Sorts the list of proxies by location so the specified locations' proxies are first
 def prioritize_proxy(proxies, location):
@@ -137,6 +154,9 @@ def site_request(url, proxy, wait, **kwargs):
         # TODO needs more testing
         if kwargs.get("prevent_redirects"):
             request_kwargs["allow_redirects"] = False
+
+        if kwargs.get("timeout"):
+            request_kwargs["timeout"] = kwargs.get("timeout")
 
         print(url)
         response = requests.get(url, headers=headers, **request_kwargs)
@@ -226,25 +246,31 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
 
 def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
     null_value = kwargs.get("null_value", "")
-    if not parsed:
-        return null_value
 
-    if kwargs.pop("find_all", False):
-        return safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs)
+    try:
+        if not parsed:
+            return null_value
 
-    html_tag = parsed.find(html_type, {property_type : identifier})
+        if kwargs.pop("find_all", False):
+            return safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs)
 
-    if not html_tag:
-        return null_value
+        html_tag = parsed.find(html_type, {property_type : identifier})
 
-    # for nesting into child components. Ex: ["a", "p", "time"]
-    for key in kwargs.get("children", []):
-        if key == "nextSibling": # necessary, unclear why
-            html_tag = html_tag.nextSibling if html_tag else html_tag
+        if not html_tag:
+            return null_value
+
+        # for nesting into child components. Ex: ["a", "p", "time"]
+        for key in kwargs.get("children", []):
+            if key == "nextSibling": # necessary, unclear why
+                html_tag = html_tag.nextSibling if html_tag else html_tag
+            else:
+                html_tag = html_tag.key if html_tag else html_tag
+
+        if isinstance(html_tag, NavigableString):
+            return str(html_tag).replace("\n", "").strip() if (html_tag and str(html_tag)) else null_value
         else:
-            html_tag = html_tag.key if html_tag else html_tag
+            return html_tag.get_text().replace("\n", "").strip() if (html_tag and html_tag.get_text().strip()) else null_value
 
-    if isinstance(html_tag, NavigableString):
-        return str(html_tag).replace("\n", "").strip() if (html_tag and str(html_tag)) else null_value
-    else:
-        return html_tag.get_text().replace("\n", "").strip() if (html_tag and html_tag.get_text().strip()) else null_value
+    except Exception as e:
+        logging.warning(e)
+        return null_value
