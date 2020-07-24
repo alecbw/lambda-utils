@@ -171,7 +171,7 @@ def site_request(url, proxy, wait, **kwargs):
     if response.status_code not in [200, 202, 301, 302]:
         logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
     if response.status_code in [502, 503, 999]:
-        return f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----', 666
+        logging.warning(f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----', 666)
 
     if kwargs.get("soup"):                       # Allow functions to specify if they want parsed soup or plain request resopnse
         return BeautifulSoup(response.content, 'html.parser'), response.status_code

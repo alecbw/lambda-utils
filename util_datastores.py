@@ -355,7 +355,7 @@ def list_s3_bucket_contents(bucket, path, **kwargs):
 # default encoding of ISO-8859-1? TODO
 def get_s3_file(bucket, filename, **kwargs):
     s3 = boto3.client("s3")
-    
+
     try:
         s3_obj = s3.get_object(Bucket=bucket, Key=filename)["Body"]
         return s3_obj if kwargs.get("raw") else s3_obj.read().decode('utf-8')
@@ -391,7 +391,7 @@ def delete_s3_file(bucket, filename):
         logging.error(e)
         return e
 
-""" 
+"""
 Minimums for storage classes:
     Normal - None
     1Z Infrequent - 30 days
@@ -453,20 +453,32 @@ def sqs_send_message(data, queue_name):
 
 
 def sqs_read_message(queue_name, **kwargs):
+    message_number = kwargs.get("Message_Number", 1)
+
     SQS = boto3.client("sqs")
     q = SQS.get_queue_url(QueueName=queue_name).get('QueueUrl')
-    data = SQS.receive_message(QueueUrl=q, MaxNumberOfMessages=1)
-    message = ez_try_and_get(data, "Messages", 0, "Body")
+
+    data = SQS.receive_message(QueueUrl=q, MaxNumberOfMessages=message_number)
+
+    response_number = len(ez_try_and_get(data, "Messages"))
     status_code = ez_try_and_get(data, "ResponseMetadata", "HTTPStatusCode")
     logging.info(f"Read result status: {status_code}")
 
-    if not message:
-        logging.warning(f"As a warning there are no messages in the queue")
+    messages = [ez_try_and_get(data, "Messages", x, "Body") for x in range(response_number)]
+    messages = [json.loads(x) if isinstance(x, str) else x for x in messages]
 
-    if message and not kwargs.get("requeue_message"):
+    if not messages:
+        logging.warning(f"As a warning there are no messages in the queue")
+        return None
+
+    if message_number != response_number:
+        logging.warning(f"You requested {message_number} and you got {response_number} messages")
+
+    if messages and message_number == 1 and not kwargs.get("requeue_message"):
+
         receiptHandle = ez_try_and_get(data, "Messages", 0, "ReceiptHandle")
         resp = SQS.delete_message(QueueUrl=q, ReceiptHandle=receiptHandle)
         status_code2 = ez_try_and_get(data, "ResponseMetadata", "HTTPStatusCode")
         logging.info(f"Deleted queue message (after reading). Status code was {status_code2}")
 
-    return message
+    return messages[0] if response_number == 1 else messages
