@@ -97,9 +97,10 @@ def rotate_accept():
 
 ################################# ~ Outbound Requests ~ ####################################
 
+
 def get_ds_proxy_list(**kwargs):
     countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
-    url = os.environ["DS_URL"] + f"&showcountry=no&level=1|2&country={countries}&https=yes"
+    url = os.environ["DS_URL"] + f"&showcountry=no&level=1|2&country={countries}&https=yes" #OTOD HHTPS
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
     logging.info(f"{len(proxies)} proxies were found")
@@ -107,7 +108,7 @@ def get_ds_proxy_list(**kwargs):
 
 def rotate_ds_proxy(proxies):
     if len(proxies) == 0:
-        logging.info("Exhasuted list; getting another")
+        logging.info("Exhausted list; getting another")
         proxies = get_ds_proxy_list()
 
     proxy = proxies.pop(0)
@@ -147,16 +148,15 @@ def site_request(url, proxy, wait, **kwargs):
         'DNT': "1",                                              # Ask the server to not be tracked (lol)
     }
     try:
-        request_kwargs = {}
-        if proxy:
-            request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
 
-        # TODO needs more testing
-        if kwargs.get("prevent_redirects"):
+        approved_request_kwargs = ["prevent_redirects", "timeout", "hooks"]
+
+        request_kwargs = {k:v for k,v in kwargs.items() if k in approved_request_kwargs}
+        if request_kwargs.pop("prevent_redirects", None):
             request_kwargs["allow_redirects"] = False
 
-        if kwargs.get("timeout"):
-            request_kwargs["timeout"] = kwargs.get("timeout")
+        if proxy:
+            request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
 
         print(url)
         response = requests.get(url, headers=headers, **request_kwargs)
