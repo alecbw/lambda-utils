@@ -451,6 +451,22 @@ def sqs_send_message(data, queue_name):
 
     return resp
 
+# Does not support FIFO
+def sqs_send_batched_message(data_lod, id_key, queue_name):
+    SQS = boto3.client("sqs")
+    q = SQS.get_queue_url(QueueName=queue_name).get('QueueUrl')
+
+    if "Id" not in data_lod[0]:
+        data_lod = [{'Id':item[id_key], "MessageBody": json.dumps(item)} for item in data_lod]
+
+
+    response = SQS.send_message_batch(
+        QueueUrl=q,
+        Entries=data_lod
+    )
+    # Print out any failures
+    print(response.get('Failed'))
+
 
 def sqs_read_message(queue_name, **kwargs):
     message_number = kwargs.get("Message_Number", 1)
@@ -460,6 +476,10 @@ def sqs_read_message(queue_name, **kwargs):
 
     data = SQS.receive_message(QueueUrl=q, MaxNumberOfMessages=message_number)
 
+    if not data.get("Messages"):
+        logging.warning(f"As a warning there are no messages in the queue")
+        return None
+
     response_number = len(ez_try_and_get(data, "Messages"))
     status_code = ez_try_and_get(data, "ResponseMetadata", "HTTPStatusCode")
     logging.info(f"Read result status: {status_code}")
@@ -467,9 +487,7 @@ def sqs_read_message(queue_name, **kwargs):
     messages = [ez_try_and_get(data, "Messages", x, "Body") for x in range(response_number)]
     messages = [json.loads(x) if isinstance(x, str) else x for x in messages]
 
-    if not messages:
-        logging.warning(f"As a warning there are no messages in the queue")
-        return None
+
 
     if message_number != response_number:
         logging.warning(f"You requested {message_number} and you got {response_number} messages")
