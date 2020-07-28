@@ -159,7 +159,7 @@ def is_lod(possible_lod):
 def is_none(value, **kwargs):
     None_List = ['None', 'none', 'False', 'false', 'No', 'no', None, False, ["None"], ["False"]]
 
-    if kwargs.get("keep_0") and value is 0 :
+    if kwargs.get("keep_0") and value is 0:
         return False
     if not value:
         return True
@@ -170,7 +170,7 @@ def is_none(value, **kwargs):
 
 
 def is_url(value):
-    tld_list = ['.de', '.com', '.info', '.es', '.mil', '.no', '.vc', '.au', '.se', '.io', '.tv', '.co', '.fr', '.uk', '.ai', '.ch', '.org', '.ca', '.gov', '.ly', '.net', '.ru', '.nl', '.us', '.it', '.jp', '.edu', '.biz', '.xml', '.ph', '.id', '.tw', '.hk']
+    tld_list = ['.de', '.com', '.info', '.es', '.mil', '.no', '.vc', '.au', '.se', '.io', '.tv', '.co', '.fr', '.uk', '.ai', '.ch', '.org', '.ca', '.gov', '.ly', '.net', '.ru', '.nl', '.us', '.it', '.jp', '.edu', '.biz', '.xml', '.ph', '.id', '.tw', '.hk', '.ro', '.eu', '.in', '.by', '.mx', '.cz', '.dk', '.si', '.solutions', '.fi', '.life', '.city', '.ie', '.br', '.pk', '.be', '.ae', '.pl', '.do', '.earth', '.lt', '.pt', '.cl', '.br', '.cd', '.uz', '.nu', '.cn', '.at', '.fm', '.ir', '.nz', '.trading', '.mn', '.wales']
     if any(tld for tld in tld_list if tld.lower().strip() in value.lower().strip()):
         return True
 

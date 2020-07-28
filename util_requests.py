@@ -97,9 +97,10 @@ def rotate_accept():
 
 ################################# ~ Outbound Requests ~ ####################################
 
+
 def get_ds_proxy_list(**kwargs):
     countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
-    url = os.environ["DS_URL"] + f"&showcountry=no&level=1|2&country={countries}&https=yes"
+    url = os.environ["DS_URL"] + f"&showcountry=no&level=1|2&country={countries}&https=yes" #OTOD HHTPS
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
     logging.info(f"{len(proxies)} proxies were found")
@@ -107,7 +108,7 @@ def get_ds_proxy_list(**kwargs):
 
 def rotate_ds_proxy(proxies):
     if len(proxies) == 0:
-        logging.info("Exhasuted list; getting another")
+        logging.info("Exhausted list; getting another")
         proxies = get_ds_proxy_list()
 
     proxy = proxies.pop(0)
@@ -134,7 +135,7 @@ def site_request(url, proxy, wait, **kwargs):
         url = url.split("://", 1)[1] if "://" in url else url
         url = url.split("www.", 1)[1] if "www." in url else url
         url = "https://" + url
-
+        print(url)
     # Spoof a typical browser header. HTTP Headers are case-insensitive.
     headers = {
         'user-agent': kwargs.get("agent", rotate_agent()),
@@ -147,31 +148,30 @@ def site_request(url, proxy, wait, **kwargs):
         'DNT': "1",                                              # Ask the server to not be tracked (lol)
     }
     try:
-        request_kwargs = {}
+
+        approved_request_kwargs = ["prevent_redirects", "timeout", "hooks"]
+
+        request_kwargs = {k:v for k,v in kwargs.items() if k in approved_request_kwargs}
+
+        request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True
+
         if proxy:
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
-
-        # TODO needs more testing
-        if kwargs.get("prevent_redirects"):
-            request_kwargs["allow_redirects"] = False
-
-        if kwargs.get("timeout"):
-            request_kwargs["timeout"] = kwargs.get("timeout")
 
         print(url)
         response = requests.get(url, headers=headers, **request_kwargs)
 
     except (MaxRetryError, ProxyError, SSLError, ProtocolError, Timeout, ConnectionError, HTTPError) as e:
         logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
-        return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 666
+        return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
     except Exception as e:
         logging.warning(f'-----> ERROR. Request Threw: Unknown Error. {e}<-----')
-        return f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 666
+        return f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
 
     if response.status_code not in [200, 202, 301, 302]:
         logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
     if response.status_code in [502, 503, 999]:
-        return f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----', 666
+        logging.warning(f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----')
 
     if kwargs.get("soup"):                       # Allow functions to specify if they want parsed soup or plain request resopnse
         return BeautifulSoup(response.content, 'html.parser'), response.status_code
