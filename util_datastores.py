@@ -389,3 +389,21 @@ def sqs_read_message(queue_name, **kwargs):
         logging.info(f"Deleted queue message (after reading). Status code was {status_code2}")
 
     return message
+
+
+
+########################### ~ RDS Aurora Serverless Data API Specific ~ ###################################################
+
+
+def aurora_execute_sql(db, sql, **kwargs):
+    client = boto3.client('rds-data')
+    result = client.execute_statement(
+            secretArn=os.environ["SM_SECRET_ARN"],
+            database=db, 
+            resourceArn=os.environ["DB_ARN"],
+            sql=sql,
+            parameters=[]
+    )
+    if not kwargs.get("disable_print"): logging.info(f"Successful execution: {sql} / {len(result)}")
+
+    return result
