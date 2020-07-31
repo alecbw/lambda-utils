@@ -266,6 +266,10 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             else:
                 html_tag = html_tag.key if html_tag else html_tag
 
+        if kwargs.get("get_link") and html_tag:
+            html_link = html_tag.get("href") if html_tag.get("href") else html_tag.a.get("href")
+            return html_link.strip()
+
         if isinstance(html_tag, NavigableString):
             return str(html_tag).replace("\n", "").strip() if (html_tag and str(html_tag)) else null_value
         else:
