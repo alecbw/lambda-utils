@@ -210,9 +210,9 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
         return None
 
     if kwargs.get("all_children"):
-        child_elements = enclosing_element.findChildren()
+        child_elements = list(enclosing_element.descendants)
     else:
-        child_elements = findAll(selector_type)
+        child_elements = enclosing_element.find_all(selector_type)
 
     text_list = []
     for ele in child_elements:
@@ -229,7 +229,7 @@ def flatten_neighboring_selectors(enclosing_element, selector_type, **kwargs):
         return None
 
     text_list = []
-    for ele in enclosing_element.findAll(selector_type):
+    for ele in enclosing_element.find_all(selector_type):
         next_s = ele.nextSibling
         if not (next_s and isinstance(next_s, NavigableString)):
             continue # TODO extract with .string
