@@ -215,7 +215,7 @@ def format_url(url, **kwargs):
     if kwargs.get("https"):
         url = "https://" + url
     if kwargs.get("remove_trailing_slash") and url.endswith("/"):
-        url = ez_split(url, "/", 0)
+        url = url.rstrip("/")
 
     return url.rstrip()
 
