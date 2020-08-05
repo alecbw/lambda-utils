@@ -22,7 +22,7 @@ def open_gsheet(sheet_name):
         sh = gc.open_by_url(sheet_name)
     elif len(sheet_name) == 44:
         sh = gc.open_by_key(sheet_name)
-    else: # TODO THIS THROWS A SCOPE ERROR
+    else:  # You must have enabled the Google Drive API in console.developers.google.com to use this
         sh = gc.open(sheet_name)
 
     worksheet_list = get_gsheet_worksheet_names(sh)
