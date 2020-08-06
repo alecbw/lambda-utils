@@ -3,6 +3,7 @@ from utility.util_datastores import scan_dynamodb
 
 import random
 import logging
+import os
 from time import sleep
 
 from bs4 import BeautifulSoup, element, NavigableString
@@ -97,6 +98,23 @@ def rotate_accept():
 ################################# ~ Outbound Requests ~ ####################################
 
 
+def get_ds_proxy_list(**kwargs):
+    countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
+    url = os.environ["DS_URL"] + f"&showcountry=no&level=1|2&country={countries}&https=yes" #OTOD HHTPS
+    response = api_request(url, "GET", raw_response=True)
+    proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
+    logging.info(f"{len(proxies)} proxies were found")
+    return proxies
+
+def rotate_ds_proxy(proxies):
+    if len(proxies) == 0:
+        logging.info("Exhausted list; getting another")
+        proxies = get_ds_proxy_list()
+
+    proxy = proxies.pop(0)
+    return proxy, proxies
+
+
 # Sorts the list of proxies by location so the specified locations' proxies are first
 def prioritize_proxy(proxies, location):
     output_proxies_list = []
@@ -117,7 +135,7 @@ def site_request(url, proxy, wait, **kwargs):
         url = url.split("://", 1)[1] if "://" in url else url
         url = url.split("www.", 1)[1] if "www." in url else url
         url = "https://" + url
-
+        print(url)
     # Spoof a typical browser header. HTTP Headers are case-insensitive.
     headers = {
         'user-agent': kwargs.get("agent", rotate_agent()),
@@ -130,28 +148,30 @@ def site_request(url, proxy, wait, **kwargs):
         'DNT': "1",                                              # Ask the server to not be tracked (lol)
     }
     try:
-        request_kwargs = {}
+
+        approved_request_kwargs = ["prevent_redirects", "timeout", "hooks"]
+
+        request_kwargs = {k:v for k,v in kwargs.items() if k in approved_request_kwargs}
+
+        request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True
+
         if proxy:
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
-
-        # TODO needs more testing
-        if kwargs.get("prevent_redirects"):
-            request_kwargs["allow_redirects"] = False
 
         print(url)
         response = requests.get(url, headers=headers, **request_kwargs)
 
     except (MaxRetryError, ProxyError, SSLError, ProtocolError, Timeout, ConnectionError, HTTPError) as e:
         logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
-        return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 666
+        return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
     except Exception as e:
         logging.warning(f'-----> ERROR. Request Threw: Unknown Error. {e}<-----')
-        return f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 666
+        return f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
 
     if response.status_code not in [200, 202, 301, 302]:
         logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
     if response.status_code in [502, 503, 999]:
-        return f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----', 666
+        logging.warning(f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----')
 
     if kwargs.get("soup"):                       # Allow functions to specify if they want parsed soup or plain request resopnse
         return BeautifulSoup(response.content, 'html.parser'), response.status_code
@@ -189,8 +209,13 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
         logging.warning('no enclosing element for flatten_enclosed_elements')
         return None
 
+    if kwargs.get("all_children"):
+        child_elements = list(enclosing_element.descendants)
+    else:
+        child_elements = enclosing_element.find_all(selector_type)
+
     text_list = []
-    for ele in enclosing_element.findAll(selector_type):
+    for ele in child_elements:
         if ele and ele.get_text():
             text_list.append(ele.get_text().strip().replace("\n", "").replace("\r", ""))
 
@@ -204,7 +229,7 @@ def flatten_neighboring_selectors(enclosing_element, selector_type, **kwargs):
         return None
 
     text_list = []
-    for ele in enclosing_element.findAll(selector_type):
+    for ele in enclosing_element.find_all(selector_type):
         next_s = ele.nextSibling
         if not (next_s and isinstance(next_s, NavigableString)):
             continue # TODO extract with .string
@@ -226,25 +251,35 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
 
 def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
     null_value = kwargs.get("null_value", "")
-    if not parsed:
-        return null_value
 
-    if kwargs.pop("find_all", False):
-        return safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs)
+    try:
+        if not parsed:
+            return null_value
 
-    html_tag = parsed.find(html_type, {property_type : identifier})
+        if kwargs.pop("find_all", False):
+            return safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs)
 
-    if not html_tag:
-        return null_value
+        html_tag = parsed.find(html_type, {property_type : identifier})
 
-    # for nesting into child components. Ex: ["a", "p", "time"]
-    for key in kwargs.get("children", []):
-        if key == "nextSibling": # necessary, unclear why
-            html_tag = html_tag.nextSibling if html_tag else html_tag
+        if not html_tag:
+            return null_value
+
+        # for nesting into child components. Ex: ["a", "p", "time"]
+        for key in kwargs.get("children", []):
+            if key == "nextSibling": # necessary, unclear why
+                html_tag = html_tag.nextSibling if html_tag else html_tag
+            else:
+                html_tag = html_tag.key if html_tag else html_tag
+
+        if kwargs.get("get_link") and html_tag:
+            html_link = html_tag.get("href") if html_tag.get("href") else html_tag.a.get("href")
+            return html_link.strip()
+
+        if isinstance(html_tag, NavigableString):
+            return str(html_tag).replace("\n", "").strip() if (html_tag and str(html_tag)) else null_value
         else:
-            html_tag = html_tag.key if html_tag else html_tag
+            return html_tag.get_text().replace("\n", "").strip() if (html_tag and html_tag.get_text().strip()) else null_value
 
-    if isinstance(html_tag, NavigableString):
-        return str(html_tag).replace("\n", "").strip() if (html_tag and str(html_tag)) else null_value
-    else:
-        return html_tag.get_text().replace("\n", "").strip() if (html_tag and html_tag.get_text().strip()) else null_value
+    except Exception as e:
+        logging.warning(e)
+        return null_value

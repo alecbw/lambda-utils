@@ -6,6 +6,8 @@ import logging
 from datetime import datetime, timezone, date
 from decimal import *
 import json
+import concurrent.futures
+import itertools
 
 import boto3
 from botocore.exceptions import ClientError
@@ -163,6 +165,85 @@ def scan_dynamodb(table, **kwargs):
     return data
 
 
+# returns a list of items
+def parallel_scan_dynamodb(TableName, **kwargs):
+    """
+    Generates all the items in a DynamoDB table.
+
+    :param dynamo_client: A boto3 client for DynamoDB.
+    :param TableName: The name of the table to scan.
+
+    Other keyword arguments will be passed directly to the Scan operation.
+    See https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/dynamodb.html#DynamoDB.Client.scan
+
+    This does a Parallel Scan operation over the table.
+
+    Source: https://alexwlchan.net/2020/05/getting-every-item-from-a-dynamodb-table-with-python/
+    """
+    # How many segments to divide the table into?  As long as this is >= to the
+    # number of threads used by the ThreadPoolExecutor, the exact number doesn't
+    # seem to matter.
+    dynamo_client = boto3.resource("dynamodb").meta.client
+
+    total_segments = 25
+
+    # How many scans to run in parallel?  If you set this really high you could
+    # overwhelm the table read capacity, but otherwise I don't change this much.
+    max_scans_in_parallel = 5
+
+    # Schedule an initial scan for each segment of the table.  We read each
+    # segment in a separate thread, then look to see if there are more rows to
+    # read -- and if so, we schedule another scan.
+    tasks_to_do = [
+        {
+            **kwargs,
+            "TableName": TableName,
+            "Segment": segment,
+            "TotalSegments": total_segments,
+        }
+        for segment in range(total_segments)
+    ]
+
+    # Make the list an iterator, so the same tasks don't get run repeatedly.
+    scans_to_run = iter(tasks_to_do)
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+
+        # Schedule the initial batch of futures.  Here we assume that
+        # max_scans_in_parallel < total_segments, so there's no risk that
+        # the queue will throw an Empty exception.
+        futures = {
+            executor.submit(dynamo_client.scan, **scan_params): scan_params
+            for scan_params in itertools.islice(scans_to_run, max_scans_in_parallel)
+        }
+
+        while futures:
+            # Wait for the first future to complete.
+            done, _ = concurrent.futures.wait(
+                futures, return_when=concurrent.futures.FIRST_COMPLETED
+            )
+
+            for fut in done:
+                yield from fut.result()["Items"]
+
+                scan_params = futures.pop(fut)
+
+                # A Scan reads up to N items, and tells you where it got to in
+                # the LastEvaluatedKey.  You pass this key to the next Scan operation,
+                # and it continues where it left off.
+                try:
+                    scan_params["ExclusiveStartKey"] = fut.result()["LastEvaluatedKey"]
+                except KeyError:
+                    break
+                tasks_to_do.append(scan_params)
+
+            # Schedule the next batch of futures.  At some point we might run out
+            # of entries in the queue if we've finished scanning the table, so
+            # we need to spot that and not throw.
+            for scan_params in itertools.islice(scans_to_run, len(done)):
+                futures[executor.submit(dynamo_client.scan, **scan_params)] = scan_params
+
+
 
 # If you set a composite primary key (both a HASH and RANGE, both a partition key and sort key), YOU NEED BOTH to getItem and updateItem
 def get_dynamodb_item(primary_key_dict, table, **kwargs):
@@ -274,7 +355,7 @@ def list_s3_bucket_contents(bucket, path, **kwargs):
 # default encoding of ISO-8859-1? TODO
 def get_s3_file(bucket, filename, **kwargs):
     s3 = boto3.client("s3")
-    
+
     try:
         s3_obj = s3.get_object(Bucket=bucket, Key=filename)["Body"]
         return s3_obj if kwargs.get("raw") else s3_obj.read().decode('utf-8')
@@ -310,7 +391,7 @@ def delete_s3_file(bucket, filename):
         logging.error(e)
         return e
 
-""" 
+"""
 Minimums for storage classes:
     Normal - None
     1Z Infrequent - 30 days
@@ -370,22 +451,70 @@ def sqs_send_message(data, queue_name):
 
     return resp
 
-
-def sqs_read_message(queue_name, **kwargs):
+# Does not support FIFO
+def sqs_send_batched_message(data_lod, id_key, queue_name):
     SQS = boto3.client("sqs")
     q = SQS.get_queue_url(QueueName=queue_name).get('QueueUrl')
-    data = SQS.receive_message(QueueUrl=q, MaxNumberOfMessages=1)
-    message = ez_try_and_get(data, "Messages", 0, "Body")
+
+    if "Id" not in data_lod[0]:
+        data_lod = [{'Id':item[id_key], "MessageBody": json.dumps(item)} for item in data_lod]
+
+
+    response = SQS.send_message_batch(
+        QueueUrl=q,
+        Entries=data_lod
+    )
+    # Print out any failures
+    print(response.get('Failed'))
+
+
+def sqs_read_message(queue_name, **kwargs):
+    message_number = kwargs.get("Message_Number", 1)
+
+    SQS = boto3.client("sqs")
+    q = SQS.get_queue_url(QueueName=queue_name).get('QueueUrl')
+
+    data = SQS.receive_message(QueueUrl=q, MaxNumberOfMessages=message_number)
+
+    if not data.get("Messages"):
+        logging.warning(f"As a warning there are no messages in the queue")
+        return None
+
+    response_number = len(ez_try_and_get(data, "Messages"))
     status_code = ez_try_and_get(data, "ResponseMetadata", "HTTPStatusCode")
     logging.info(f"Read result status: {status_code}")
 
-    if not message:
-        logging.warning(f"As a warning there are no messages in the queue")
+    messages = [ez_try_and_get(data, "Messages", x, "Body") for x in range(response_number)]
+    messages = [json.loads(x) if isinstance(x, str) else x for x in messages]
 
-    if message and not kwargs.get("requeue_message"):
+
+
+    if message_number != response_number:
+        logging.warning(f"You requested {message_number} and you got {response_number} messages")
+
+    if messages and message_number == 1 and not kwargs.get("requeue_message"):
+
         receiptHandle = ez_try_and_get(data, "Messages", 0, "ReceiptHandle")
         resp = SQS.delete_message(QueueUrl=q, ReceiptHandle=receiptHandle)
         status_code2 = ez_try_and_get(data, "ResponseMetadata", "HTTPStatusCode")
         logging.info(f"Deleted queue message (after reading). Status code was {status_code2}")
 
-    return message
+    return messages[0] if response_number == 1 else messages
+
+
+
+########################### ~ RDS Aurora Serverless Data API Specific ~ ###################################################
+
+
+def aurora_execute_sql(db, sql, **kwargs):
+    client = boto3.client('rds-data')
+    result = client.execute_statement(
+            secretArn=os.environ["SM_SECRET_ARN"],
+            database=db, 
+            resourceArn=os.environ["DB_ARN"],
+            sql=sql,
+            parameters=[]
+    )
+    if not kwargs.get("disable_print"): logging.info(f"Successful execution: {sql} / {len(result)}")
+
+    return result
