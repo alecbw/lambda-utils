@@ -10,7 +10,7 @@ def auth_gspread():
         "client_email": os.environ["GSHEETS_CLIENT_EMAIL"],
         "token_uri": "https://oauth2.googleapis.com/token",
     }
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     credentials = service_account.Credentials.from_service_account_info(auth, scopes=scopes)
     return gspread.authorize(credentials)
 
