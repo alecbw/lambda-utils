@@ -8,6 +8,8 @@ from time import sleep
 
 from bs4 import BeautifulSoup, element, NavigableString
 import requests
+from ssl import SSLCertVerificationError
+from urllib3.packages.ssl_match_hostname import CertificateError
 from urllib3.exceptions import MaxRetryError, ProtocolError
 from requests.exceptions import ProxyError, ConnectionError, HTTPError, SSLError, Timeout
 
@@ -104,6 +106,7 @@ def get_ds_proxy_list(**kwargs):
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
     logging.info(f"{len(proxies)} proxies were found")
+
     return proxies
 
 def rotate_ds_proxy(proxies):
@@ -162,8 +165,12 @@ def site_request(url, proxy, wait, **kwargs):
         response = requests.get(url, headers=headers, **request_kwargs)
 
     except (MaxRetryError, ProxyError, SSLError, ProtocolError, Timeout, ConnectionError, HTTPError) as e:
-        logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
-        return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
+        if "Caused by SSLError(SSLCertVerificationError" in str(e) or "Exceeded 30 redirects" in str(e):
+            logging.warning(f'-----> ERROR. Request Threw: Certificate Error. {e}<-----')
+            return None, 495
+        else:
+            logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
+            return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
     except Exception as e:
         logging.warning(f'-----> ERROR. Request Threw: Unknown Error. {e}<-----')
         return f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
