@@ -237,7 +237,7 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
         logging.warning('no enclosing element for flatten_enclosed_elements')
         return None
 
-    if kwargs.get("all_children"):
+    if selector_type.lower() == "all":
         child_elements = list(enclosing_element.descendants)
     else:
         child_elements = enclosing_element.find_all(selector_type)
