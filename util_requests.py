@@ -11,7 +11,7 @@ import requests
 from ssl import SSLCertVerificationError
 from urllib3.packages.ssl_match_hostname import CertificateError
 from urllib3.exceptions import MaxRetryError, ProtocolError
-from requests.exceptions import ProxyError, ConnectionError, HTTPError, SSLError, Timeout
+from requests.exceptions import ProxyError, ConnectionError, HTTPError, SSLError, Timeout, TooManyRedirects
 
 
 def api_request(url, request_type, **kwargs):
@@ -128,6 +128,20 @@ def prioritize_proxy(proxies, location):
             output_proxies_list.append(proxy)
     return output_proxies_list
 
+def handle_requests_exceptions(e):
+    if "Caused by SSLError(SSLCertVerificationError" in str(e):
+        logging.warning(f'-----> ERROR. Request Threw: Certificate Error. {e}<-----')
+        return None, 495
+    elif "Exceeded 30 redirects" in str(e):
+        logging.warning(f'-----> ERROR. Request Threw: Too Many Redirects Error. {e}<-----')
+        return None, 399
+    elif any(x for x in ["MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "Timeout", "ConnectionError", "HTTPError"] if x in str(type(e))):
+        logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
+        return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
+    else:
+        logging.warning(f'-----> ERROR. Request Threw: Unknown Error. {e}<-----')
+        return f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
+
 
 # Mock a browser and visit a site
 def site_request(url, proxy, wait, **kwargs):
@@ -151,29 +165,36 @@ def site_request(url, proxy, wait, **kwargs):
         'DNT': "1",                                              # Ask the server to not be tracked (lol)
     }
     try:
-
         approved_request_kwargs = ["prevent_redirects", "timeout", "hooks"]
 
         request_kwargs = {k:v for k,v in kwargs.items() if k in approved_request_kwargs}
-
         request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True
 
         if proxy:
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
 
-        print(url)
+        logging.info(f"Now requesting {url}")
         response = requests.get(url, headers=headers, **request_kwargs)
-
-    except (MaxRetryError, ProxyError, SSLError, ProtocolError, Timeout, ConnectionError, HTTPError) as e:
-        if "Caused by SSLError(SSLCertVerificationError" in str(e) or "Exceeded 30 redirects" in str(e):
-            logging.warning(f'-----> ERROR. Request Threw: Certificate Error. {e}<-----')
-            return None, 495
-        else:
-            logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
-            return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
     except Exception as e:
-        logging.warning(f'-----> ERROR. Request Threw: Unknown Error. {e}<-----')
-        return f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
+        message, applied_status_code = handle_requests_exceptions(e)
+        return message, applied_status_code
+    # except (MaxRetryError, ProxyError, SSLError, ProtocolError, Timeout, ConnectionError, HTTPError) as e:
+    #     if "Caused by SSLError(SSLCertVerificationError" in str(e) or "Exceeded 30 redirects" in str(e):
+    #         logging.warning(f'-----> ERROR. Request Threw: Certificate Error. {e}<-----')
+    #         return None, 495
+    #     else:
+    #         logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
+    #         return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
+    # except Exception as e:
+    #     print(str(e))
+    #     print(vars(e))
+    #     print(type(e))
+    #     # if "TooManyRedirects" in type(e):
+    #     #     print('foobar')
+    #     if "TooManyRedirects" in str(type(e)):
+    #         print('foo23rbar')
+    #     logging.warning(f'-----> ERROR. Request Threw: Unknown Error. {e}<-----')
+    #     return f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
 
     if response.status_code not in [200, 202, 301, 302]:
         logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
@@ -223,7 +244,7 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
 
     text_list = []
     for ele in child_elements:
-        if ele and ele.get_text():
+        if ele and ele.get_text().strip().replace("\n", "").replace("\r", ""):
             text_list.append(ele.get_text().strip().replace("\n", "").replace("\r", ""))
 
     return ", ".join(text_list) if kwargs.get("output_str") else text_list
