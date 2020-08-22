@@ -141,15 +141,13 @@ def ez_join(phrase, delimiter):
 
 
 def ez_split(phrase, delimiter, return_slice):
-
     if not (phrase and delimiter in phrase):
         return phrase
 
     if type(return_slice) != type(True) and isinstance(return_slice, int):
         return phrase.split(delimiter)[return_slice]
     else:
-        output_list = phrase.split(delimiter)
-        return [x.strip() for x in output_list]
+        return [x.strip() for x in phrase.split(delimiter)]
 
 
 def is_lod(possible_lod):

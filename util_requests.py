@@ -175,26 +175,10 @@ def site_request(url, proxy, wait, **kwargs):
 
         logging.debug(f"Now requesting {url}")
         response = requests.get(url, headers=headers, **request_kwargs)
+
     except Exception as e:
         message, applied_status_code = handle_requests_exceptions(e)
         return message, applied_status_code
-    # except (MaxRetryError, ProxyError, SSLError, ProtocolError, Timeout, ConnectionError, HTTPError) as e:
-    #     if "Caused by SSLError(SSLCertVerificationError" in str(e) or "Exceeded 30 redirects" in str(e):
-    #         logging.warning(f'-----> ERROR. Request Threw: Certificate Error. {e}<-----')
-    #         return None, 495
-    #     else:
-    #         logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
-    #         return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
-    # except Exception as e:
-    #     print(str(e))
-    #     print(vars(e))
-    #     print(type(e))
-    #     # if "TooManyRedirects" in type(e):
-    #     #     print('foobar')
-    #     if "TooManyRedirects" in str(type(e)):
-    #         print('foo23rbar')
-    #     logging.warning(f'-----> ERROR. Request Threw: Unknown Error. {e}<-----')
-    #     return f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
 
     if response.status_code not in [200, 202, 301, 302]:
         logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
