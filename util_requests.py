@@ -152,7 +152,7 @@ def site_request(url, proxy, wait, **kwargs):
         url = url.split("://", 1)[1] if "://" in url else url
         url = url.split("www.", 1)[1] if "www." in url else url
         url = "https://" + url
-        print(url)
+
     # Spoof a typical browser header. HTTP Headers are case-insensitive.
     headers = {
         'user-agent': kwargs.get("agent", rotate_agent()),
@@ -173,7 +173,7 @@ def site_request(url, proxy, wait, **kwargs):
         if proxy:
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
 
-        logging.info(f"Now requesting {url}")
+        logging.debug(f"Now requesting {url}")
         response = requests.get(url, headers=headers, **request_kwargs)
     except Exception as e:
         message, applied_status_code = handle_requests_exceptions(e)
@@ -238,9 +238,6 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
         return None
 
     selector_type = None if selector_type.lower() == "all" else selector_type
-    # if selector_type.lower() == "all":
-    #     child_elements = list(enclosing_element.descendants)
-    # else:
     child_elements = enclosing_element.find_all(selector_type)
 
     text_list = []
