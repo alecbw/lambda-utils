@@ -227,7 +227,7 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
     text_list = []
     for ele in child_elements:
         if ele and ele.get_text().strip().replace("\n", "").replace("\r", ""):
-            text_list.append(ele.get_text().strip().replace("\n", "").replace("\r", "")).replace('\\xa0', ' ')
+            text_list.append(ele.get_text().strip().replace("\n", "").replace("\r", "").replace('\\xa0', ' '))
 
     join_delim = kwargs.get("delim", ", ")
     return join_delim.join(text_list) if kwargs.get("output_str") or kwargs.get("delim") else text_list
