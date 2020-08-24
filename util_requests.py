@@ -214,6 +214,11 @@ def iterative_managed_site_request(url_list, **kwargs):
 
 ############################## ~ Handling HTML ~ ####################################
 
+def extract_stripped_string(html_tag):
+    if not html_tag or not html_tag.get_text():
+        return html_tag
+
+    return html_tag.get_text().strip().replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
 
 # Will extract the text from, and concatenate together, all elements of a given selector
 def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
@@ -226,8 +231,12 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
 
     text_list = []
     for ele in child_elements:
-        if ele and ele.get_text().strip().replace("\n", "").replace("\r", ""):
-            text_list.append(ele.get_text().strip().replace("\n", "").replace("\r", "").replace('\\xa0', ' '))
+        ele_str = extract_stripped_string(ele)
+        if isinstance(ele_str, str):
+            # print(ele.get_text())
+            # print(ele.get_text().strip().replace("\n", "").replace("\r", "").replace('\\xa0', ' '))
+            # print("\n")
+            text_list.append(ele_str)
 
     join_delim = kwargs.get("delim", ", ")
     return join_delim.join(text_list) if kwargs.get("output_str") or kwargs.get("delim") else text_list
