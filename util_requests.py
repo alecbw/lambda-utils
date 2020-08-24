@@ -229,7 +229,8 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
         if ele and ele.get_text().strip().replace("\n", "").replace("\r", ""):
             text_list.append(ele.get_text().strip().replace("\n", "").replace("\r", ""))
 
-    return ", ".join(text_list) if kwargs.get("output_str") else text_list
+    join_delim = kwargs.get("delim", ", ")
+    return join_delim.join(text_list) if kwargs.get("output_str") else text_list
 
 
 # Will extract the text from selectors nextSibling to the selector you can access. TODO
