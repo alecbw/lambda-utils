@@ -227,7 +227,7 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
     text_list = []
     for ele in child_elements:
         if ele and ele.get_text().strip().replace("\n", "").replace("\r", ""):
-            text_list.append(ele.get_text().strip().replace("\n", "").replace("\r", ""))
+            text_list.append(ele.get_text().strip().replace("\n", "").replace("\r", "")).replace('\\xa0', ' ')
 
     join_delim = kwargs.get("delim", ", ")
     return join_delim.join(text_list) if kwargs.get("output_str") or kwargs.get("delim") else text_list
@@ -289,9 +289,9 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             return html_tag.get("content") if html_tag.get("content") else null_value
 
         if isinstance(html_tag, NavigableString):
-            return str(html_tag).replace("\n", "").strip() if (html_tag and str(html_tag)) else null_value
+            return str(html_tag).replace("\n", "").replace('\\xa0', ' ').strip() if (html_tag and str(html_tag)) else null_value
         else:
-            return html_tag.get_text().replace("\n", "").strip() if (html_tag and html_tag.get_text().strip()) else null_value
+            return html_tag.get_text().replace("\n", "").replace('\\xa0', ' ').strip() if (html_tag and html_tag.get_text().strip()) else null_value
 
     except Exception as e:
         logging.warning(e)
