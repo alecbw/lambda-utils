@@ -233,9 +233,6 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
     for ele in child_elements:
         ele_str = extract_stripped_string(ele)
         if isinstance(ele_str, str):
-            # print(ele.get_text())
-            # print(ele.get_text().strip().replace("\n", "").replace("\r", "").replace('\\xa0', ' '))
-            # print("\n")
             text_list.append(ele_str)
 
     join_delim = kwargs.get("delim", ", ")
