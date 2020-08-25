@@ -55,3 +55,8 @@ def create_gsheet_worksheet(sh, tab_name, **kwargs):
         rows=kwargs.get("rows", "50"),
         cols=kwargs.get("cols", "5")
     )
+
+
+def simple_tab_append(sheet, tab, data_lol):
+    sh, worksheet_list = open_gsheet(sheet)
+    sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
