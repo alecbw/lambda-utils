@@ -7,9 +7,10 @@ import logging
 try:
     import sentry_sdk
     from sentry_sdk.integrations.aws_lambda import AwsLambdaIntegration
+    sentry_kwargs = {integrations: [AwsLambdaIntegration()} if os.environ.get("_HANDLER") else {}
     sentry_sdk.init(
         dsn=os.environ["SENTRY_DSN"],
-        integrations=[AwsLambdaIntegration()]
+        **sentry_kwargs
     )
 except ImportError:
     logging.warning("Sentry did not init")
@@ -67,7 +68,7 @@ def package_response(message, status_code, **kwargs):
 
 def invoke_lambda(params, function_name, invoke_type):
 
-    lambda_client = boto3.client("lambda")
+    lambda_client = boto3.client("lambda", region_name="us-west-1")
     lambda_response = lambda_client.invoke(
         FunctionName=function_name,
         InvocationType=invoke_type,

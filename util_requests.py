@@ -8,7 +8,6 @@ from time import sleep
 
 from bs4 import BeautifulSoup, element, NavigableString
 import requests
-from ssl import SSLCertVerificationError
 from urllib3.packages.ssl_match_hostname import CertificateError
 from urllib3.exceptions import MaxRetryError, ProtocolError
 from requests.exceptions import ProxyError, ConnectionError, HTTPError, SSLError, Timeout, TooManyRedirects
@@ -101,6 +100,7 @@ def rotate_accept():
 
 
 def get_ds_proxy_list(**kwargs):
+    print(os.environ["DS_URL"])
     countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
     url = os.environ["DS_URL"] + f"&showcountry=no&level=1|2&country={countries}&https=yes" #OTOD HHTPS
     response = api_request(url, "GET", raw_response=True)
