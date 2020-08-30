@@ -7,7 +7,7 @@ import logging
 try:
     import sentry_sdk
     from sentry_sdk.integrations.aws_lambda import AwsLambdaIntegration
-    sentry_kwargs = {integrations: [AwsLambdaIntegration()} if os.environ.get("_HANDLER") else {}
+    sentry_kwargs = {integrations: [AwsLambdaIntegration()]} if os.environ.get("_HANDLER") else {}
     sentry_sdk.init(
         dsn=os.environ["SENTRY_DSN"],
         **sentry_kwargs
@@ -39,7 +39,7 @@ def validate_params(event, required_params, **kwargs):
 
 # unpack the k:v pairs into the top level dict. Standard across invoke types.
 def standardize_event(event):
-    # if event.get("body"):  # POST, synchronous API Gateawy TODO
+    # if event.get("body"):  # POST, synchronous API Gateway TODO
     #     event.update(event["body"])
     if event.get("queryStringParameters"):  # GET, synchronous API Gateway
         event.update(event["queryStringParameters"])
