@@ -7,7 +7,7 @@ import logging
 try:
     import sentry_sdk
     from sentry_sdk.integrations.aws_lambda import AwsLambdaIntegration
-    sentry_kwargs = {integrations: [AwsLambdaIntegration()]} if os.environ.get("_HANDLER") else {}
+    sentry_kwargs = {"integrations": [AwsLambdaIntegration()]} if os.environ.get("_HANDLER") else {}
     sentry_sdk.init(
         dsn=os.environ["SENTRY_DSN"],
         **sentry_kwargs
