@@ -8,6 +8,7 @@ from decimal import *
 import json
 import concurrent.futures
 import itertools
+import threading
 
 import boto3
 from botocore.exceptions import ClientError
@@ -374,13 +375,21 @@ def stream_s3_file(bucket, filename, **kwargs):
 
 
 def write_s3_file(bucket, filename, json_data, **kwargs):
-    s3 = boto3.resource("s3")
-    s3_object = s3.Object(bucket, filename)
+    s3_object = boto3.resource("s3").Object(bucket, filename)
     output = s3_object.put(Body=(bytes(json.dumps(json_data).encode("UTF-8"))))
     status_code = ez_try_and_get(output, 'ResponseMetadata', 'HTTPStatusCode')
-    if not kwargs.get("disable_print"): logging.info(f"Successful write to {filename} / {status_code}")
+    if kwargs.get("enable_print"): logging.info(f"Successful write to {filename} / {status_code}")
     return status_code
 
+
+#http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
+# list of tuples
+def parallel_write_s3_files(bucket, file_lot):
+    boto3.client('s3')
+    for file_tuple in file_lot:
+        t = threading.Thread(target = write_s3_file, args=(bucket, file_tuple[0], file_tuple[1])).start()
+    # with ThreadPoolExecutor() as e:
+        # _ = list(e.map(f, file_lot))
 
 def delete_s3_file(bucket, filename):
     s3 = boto3.resource("s3")

@@ -1,9 +1,7 @@
-from util import invoke_lambda
+from utility.util import invoke_lambda, is_url
 
 import json
 import csv
-
-
 
 
 def read_from_gsheet(sheet, tab):
@@ -63,8 +61,8 @@ def read_input_csv(filename, **kwargs):
     if kwargs.get("start_row"):
         file_lod = file_lod[kwargs["start_row"]:]
 
-    if kwargs.get("url_column"):
-        file_lol = [x[kwargs["url_column"]] for x in file_lod if is_url(x[kwargs["url_column"]])] # throw out empty cells
+    if kwargs.get("url_col"):
+        file_lol = [x[kwargs["url_col"]] for x in file_lod if is_url(x[kwargs["url_col"]])] # throw out empty cells
         print(f"Length of input CSV after removing non-URL rows and accounting for start_at is: {len(file_lol)}")
         return file_lol
 
@@ -85,10 +83,14 @@ def write_output_csv(filename, output_lod):
 
 ###################################################################################################
 
-def write_json_to_s3(bucket, folder, url, result_dict):
+
+def write_json_to_s3(bucket, folder, url, result_dict, **kwargs):
     json_str = json.dumps(result_dict)
-    url_filename = format_url(url, remove_trailing_slash=True).replace("/", r"\\")
+    url_filename = format_url(url, remove_trailing_slash=True)
+    if kwargs.get("replace_backslash"):
+        url = url.replace("/", r"\\")
     write_s3_file(bucket, f"{folder}/{url_filename}.json", json_str)
+
 
 def write_separate_output_json(filename, output_lod):
     for row in output_lod:

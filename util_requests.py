@@ -98,11 +98,12 @@ def rotate_accept():
 
 ################################# ~ Outbound Requests ~ ####################################
 
-
+# TODO restore level
 def get_ds_proxy_list(**kwargs):
-    print(os.environ["DS_URL"])
     countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
-    url = os.environ["DS_URL"] + f"&showcountry=no&level=1|2&country={countries}&https=yes" #OTOD HHTPS
+    url = os.environ["DS_URL"] + f"&showcountry=no&country={countries}&https=yes" #OTOD HHTPS
+    # url += "&level=1|2"
+
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
     logging.info(f"{len(proxies)} proxies were found")
@@ -128,7 +129,7 @@ def prioritize_proxy(proxies, location):
             output_proxies_list.append(proxy)
     return output_proxies_list
 
-def handle_requests_exceptions(e):
+def handle_request_exception(e):
     if "Caused by SSLError(SSLCertVerificationError" in str(e):
         logging.warning(f'-----> ERROR. Request Threw: Certificate Error. {e}<-----')
         return None, 495
@@ -177,7 +178,7 @@ def site_request(url, proxy, wait, **kwargs):
         response = requests.get(url, headers=headers, **request_kwargs)
 
     except Exception as e:
-        message, applied_status_code = handle_requests_exceptions(e)
+        message, applied_status_code = handle_request_exception(e)
         return message, applied_status_code
 
     if response.status_code not in [200, 202, 301, 302]:
