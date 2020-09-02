@@ -129,6 +129,7 @@ def prioritize_proxy(proxies, location):
             output_proxies_list.append(proxy)
     return output_proxies_list
 
+
 def handle_request_exception(e):
     if "Caused by SSLError(SSLCertVerificationError" in str(e):
         logging.warning(f'-----> ERROR. Request Threw: Certificate Error. {e}<-----')
@@ -136,7 +137,10 @@ def handle_request_exception(e):
     elif "Exceeded 30 redirects" in str(e):
         logging.warning(f'-----> ERROR. Request Threw: Too Many Redirects Error. {e}<-----')
         return None, 399
-    elif any(x for x in ["MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "Timeout", "ConnectionError", "HTTPError"] if x in str(type(e))):
+    elif "TimeoutError" in str(e):
+        logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
+        return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 408
+    elif any(x for x in ["MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(type(e))):
         logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
         return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
     else:
