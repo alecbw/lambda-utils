@@ -1,4 +1,5 @@
 from utility.util import invoke_lambda, is_url, format_url
+from utility.util_gspread import open_gsheet
 
 import json
 import csv
@@ -39,6 +40,15 @@ def write_to_gsheet(rows_lod, sheet, tab, primary_key, **kwargs):
     else:
         print(f"Error writing to Google Sheet {sheet}. Status code {status_code}; message: {resp}")
 
+
+def naive_append_gsheet_tab(sheet, tab, data_lod, headers):
+    data_lol = []
+    for row in data_lod:
+        data_lol.append([row.get(x) for x in headers])
+
+    sh, worksheet_list = open_gsheet(sheet)
+    resp = sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
+    print(resp)
 ########################################################################################################################
 
 
@@ -79,7 +89,7 @@ def write_output_csv(filename, output_lod):
         dict_writer.writeheader()
         dict_writer.writerows(output_lod)
 
-    print("Write to csv was successful\n")
+    print(f"Write to csv {'Output ' + filename} was successful\n")
 
 
 ###################################################################################################
