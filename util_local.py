@@ -1,7 +1,8 @@
-from utility.util import invoke_lambda, is_url
+from utility.util import invoke_lambda, is_url, format_url
 
 import json
 import csv
+import sys
 
 
 def read_from_gsheet(sheet, tab):
@@ -15,9 +16,9 @@ def read_from_gsheet(sheet, tab):
     "RequestResponse"
     )
     if status_code in [200, 202]:
-        print(f"Finished reading from Google Sheet {gsheet_name}. Status code {status_code}")
+        print(f"Finished reading from Google Sheet {sheet}. Status code {status_code}")
     else:
-        print(f"Error reading from Google Sheet {gsheet_name}. Status code {status_code}; message: {data}")
+        print(f"Error reading from Google Sheet {sheet}. Status code {status_code}; message: {data}")
     return data
 
 
@@ -34,9 +35,9 @@ def write_to_gsheet(rows_lod, sheet, tab, primary_key, **kwargs):
         kwargs.get("invoke_type", "RequestResponse"),
     )
     if status_code in [200, 202]:
-        print(f"Finished writing to Google Sheet {gsheet_name}. Status code {status_code}")
+        print(f"Finished writing to Google Sheet {sheet}. Status code {status_code}")
     else:
-        print(f"Error writing to Google Sheet {gsheet_name}. Status code {status_code}; message: {resp}")
+        print(f"Error writing to Google Sheet {sheet}. Status code {status_code}; message: {resp}")
 
 ########################################################################################################################
 
@@ -84,12 +85,12 @@ def write_output_csv(filename, output_lod):
 ###################################################################################################
 
 
-def write_json_to_s3(bucket, folder, url, result_dict, **kwargs):
-    json_str = json.dumps(result_dict)
-    url_filename = format_url(url, remove_trailing_slash=True)
-    if kwargs.get("replace_backslash"):
-        url = url.replace("/", r"\\")
-    write_s3_file(bucket, f"{folder}/{url_filename}.json", json_str)
+# def write_json_to_s3(bucket, folder, url, result_dict, **kwargs):
+#     json_str = json.dumps(result_dict)
+#     url_filename = format_url(url, remove_trailing_slash=True)
+#     if kwargs.get("replace_backslash"):
+#         url = url.replace("/", r"\\")
+#     write_s3_file(bucket, f"{folder}/{url_filename}.json", json_str)
 
 
 def write_separate_output_json(filename, output_lod):
