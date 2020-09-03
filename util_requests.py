@@ -100,15 +100,15 @@ def rotate_accept():
 
 # TODO restore level
 def get_ds_proxy_list(**kwargs):
-    countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
-    url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&country={countries}&https=yes" #OTOD HHTPS
+    countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GB|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
+    url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&country={countries}&https={kwargs.get('HTTPS', 'yes')}"
     # url += "&level=1|2"
 
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
     logging.info(f"{len(proxies)} proxies were found")
-    print(proxies)
-    # print()
+    if kwargs.get('show_country'):
+        return [x.split("#") for x in proxies]
 
     return proxies
 
