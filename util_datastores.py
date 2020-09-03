@@ -389,7 +389,7 @@ def parallel_write_s3_files(bucket, file_lot):
     for file_tuple in file_lot:
         t = threading.Thread(target = write_s3_file, args=(bucket, file_tuple[0], file_tuple[1])).start()
 
-    logging.info("Parallel write finished")
+    logging.info(f"Parallel write to S3 Bucket {bucket} has finished")
 
 def delete_s3_file(bucket, filename):
     s3 = boto3.resource("s3")

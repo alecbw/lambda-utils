@@ -73,7 +73,8 @@ def read_input_csv(filename, **kwargs):
         file_lod = file_lod[kwargs["start_row"]:]
 
     if kwargs.get("url_col"):
-        file_lol = [x[kwargs["url_col"]] for x in file_lod if is_url(x[kwargs["url_col"]])] # throw out empty cells
+        # file_lol = [x[kwargs["url_col"]] for x in file_lod if is_url(x[kwargs["url_col"]])] # throw out empty cells
+        file_lol = [x[kwargs["url_col"]] for x in file_lod if x] # throw out empty cells
         print(f"Length of input CSV after removing non-URL rows and accounting for start_at is: {len(file_lol)}")
         return file_lol
 

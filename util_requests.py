@@ -101,12 +101,14 @@ def rotate_accept():
 # TODO restore level
 def get_ds_proxy_list(**kwargs):
     countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
-    url = os.environ["DS_URL"] + f"&showcountry=no&country={countries}&https=yes" #OTOD HHTPS
+    url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&country={countries}&https=yes" #OTOD HHTPS
     # url += "&level=1|2"
 
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
     logging.info(f"{len(proxies)} proxies were found")
+    print(proxies)
+    # print()
 
     return proxies
 
@@ -139,8 +141,11 @@ def handle_request_exception(e):
         return None, 399
     elif "TimeoutError" in str(e):
         logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
-        return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 408
-    elif any(x for x in ["MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(type(e))):
+        return f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----', 408
+    elif "Caused by NewConnectionError" in str(e): # double check TODO
+        logging.warning(f'-----> ERROR. EFFECTIVE 404. {e}<-----')
+        return f'-----> ERROR. ROTATE YOUR PROXY. Request Threw NewConnectionError: {e} <-----', 404
+    elif any(x for x in ["MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
         logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
         return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
     else:
@@ -185,10 +190,10 @@ def site_request(url, proxy, wait, **kwargs):
         message, applied_status_code = handle_request_exception(e)
         return message, applied_status_code
 
-    if response.status_code not in [200, 202, 301, 302]:
-        logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
     if response.status_code in [502, 503, 999]:
         logging.warning(f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----')
+    elif response.status_code not in [200, 202, 301, 302]:
+        logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
 
     if kwargs.get("soup"):                       # Allow functions to specify if they want parsed soup or plain request resopnse
         return BeautifulSoup(response.content, 'html.parser'), response.status_code
