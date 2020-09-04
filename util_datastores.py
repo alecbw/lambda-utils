@@ -527,3 +527,32 @@ def aurora_execute_sql(db, sql, **kwargs):
     if not kwargs.get("disable_print"): logging.info(f"Successful execution: {sql} / {len(result)}")
 
     return result
+
+
+
+
+########################### ~ CloudWatch Specific ~ ###################################################
+
+# query = "fields @timestamp, @message | parse @message \"username: * ClinicID: * nodename: *\" as username, ClinicID, nodename | filter ClinicID = 7667 and username='simran+test@abc.com'"
+# log_group = '/aws/lambda/NAME_OF_YOUR_LAMBDA_FUNCTION'
+def cw_query_logs(query, log_group, lookback_hours):
+    client = boto3.client('logs')
+
+    start_query_response = client.start_query(
+        logGroupName=log_group,
+        startTime=int((datetime.today() - timedelta(hours=lookback_hours)).timestamp()),
+        endTime=int(datetime.now().timestamp()),
+        queryString=query,
+    )
+
+    response = None
+    while response == None or response['status'] == 'Running':
+        print('Waiting for query to complete ...')
+        time.sleep(1)
+        response = client.get_query_results(
+            queryId=start_query_response['queryId']
+        )
+
+    return response["results"]
+    # for invoke_logs in response['results']:
+        # for log_row in invoke_logs
