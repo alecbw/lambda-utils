@@ -120,6 +120,11 @@ def rotate_ds_proxy(proxies):
     proxy = proxies.pop(0)
     return proxy, proxies
 
+def rotate_proxy(proxies):
+    if not proxies:
+        proxies =  prioritize_proxy(scan_dynamodb('proxyTable'), "US")
+    return proxies.pop(0).get("full"), proxies
+
 
 # Sorts the list of proxies by location so the specified locations' proxies are first
 def prioritize_proxy(proxies, location):
@@ -132,26 +137,30 @@ def prioritize_proxy(proxies, location):
     return output_proxies_list
 
 
-def handle_request_exception(e):
+def handle_request_exception(e, disable_error_messages):
     if "Caused by SSLError(SSLCertVerificationError" in str(e):
-        logging.warning(f'-----> ERROR. Request Threw: Certificate Error. {e}<-----')
-        return None, 495
+        warning = f'-----> ERROR. Request Threw: Certificate Error. {e}<-----'
+        message, status_code = None, 495
     elif "Exceeded 30 redirects" in str(e):
-        logging.warning(f'-----> ERROR. Request Threw: Too Many Redirects Error. {e}<-----')
-        return None, 399
+        warning = f'-----> ERROR. Request Threw: Too Many Redirects Error. {e}<-----'
+        message, status_code = None, 399
     elif "TimeoutError" in str(e):
-        logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
-        return f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----', 408
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----'
+        message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----', 408
     elif "Caused by NewConnectionError" in str(e): # double check TODO
-        logging.warning(f'-----> ERROR. EFFECTIVE 404. {e}<-----')
-        return f'-----> ERROR. ROTATE YOUR PROXY. Request Threw NewConnectionError: {e} <-----', 404
+        warning = f'-----> ERROR. EFFECTIVE 404. {e}<-----'
+        message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw NewConnectionError: {e} <-----', 404
     elif any(x for x in ["MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
-        logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
-        return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----'
+        message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
     else:
-        logging.warning(f'-----> ERROR. Request Threw: Unknown Error. {e}<-----')
-        return f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
+        warning = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----'
+        message, status_code = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
 
+    if not disable_error_messages:
+        logging.warning(warning)
+
+    return message, status_code
 
 # Mock a browser and visit a site
 def site_request(url, proxy, wait, **kwargs):
@@ -171,28 +180,30 @@ def site_request(url, proxy, wait, **kwargs):
         'accept-language': rotate_language(),
         'accept': rotate_accept(),
         'cache-control': "no-cache",
-        'upgrade-insecure-requests': "1",                        # Allow redirects from HTTP -> HTTPS
         'DNT': "1",                                              # Ask the server to not be tracked (lol)
     }
+    if not kwargs.get("http_proxy"): headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
+
     try:
         approved_request_kwargs = ["prevent_redirects", "timeout", "hooks"]
-
         request_kwargs = {k:v for k,v in kwargs.items() if k in approved_request_kwargs}
         request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True
 
-        if proxy:
+        if kwargs.get("http_proxy"):
+            request_kwargs["proxies"] = {"http": f"http://{proxy}"}
+        elif proxy:
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
 
         logging.debug(f"Now requesting {url}")
         response = requests.get(url, headers=headers, **request_kwargs)
 
     except Exception as e:
-        message, applied_status_code = handle_request_exception(e)
+        message, applied_status_code = handle_request_exception(e, kwargs.get("disable_error_messages"))
         return message, applied_status_code
 
-    if response.status_code in [502, 503, 999]:
+    if response.status_code in [502, 503, 999] and not kwargs.get("disable_error_messages"):
         logging.warning(f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----')
-    elif response.status_code not in [200, 202, 301, 302]:
+    elif response.status_code not in [200, 202, 301, 302] and not kwargs.get("disable_error_messages"):
         logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
 
     if kwargs.get("soup"):                       # Allow functions to specify if they want parsed soup or plain request resopnse
