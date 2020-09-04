@@ -145,12 +145,12 @@ def handle_request_exception(e, disable_error_messages):
         warning = f'-----> ERROR. Request Threw: Too Many Redirects Error. {e}<-----'
         message, status_code = None, 399
     elif "TimeoutError" in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----'
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e}<-----'
         message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----', 408
     elif "Caused by NewConnectionError" in str(e): # double check TODO
         warning = f'-----> ERROR. EFFECTIVE 404. {e}<-----'
         message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw NewConnectionError: {e} <-----', 404
-    elif any(x for x in ["MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
+    elif any(x for x in ["HTTPConnectionPool", "MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
         warning = f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----'
         message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
     else:
@@ -161,6 +161,7 @@ def handle_request_exception(e, disable_error_messages):
         logging.warning(warning)
 
     return message, status_code
+
 
 # Mock a browser and visit a site
 def site_request(url, proxy, wait, **kwargs):
@@ -200,6 +201,8 @@ def site_request(url, proxy, wait, **kwargs):
     except Exception as e:
         message, applied_status_code = handle_request_exception(e, kwargs.get("disable_error_messages"))
         return message, applied_status_code
+
+    # if response.status_code in [406] and "Mod_Security" in response.text:
 
     if response.status_code in [502, 503, 999] and not kwargs.get("disable_error_messages"):
         logging.warning(f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----')
