@@ -281,7 +281,6 @@ def increment_dynamodb_item_counter(primary_key_value, counter_attr, table, **kw
     return result.get('Attributes')
 
 
-
 def upsert_dynamodb_item(key_dict, dict_of_attributes, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
     dict_of_attributes = standardize_dynamo_query(dict_of_attributes, **kwargs)
@@ -542,7 +541,6 @@ def cw_query_logs(query, log_group, lookback_hours):
 
     response = None
     while response == None or response['status'] == 'Running':
-        print('Waiting for query to complete ...')
         time.sleep(1)
         response = client.get_query_results(
             queryId=start_query_response['queryId']
