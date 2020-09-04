@@ -496,8 +496,6 @@ def sqs_read_message(queue_name, **kwargs):
     messages = [ez_try_and_get(data, "Messages", x, "Body") for x in range(response_number)]
     messages = [json.loads(x) if isinstance(x, str) else x for x in messages]
 
-
-
     if message_number != response_number:
         logging.warning(f"You requested {message_number} and you got {response_number} messages")
 
@@ -518,17 +516,15 @@ def sqs_read_message(queue_name, **kwargs):
 def aurora_execute_sql(db, sql, **kwargs):
     client = boto3.client('rds-data')
     result = client.execute_statement(
-            secretArn=os.environ["SM_SECRET_ARN"],
-            database=db, 
-            resourceArn=os.environ["DB_ARN"],
-            sql=sql,
-            parameters=[]
+        secretArn=os.environ["SM_SECRET_ARN"],
+        database=db,
+        resourceArn=os.environ["DB_ARN"],
+        sql=sql,
+        parameters=[]
     )
     if not kwargs.get("disable_print"): logging.info(f"Successful execution: {sql} / {len(result)}")
 
     return result
-
-
 
 
 ########################### ~ CloudWatch Specific ~ ###################################################
@@ -537,7 +533,6 @@ def aurora_execute_sql(db, sql, **kwargs):
 # log_group = '/aws/lambda/NAME_OF_YOUR_LAMBDA_FUNCTION'
 def cw_query_logs(query, log_group, lookback_hours):
     client = boto3.client('logs')
-
     start_query_response = client.start_query(
         logGroupName=log_group,
         startTime=int((datetime.today() - timedelta(hours=lookback_hours)).timestamp()),
