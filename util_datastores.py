@@ -1,4 +1,4 @@
-from utility.util import is_none, ez_try_and_get
+from utility.util import is_none, ez_try_and_get, ez_get
 
 import os
 from time import sleep
@@ -254,7 +254,7 @@ def get_dynamodb_item(primary_key_dict, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
 
     result = table.get_item(Key=primary_key_dict)
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Get from {table}: {result.get('Item', None)}")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Get from {table}: {result.get('Item', None)}")
     return standardize_dynamo_output(result.get('Item')) if result.get("Item") else None
 
 
@@ -262,7 +262,8 @@ def delete_dynamodb_item(unique_key, key_value, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
 
     result = table.delete_item(Key={unique_key:key_value})
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Delete from {table}")
+    print(result)
+    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Delete from {table}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
     return True
 
 # TODO test
