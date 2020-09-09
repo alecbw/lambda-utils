@@ -290,6 +290,7 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
     else:
         return null_value
 
+
 def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
     null_value = kwargs.get("null_value", "")
 

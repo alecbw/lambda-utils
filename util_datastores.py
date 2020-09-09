@@ -247,28 +247,26 @@ def parallel_scan_dynamodb(TableName, **kwargs):
 
 
 # If you set a composite primary key (both a HASH and RANGE, both a partition key and sort key), YOU NEED BOTH to getItem and updateItem
-def get_dynamodb_item(primary_key_dict, table, **kwargs):
+def get_dynamodb_item(primary_key_dict, table_name, **kwargs):
     if not isinstance(primary_key_dict, dict):
         raise ValueError("You need to pass a dict of primary_key:value and also a sort key if you have a composite")
 
-    table = boto3.resource('dynamodb').Table(table)
+    table = boto3.resource('dynamodb').Table(table_name)
 
     result = table.get_item(Key=primary_key_dict)
-    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Get from {table}: {result.get('Item', None)}")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Get from {table_name}: {result.get('Item', None)}")
     return standardize_dynamo_output(result.get('Item')) if result.get("Item") else None
 
 
-def delete_dynamodb_item(unique_key, key_value, table, **kwargs):
-    table = boto3.resource('dynamodb').Table(table)
+def delete_dynamodb_item(unique_key, key_value, table_name, **kwargs):
+    table = boto3.resource('dynamodb').Table(table_name)
 
     result = table.delete_item(Key={unique_key:key_value})
-    print(result)
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Delete from {table}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
-    return True
+    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Delete of key {key_value} from {table_name}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
 
 # TODO test
-def increment_dynamodb_item_counter(primary_key_value, counter_attr, table, **kwargs):
-    table = boto3.resource('dynamodb').Table(table)
+def increment_dynamodb_item_counter(primary_key_value, counter_attr, table_name, **kwargs):
+    table = boto3.resource('dynamodb').Table(table_name)
 
     update_item_dict = {
         "Key": primary_key_value,
@@ -278,12 +276,12 @@ def increment_dynamodb_item_counter(primary_key_value, counter_attr, table, **kw
         "ReturnValues": "UPDATED_OLD",
     }
     result = table.update_item(**update_item_dict)
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Increment from {table}")
+    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Increment from {table_name}")
     return result.get('Attributes')
 
 
-def upsert_dynamodb_item(key_dict, dict_of_attributes, table, **kwargs):
-    table = boto3.resource('dynamodb').Table(table)
+def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
+    table = boto3.resource('dynamodb').Table(table_name)
     dict_of_attributes = standardize_dynamo_query(dict_of_attributes, **kwargs)
 
     string_of_attributes = "SET "
@@ -301,7 +299,7 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table, **kwargs):
 
     result = table.update_item(**update_item_dict)
 
-    logging.info(f"Succcessfully did a Dynamo Upsert to {table}")
+    logging.info(f"Succcessfully did a Dynamo Upsert to {table_name}")
     if kwargs.get("print_old_values"):
         logging.info(f"The updates that were attributed (and their OLD VALUES): {result.get('Attributes', None)}")
 
