@@ -350,7 +350,7 @@ def list_s3_bucket_contents(bucket_name, path, **kwargs):
     if "start_on" in kwargs: filter_args["Marker"] = kwargs["start_on"]
     print(filter_args)
 
-    return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs.get("limit", None) if x.storage_class in storage_classes]
+    return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs.get("limit", None)) if x.storage_class in storage_classes]
         # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs["limit"])]
     #
     # return [x.key for x in bucket.objects.filter(**filter_args)]
