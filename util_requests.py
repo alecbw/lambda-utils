@@ -8,8 +8,9 @@ from time import sleep
 
 from bs4 import BeautifulSoup, element, NavigableString
 import requests
+from urllib3.packages.ssl_match_hostname import CertificateError
 from urllib3.exceptions import MaxRetryError, ProtocolError
-from requests.exceptions import ProxyError, ConnectionError, HTTPError, SSLError, Timeout
+from requests.exceptions import ProxyError, ConnectionError, HTTPError, SSLError, Timeout, TooManyRedirects
 
 
 def api_request(url, request_type, **kwargs):
@@ -97,13 +98,18 @@ def rotate_accept():
 
 ################################# ~ Outbound Requests ~ ####################################
 
-
+# TODO restore level
 def get_ds_proxy_list(**kwargs):
-    countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
-    url = os.environ["DS_URL"] + f"&showcountry=no&level=1|2&country={countries}&https=yes" #OTOD HHTPS
+    countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GB|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
+    url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&country={countries}&https={kwargs.get('HTTPS', 'yes')}"
+    url += "&level=1|2"
+
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
     logging.info(f"{len(proxies)} proxies were found")
+    if kwargs.get('show_country'):
+        return [x.split("#") for x in proxies]
+
     return proxies
 
 def rotate_ds_proxy(proxies):
@@ -113,6 +119,11 @@ def rotate_ds_proxy(proxies):
 
     proxy = proxies.pop(0)
     return proxy, proxies
+
+def rotate_proxy(proxies):
+    if not proxies:
+        proxies =  prioritize_proxy(scan_dynamodb('proxyTable'), "US")
+    return proxies.pop(0).get("full"), proxies
 
 
 # Sorts the list of proxies by location so the specified locations' proxies are first
@@ -126,6 +137,32 @@ def prioritize_proxy(proxies, location):
     return output_proxies_list
 
 
+def handle_request_exception(e, disable_error_messages):
+    if "Caused by SSLError(SSLCertVerificationError" in str(e):
+        warning = f'-----> ERROR. Request Threw: Certificate Error. {e}<-----'
+        message, status_code = None, 495
+    elif "Exceeded 30 redirects" in str(e):
+        warning = f'-----> ERROR. Request Threw: Too Many Redirects Error. {e}<-----'
+        message, status_code = None, 399
+    elif "TimeoutError" in str(e):
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e}<-----'
+        message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----', 408
+    elif "Caused by NewConnectionError" in str(e): # double check TODO
+        warning = f'-----> ERROR. EFFECTIVE 404. {e}<-----'
+        message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw NewConnectionError: {e} <-----', 404
+    elif any(x for x in ["HTTPConnectionPool", "MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----'
+        message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
+    else:
+        warning = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----'
+        message, status_code = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
+
+    if not disable_error_messages:
+        logging.warning(warning)
+
+    return message, status_code
+
+
 # Mock a browser and visit a site
 def site_request(url, proxy, wait, **kwargs):
     if wait and wait != 0:
@@ -135,7 +172,7 @@ def site_request(url, proxy, wait, **kwargs):
         url = url.split("://", 1)[1] if "://" in url else url
         url = url.split("www.", 1)[1] if "www." in url else url
         url = "https://" + url
-        print(url)
+
     # Spoof a typical browser header. HTTP Headers are case-insensitive.
     headers = {
         'user-agent': kwargs.get("agent", rotate_agent()),
@@ -144,34 +181,33 @@ def site_request(url, proxy, wait, **kwargs):
         'accept-language': rotate_language(),
         'accept': rotate_accept(),
         'cache-control': "no-cache",
-        'upgrade-insecure-requests': "1",                        # Allow redirects from HTTP -> HTTPS
         'DNT': "1",                                              # Ask the server to not be tracked (lol)
     }
+    if not kwargs.get("http_proxy"): headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
+
     try:
-
         approved_request_kwargs = ["prevent_redirects", "timeout", "hooks"]
-
         request_kwargs = {k:v for k,v in kwargs.items() if k in approved_request_kwargs}
-
         request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True
 
-        if proxy:
+        if kwargs.get("http_proxy"):
+            request_kwargs["proxies"] = {"http": f"http://{proxy}"}
+        elif proxy:
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
 
-        print(url)
+        logging.debug(f"Now requesting {url}")
         response = requests.get(url, headers=headers, **request_kwargs)
 
-    except (MaxRetryError, ProxyError, SSLError, ProtocolError, Timeout, ConnectionError, HTTPError) as e:
-        logging.warning(f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----')
-        return f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
     except Exception as e:
-        logging.warning(f'-----> ERROR. Request Threw: Unknown Error. {e}<-----')
-        return f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
+        message, applied_status_code = handle_request_exception(e, kwargs.get("disable_error_messages"))
+        return message, applied_status_code
 
-    if response.status_code not in [200, 202, 301, 302]:
-        logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
-    if response.status_code in [502, 503, 999]:
+    # if response.status_code in [406] and "Mod_Security" in response.text:
+
+    if response.status_code in [502, 503, 999] and not kwargs.get("disable_error_messages"):
         logging.warning(f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----')
+    elif response.status_code not in [200, 202, 301, 302] and not kwargs.get("disable_error_messages"):
+        logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
 
     if kwargs.get("soup"):                       # Allow functions to specify if they want parsed soup or plain request resopnse
         return BeautifulSoup(response.content, 'html.parser'), response.status_code
@@ -202,6 +238,11 @@ def iterative_managed_site_request(url_list, **kwargs):
 
 ############################## ~ Handling HTML ~ ####################################
 
+def extract_stripped_string(html_tag):
+    if not html_tag or not html_tag.get_text():
+        return html_tag
+
+    return html_tag.get_text().strip().replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
 
 # Will extract the text from, and concatenate together, all elements of a given selector
 def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
@@ -209,12 +250,17 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
         logging.warning('no enclosing element for flatten_enclosed_elements')
         return None
 
-    text_list = []
-    for ele in enclosing_element.findAll(selector_type):
-        if ele and ele.get_text():
-            text_list.append(ele.get_text().strip().replace("\n", "").replace("\r", ""))
+    selector_type = None if selector_type.lower() == "all" else selector_type
+    child_elements = enclosing_element.find_all(selector_type)
 
-    return ", ".join(text_list) if kwargs.get("output_str") else text_list
+    text_list = []
+    for ele in child_elements:
+        ele_str = extract_stripped_string(ele)
+        if isinstance(ele_str, str):
+            text_list.append(ele_str)
+
+    join_delim = kwargs.get("delim", ", ")
+    return join_delim.join(text_list) if kwargs.get("output_str") or kwargs.get("delim") else text_list
 
 
 # Will extract the text from selectors nextSibling to the selector you can access. TODO
@@ -224,7 +270,7 @@ def flatten_neighboring_selectors(enclosing_element, selector_type, **kwargs):
         return None
 
     text_list = []
-    for ele in enclosing_element.findAll(selector_type):
+    for ele in enclosing_element.find_all(selector_type):
         next_s = ele.nextSibling
         if not (next_s and isinstance(next_s, NavigableString)):
             continue # TODO extract with .string
@@ -243,6 +289,7 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
         return data
     else:
         return null_value
+
 
 def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
     null_value = kwargs.get("null_value", "")
@@ -266,10 +313,16 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             else:
                 html_tag = html_tag.key if html_tag else html_tag
 
+        if kwargs.get("get_link") and html_tag:
+            return html_tag.get("href").strip() if html_tag.get("href") else html_tag.a.get("href", null_value).strip()
+            # return html_link.strip()
+        elif kwargs.get("meta") and html_tag:
+            return html_tag.get("content") if html_tag.get("content") else null_value
+
         if isinstance(html_tag, NavigableString):
-            return str(html_tag).replace("\n", "").strip() if (html_tag and str(html_tag)) else null_value
+            return str(html_tag).replace("\n", "").replace('\\xa0', ' ').strip() if (html_tag and str(html_tag)) else null_value
         else:
-            return html_tag.get_text().replace("\n", "").strip() if (html_tag and html_tag.get_text().strip()) else null_value
+            return html_tag.get_text().replace("\n", "").replace('\\xa0', ' ').strip() if (html_tag and html_tag.get_text().strip()) else null_value
 
     except Exception as e:
         logging.warning(e)

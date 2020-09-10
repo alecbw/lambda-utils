@@ -7,9 +7,10 @@ import logging
 try:
     import sentry_sdk
     from sentry_sdk.integrations.aws_lambda import AwsLambdaIntegration
+    sentry_kwargs = {"integrations": [AwsLambdaIntegration()]} if os.environ.get("_HANDLER") else {}
     sentry_sdk.init(
         dsn=os.environ["SENTRY_DSN"],
-        integrations=[AwsLambdaIntegration()]
+        **sentry_kwargs
     )
 except ImportError:
     logging.warning("Sentry did not init")
@@ -38,7 +39,7 @@ def validate_params(event, required_params, **kwargs):
 
 # unpack the k:v pairs into the top level dict. Standard across invoke types.
 def standardize_event(event):
-    # if event.get("body"):  # POST, synchronous API Gateawy TODO
+    # if event.get("body"):  # POST, synchronous API Gateway TODO
     #     event.update(event["body"])
     if event.get("queryStringParameters"):  # GET, synchronous API Gateway
         event.update(event["queryStringParameters"])
@@ -67,7 +68,7 @@ def package_response(message, status_code, **kwargs):
 
 def invoke_lambda(params, function_name, invoke_type):
 
-    lambda_client = boto3.client("lambda")
+    lambda_client = boto3.client("lambda", region_name="us-west-1")
     lambda_response = lambda_client.invoke(
         FunctionName=function_name,
         InvocationType=invoke_type,
@@ -141,15 +142,13 @@ def ez_join(phrase, delimiter):
 
 
 def ez_split(phrase, delimiter, return_slice):
-
     if not (phrase and delimiter in phrase):
         return phrase
 
     if type(return_slice) != type(True) and isinstance(return_slice, int):
         return phrase.split(delimiter)[return_slice]
     else:
-        output_list = phrase.split(delimiter)
-        return [x.strip() for x in output_list]
+        return [x.strip() for x in phrase.split(delimiter)]
 
 
 def is_lod(possible_lod):
@@ -170,9 +169,10 @@ def is_none(value, **kwargs):
 
 
 def is_url(value):
-    tld_list = ['.de', '.com', '.info', '.es', '.mil', '.no', '.vc', '.au', '.se', '.io', '.tv', '.co', '.fr', '.uk', '.ai', '.ch', '.org', '.ca', '.gov', '.ly', '.net', '.ru', '.nl', '.us', '.it', '.jp', '.edu', '.biz', '.xml', '.ph', '.id', '.tw', '.hk', '.ro', '.eu', '.in', '.by', '.mx', '.cz', '.dk', '.si', '.solutions', '.fi', '.life', '.city', '.ie', '.br', '.pk', '.be', '.ae', '.pl', '.do', '.earth', '.lt', '.pt', '.cl', '.br', '.cd', '.uz', '.nu', '.cn', '.at', '.fm', '.ir', '.nz', '.trading', '.mn', '.wales']
+    tld_list = ['.de', '.html', '.com', '.info', '.es', '.mil', '.no', '.vc', '.au', '.se', '.io', '.tv', '.co', '.fr', '.uk', '.ai', '.ch', '.org', '.ca', '.gov', '.ly', '.net', '.ru', '.nl', '.us', '.it', '.jp', '.edu', '.biz', '.xml', '.ph', '.id', '.tw', '.hk', '.ro', '.eu', '.in', '.by', '.mx', '.cz', '.dk', '.si', '.solutions', '.fi', '.life', '.city', '.ie', '.br', '.pk', '.be', '.ae', '.pl', '.do', '.earth', '.lt', '.pt', '.cl', '.br', '.cd', '.uz', '.nu', '.cn', '.at', '.fm', '.ir', '.nz', '.trading', '.mn', '.wales']
     if any(tld for tld in tld_list if tld.lower().strip() in value.lower().strip()):
         return True
+    print(value)
 
     return False
 
@@ -215,7 +215,7 @@ def format_url(url, **kwargs):
     if kwargs.get("https"):
         url = "https://" + url
     if kwargs.get("remove_trailing_slash") and url.endswith("/"):
-        url = ez_split(url, "/", 0)
+        url = url.rstrip("/")
 
     return url.rstrip()
 

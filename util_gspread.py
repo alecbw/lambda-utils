@@ -10,7 +10,7 @@ def auth_gspread():
         "client_email": os.environ["GSHEETS_CLIENT_EMAIL"],
         "token_uri": "https://oauth2.googleapis.com/token",
     }
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     credentials = service_account.Credentials.from_service_account_info(auth, scopes=scopes)
     return gspread.authorize(credentials)
 
@@ -22,7 +22,7 @@ def open_gsheet(sheet_name):
         sh = gc.open_by_url(sheet_name)
     elif len(sheet_name) == 44:
         sh = gc.open_by_key(sheet_name)
-    else: # TODO THIS THROWS A SCOPE ERROR
+    else:  # You must have enabled the Google Drive API in console.developers.google.com to use this
         sh = gc.open(sheet_name)
 
     worksheet_list = get_gsheet_worksheet_names(sh)
@@ -55,3 +55,8 @@ def create_gsheet_worksheet(sh, tab_name, **kwargs):
         rows=kwargs.get("rows", "50"),
         cols=kwargs.get("cols", "5")
     )
+
+
+def simple_tab_append(sheet, tab, data_lol):
+    sh, worksheet_list = open_gsheet(sheet)
+    sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})

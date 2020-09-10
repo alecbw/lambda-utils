@@ -1,4 +1,4 @@
-from utility.util import is_none, ez_try_and_get
+from utility.util import is_none, ez_try_and_get, ez_get
 
 import os
 from time import sleep
@@ -8,6 +8,7 @@ from decimal import *
 import json
 import concurrent.futures
 import itertools
+import threading
 
 import boto3
 from botocore.exceptions import ClientError
@@ -246,27 +247,26 @@ def parallel_scan_dynamodb(TableName, **kwargs):
 
 
 # If you set a composite primary key (both a HASH and RANGE, both a partition key and sort key), YOU NEED BOTH to getItem and updateItem
-def get_dynamodb_item(primary_key_dict, table, **kwargs):
+def get_dynamodb_item(primary_key_dict, table_name, **kwargs):
     if not isinstance(primary_key_dict, dict):
         raise ValueError("You need to pass a dict of primary_key:value and also a sort key if you have a composite")
 
-    table = boto3.resource('dynamodb').Table(table)
+    table = boto3.resource('dynamodb').Table(table_name)
 
     result = table.get_item(Key=primary_key_dict)
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Get from {table}: {result.get('Item', None)}")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Get from {table_name}: {result.get('Item', None)}")
     return standardize_dynamo_output(result.get('Item')) if result.get("Item") else None
 
 
-def delete_dynamodb_item(unique_key, key_value, table, **kwargs):
-    table = boto3.resource('dynamodb').Table(table)
+def delete_dynamodb_item(unique_key, key_value, table_name, **kwargs):
+    table = boto3.resource('dynamodb').Table(table_name)
 
     result = table.delete_item(Key={unique_key:key_value})
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Delete from {table}")
-    return True
+    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Delete of key {key_value} from {table_name}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
 
 # TODO test
-def increment_dynamodb_item_counter(primary_key_value, counter_attr, table, **kwargs):
-    table = boto3.resource('dynamodb').Table(table)
+def increment_dynamodb_item_counter(primary_key_value, counter_attr, table_name, **kwargs):
+    table = boto3.resource('dynamodb').Table(table_name)
 
     update_item_dict = {
         "Key": primary_key_value,
@@ -276,13 +276,12 @@ def increment_dynamodb_item_counter(primary_key_value, counter_attr, table, **kw
         "ReturnValues": "UPDATED_OLD",
     }
     result = table.update_item(**update_item_dict)
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Increment from {table}")
+    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Increment from {table_name}")
     return result.get('Attributes')
 
 
-
-def upsert_dynamodb_item(key_dict, dict_of_attributes, table, **kwargs):
-    table = boto3.resource('dynamodb').Table(table)
+def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
+    table = boto3.resource('dynamodb').Table(table_name)
     dict_of_attributes = standardize_dynamo_query(dict_of_attributes, **kwargs)
 
     string_of_attributes = "SET "
@@ -300,7 +299,7 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table, **kwargs):
 
     result = table.update_item(**update_item_dict)
 
-    logging.info(f"Succcessfully did a Dynamo Upsert to {table}")
+    logging.info(f"Succcessfully did a Dynamo Upsert to {table_name}")
     if kwargs.get("print_old_values"):
         logging.info(f"The updates that were attributed (and their OLD VALUES): {result.get('Attributes', None)}")
 
@@ -374,13 +373,21 @@ def stream_s3_file(bucket, filename, **kwargs):
 
 
 def write_s3_file(bucket, filename, json_data, **kwargs):
-    s3 = boto3.resource("s3")
-    s3_object = s3.Object(bucket, filename)
+    s3_object = boto3.resource("s3").Object(bucket, filename)
     output = s3_object.put(Body=(bytes(json.dumps(json_data).encode("UTF-8"))))
     status_code = ez_try_and_get(output, 'ResponseMetadata', 'HTTPStatusCode')
-    if not kwargs.get("disable_print"): logging.info(f"Successful write to {filename} / {status_code}")
+    if kwargs.get("enable_print"): logging.info(f"Successful write to {filename} / {status_code}")
     return status_code
 
+
+#http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
+# list of tuples
+def parallel_write_s3_files(bucket, file_lot):
+    boto3.client('s3')
+    for file_tuple in file_lot:
+        t = threading.Thread(target = write_s3_file, args=(bucket, file_tuple[0], file_tuple[1])).start()
+
+    logging.info(f"Parallel write to S3 Bucket {bucket} has finished")
 
 def delete_s3_file(bucket, filename):
     s3 = boto3.resource("s3")
@@ -507,12 +514,37 @@ def sqs_read_message(queue_name, **kwargs):
 def aurora_execute_sql(db, sql, **kwargs):
     client = boto3.client('rds-data')
     result = client.execute_statement(
-            secretArn=os.environ["SM_SECRET_ARN"],
-            database=db, 
-            resourceArn=os.environ["DB_ARN"],
-            sql=sql,
-            parameters=[]
+        secretArn=os.environ["SM_SECRET_ARN"],
+        database=db,
+        resourceArn=os.environ["DB_ARN"],
+        sql=sql,
+        parameters=[]
     )
     if not kwargs.get("disable_print"): logging.info(f"Successful execution: {sql} / {len(result)}")
 
     return result
+
+
+########################### ~ CloudWatch Specific ~ ###################################################
+
+# query = "fields @timestamp, @message | parse @message \"username: * ClinicID: * nodename: *\" as username, ClinicID, nodename | filter ClinicID = 7667 and username='simran+test@abc.com'"
+# log_group = '/aws/lambda/NAME_OF_YOUR_LAMBDA_FUNCTION'
+def cw_query_logs(query, log_group, lookback_hours):
+    client = boto3.client('logs')
+    start_query_response = client.start_query(
+        logGroupName=log_group,
+        startTime=int((datetime.today() - timedelta(hours=lookback_hours)).timestamp()),
+        endTime=int(datetime.now().timestamp()),
+        queryString=query,
+    )
+
+    response = None
+    while response == None or response['status'] == 'Running':
+        time.sleep(1)
+        response = client.get_query_results(
+            queryId=start_query_response['queryId']
+        )
+
+    return response["results"]
+    # for invoke_logs in response['results']:
+        # for log_row in invoke_logs
