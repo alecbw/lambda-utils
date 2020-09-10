@@ -342,21 +342,23 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
 
 
 # The path should be `folder/` NOT `/folder`
-def list_s3_bucket_contents(bucket, path, **kwargs):
-    s3 = boto3.resource("s3")
-    bucket = s3.Bucket(bucket)
+def list_s3_bucket_contents(bucket_name, path, **kwargs):
+    bucket = boto3.resource("s3").Bucket(bucket_name)
+    filter_args = {"Prefix": path}
+    if "limit" in kwargs: filter_args["MaxKeys"] = kwargs["limit"]
+    if "start_on" in kwargs: filter_args["KeyMarker"] = kwargs["start_on"]
+    print(filter_args)
     if kwargs.get("ignore_glacier"):
-        return [x.key for x in bucket.objects.filter(Prefix=path) if x.storage_class == 'STANDARD']
-    if kwargs.get("limit"):
-        return [x.key for x in bucket.objects.filter(Prefix=path).limit(kwargs["limit"])]
+        return [x.key for x in bucket.objects.filter(**filter_args) if x.storage_class == 'STANDARD']
+        # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs["limit"])]
 
-    return [x.key for x in bucket.objects.filter(Prefix=path)]
+    return [x.key for x in bucket.objects.filter(**filter_args)]
 
 
 # default encoding of ISO-8859-1? TODO
-def get_s3_file(bucket, filename, **kwargs):
+def get_s3_file(bucket_name, filename, **kwargs):
     try:
-        s3_obj = boto3.client("s3").get_object(Bucket=bucket, Key=filename)["Body"]
+        s3_obj = boto3.client("s3").get_object(Bucket=bucket_name, Key=filename)["Body"]
         return s3_obj if kwargs.get("raw") else s3_obj.read().decode('utf-8')
     except s3.exceptions.NoSuchKey:
         logging.error(f"S3 file requested: {filename} does not exist")
@@ -366,14 +368,14 @@ def get_s3_file(bucket, filename, **kwargs):
 
 
 # for use with `for line in body`
-def stream_s3_file(bucket, filename, **kwargs):
+def stream_s3_file(bucket_name, filename, **kwargs):
     s3 = boto3.resource('s3')
-    s3_object = s3.Object(Bucket=bucket, Key=filename)
+    s3_object = s3.Object(Bucket=bucket_name, Key=filename)
     return s3_object.get()['Body'] #body returns streaming string
 
 
-def write_s3_file(bucket, filename, json_data, **kwargs):
-    s3_object = boto3.resource("s3").Object(bucket, filename)
+def write_s3_file(bucket_name, filename, json_data, **kwargs):
+    s3_object = boto3.resource("s3").Object(bucket_name, filename)
     response = s3_object.put(Body=(bytes(json.dumps(json_data).encode("UTF-8"))))
     status_code = ez_try_and_get(response, 'ResponseMetadata', 'HTTPStatusCode')
     if kwargs.get("enable_print"): logging.info(f"Successful write to {filename} / {status_code}")
@@ -382,17 +384,17 @@ def write_s3_file(bucket, filename, json_data, **kwargs):
 
 #http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
 # list of tuples
-def parallel_write_s3_files(bucket, file_lot):
+def parallel_write_s3_files(bucket_name, file_lot):
     boto3.client('s3')
     for file_tuple in file_lot:
-        t = threading.Thread(target = write_s3_file, args=(bucket, file_tuple[0], file_tuple[1])).start()
+        t = threading.Thread(target = write_s3_file, args=(bucket_name, file_tuple[0], file_tuple[1])).start()
 
-    logging.info(f"Parallel write to S3 Bucket {bucket} has finished")
+    logging.info(f"Parallel write to S3 Bucket {bucket_name} has finished")
 
 
-def delete_s3_file(bucket, filename, **kwargs):
+def delete_s3_file(bucket_name, filename, **kwargs):
     try:
-        response = boto3.resource("s3").Object(bucket, filename).delete()
+        response = boto3.resource("s3").Object(bucket_name, filename).delete()
         status_code = ez_try_and_get(response, 'ResponseMetadata', 'HTTPStatusCode')
         if not kwargs.get("disable_print"): logging.info(f"Successful delete of {filename} - Status Code: {status_code}")
         return status_code
@@ -407,10 +409,10 @@ Minimums for storage classes:
     1Z Infrequent - 30 days
     Glacier - 90 days
 """
-def move_s3_file_to_glacier(bucket, path):
+def move_s3_file_to_glacier(bucket_name, path):
     s3 = boto3.client('s3')
 
-    s3.copy({"Bucket": bucket, "Key": path}, bucket, path,
+    s3.copy({"Bucket": bucket_name, "Key": path}, bucket_name, path,
         ExtraArgs={'StorageClass': 'GLACIER', 'MetadataDirective': 'COPY'})
     return
 
