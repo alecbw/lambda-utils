@@ -487,8 +487,6 @@ def sqs_read_message(queue_name, **kwargs):
     messages = [ez_try_and_get(data, "Messages", x, "Body") for x in range(response_number)]
     messages = [json.loads(x) if isinstance(x, str) else x for x in messages]
 
-
-
     if message_number != response_number:
         logging.warning(f"You requested {message_number} and you got {response_number} messages")
 
