@@ -341,7 +341,7 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
 #################### ~ S3 Specific ~ ##########################################
 
 
-# The path should be `folder/` NOT `/folderÅ`
+# The path should be `folder/` NOT `/folder`
 def list_s3_bucket_contents(bucket, path, **kwargs):
     s3 = boto3.resource("s3")
     bucket = s3.Bucket(bucket)
@@ -389,10 +389,12 @@ def parallel_write_s3_files(bucket, file_lot):
 
     logging.info(f"Parallel write to S3 Bucket {bucket} has finished")
 
-def delete_s3_file(bucket, filename):
+def delete_s3_file(bucket, filename, **kwargs):
     s3 = boto3.resource("s3")
     try:
-        s3.Object(bucket, filename).delete()
+        response = s3.Object(bucket, filename).delete()
+        print(response)
+        if not kwargs.get("disable_print"): logging.info(f"Successful delete of {filename}")
         return 200
     except ClientError as e:
         logging.error(e)
