@@ -374,8 +374,8 @@ def stream_s3_file(bucket, filename, **kwargs):
 
 def write_s3_file(bucket, filename, json_data, **kwargs):
     s3_object = boto3.resource("s3").Object(bucket, filename)
-    output = s3_object.put(Body=(bytes(json.dumps(json_data).encode("UTF-8"))))
-    status_code = ez_try_and_get(output, 'ResponseMetadata', 'HTTPStatusCode')
+    response = s3_object.put(Body=(bytes(json.dumps(json_data).encode("UTF-8"))))
+    status_code = ez_try_and_get(response, 'ResponseMetadata', 'HTTPStatusCode')
     if kwargs.get("enable_print"): logging.info(f"Successful write to {filename} / {status_code}")
     return status_code
 
@@ -389,13 +389,14 @@ def parallel_write_s3_files(bucket, file_lot):
 
     logging.info(f"Parallel write to S3 Bucket {bucket} has finished")
 
+
 def delete_s3_file(bucket, filename, **kwargs):
-    s3 = boto3.resource("s3")
     try:
-        response = s3.Object(bucket, filename).delete()
-        print(response)
-        if not kwargs.get("disable_print"): logging.info(f"Successful delete of {filename}")
-        return 200
+        response = boto3.resource("s3").Object(bucket, filename).delete()
+        status_code = ez_try_and_get(response, 'ResponseMetadata', 'HTTPStatusCode')
+        if not kwargs.get("disable_print"): logging.info(f"Successful delete of {filename} - Status Code: {status_code}")
+        return status_code
+
     except ClientError as e:
         logging.error(e)
         return e
