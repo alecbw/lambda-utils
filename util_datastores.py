@@ -344,15 +344,16 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
 # The path should be `folder/` NOT `/folder`
 def list_s3_bucket_contents(bucket_name, path, **kwargs):
     bucket = boto3.resource("s3").Bucket(bucket_name)
+    storage_classes = ["STANDARD"] if kwargs.get("ignore_glacier") else ["STANDARD", "STANDARD_IA", "GLACIER"]
     filter_args = {"Prefix": path}
-    if "limit" in kwargs: filter_args["MaxKeys"] = kwargs["limit"]
+    # if "limit" in kwargs: filter_args["MaxKeys"] = kwargs["limit"]
     if "start_on" in kwargs: filter_args["Marker"] = kwargs["start_on"]
     print(filter_args)
-    if kwargs.get("ignore_glacier"):
-        return [x.key for x in bucket.objects.filter(**filter_args) if x.storage_class == 'STANDARD']
-        # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs["limit"])]
 
-    return [x.key for x in bucket.objects.filter(**filter_args)]
+    return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs.get("limit", None) if x.storage_class in storage_classes]
+        # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs["limit"])]
+    #
+    # return [x.key for x in bucket.objects.filter(**filter_args)]
 
 
 # default encoding of ISO-8859-1? TODO
