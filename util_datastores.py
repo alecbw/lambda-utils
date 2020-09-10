@@ -355,10 +355,8 @@ def list_s3_bucket_contents(bucket, path, **kwargs):
 
 # default encoding of ISO-8859-1? TODO
 def get_s3_file(bucket, filename, **kwargs):
-    s3 = boto3.client("s3")
-
     try:
-        s3_obj = s3.get_object(Bucket=bucket, Key=filename)["Body"]
+        s3_obj = boto3.client("s3").get_object(Bucket=bucket, Key=filename)["Body"]
         return s3_obj if kwargs.get("raw") else s3_obj.read().decode('utf-8')
     except s3.exceptions.NoSuchKey:
         logging.error(f"S3 file requested: {filename} does not exist")
