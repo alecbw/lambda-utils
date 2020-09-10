@@ -356,7 +356,7 @@ def list_s3_bucket_contents(bucket_name, path, **kwargs):
     print(filter_args)
 
     response = client.list_objects_v2(**filter_args)
-    return [x.Name for x in response["Contents"]]
+    return [x.get("Name") for x in response["Contents"]]
     # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs.get("limit", None)) if x.storage_class in storage_classes]
         # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs["limit"])]
     # return [x.key for x in bucket.objects.filter(**filter_args)]
