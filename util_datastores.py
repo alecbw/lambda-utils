@@ -347,6 +347,8 @@ def list_s3_bucket_contents(bucket, path, **kwargs):
     bucket = s3.Bucket(bucket)
     if kwargs.get("ignore_glacier"):
         return [x.key for x in bucket.objects.filter(Prefix=path) if x.storage_class == 'STANDARD']
+    if kwargs.get("limit"):
+        return [x.key for x in bucket.objects.filter(Prefix=path).limit(kwargs["limit"])]
 
     return [x.key for x in bucket.objects.filter(Prefix=path)]
 
