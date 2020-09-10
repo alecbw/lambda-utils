@@ -341,19 +341,45 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
 #################### ~ S3 Specific ~ ##########################################
 
 
-# The path should be `folder/` NOT `/folder`
-def list_s3_bucket_contents(bucket_name, path, **kwargs):
+def get_s3_bucket_file_count(bucket_name, path):
     bucket = boto3.resource("s3").Bucket(bucket_name)
+    return sum(1 for _ in bucket.objects.all())
+
+# The path should be `folder/` NOT `/folder`
+# MaxKeys = number of results per page, NOT number of total results
+def list_s3_bucket_contents(bucket_name, path, **kwargs):
+    client = boto3.client("s3")
     storage_classes = ["STANDARD"] if kwargs.get("ignore_glacier") else ["STANDARD", "STANDARD_IA", "GLACIER"]
-    filter_args = {"Prefix": path}
-    # if "limit" in kwargs: filter_args["MaxKeys"] = kwargs["limit"]
-    if "start_on" in kwargs: filter_args["Marker"] = kwargs["start_on"]
+    filter_args = {"Bucket":bucket_name, "Prefix": path}
+    if "start_after" in kwargs: filter_args["StartAfter"] = kwargs["start_after"]
+    if "limit" in kwargs: filter_args["MaxKeys"] = kwargs["limit"]
     print(filter_args)
 
-    return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs.get("limit", None)) if x.storage_class in storage_classes]
+    response = client.list_objects_v2(**filter_args)
+    return [x.Name for x in response["Contents"]]
+    # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs.get("limit", None)) if x.storage_class in storage_classes]
         # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs["limit"])]
-    #
     # return [x.key for x in bucket.objects.filter(**filter_args)]
+
+#
+# def list_s3_bucket_contents(bucket_name, path, **kwargs):
+#     bucket = boto3.resource("s3").Bucket(bucket_name)
+#     storage_classes = ["STANDARD"] if kwargs.get("ignore_glacier") else ["STANDARD", "STANDARD_IA", "GLACIER"]
+#     filter_args = {"Prefix": path}
+#     if "start_on" in kwargs: filter_args["StartAfter"] = kwargs["start_on"]
+#     if "limit" in kwargs: filter_args["MaxKeys"] = kwargs["limit"]
+#     print(filter_args)
+#
+#     # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs.get("limit", None)) if x.storage_class in storage_classes]
+#         # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs["limit"])]
+#     client = boto3.client("s3")
+#     # return [x.key for x in bucket.objects.filter(**filter_args)]
+#     response = client.list_objects_v2(
+#         bucket=bucket_name
+#         prefix=path,
+#         **filter_args
+#     )
+
 
 
 # default encoding of ISO-8859-1? TODO
