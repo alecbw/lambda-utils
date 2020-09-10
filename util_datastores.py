@@ -346,7 +346,7 @@ def list_s3_bucket_contents(bucket_name, path, **kwargs):
     bucket = boto3.resource("s3").Bucket(bucket_name)
     filter_args = {"Prefix": path}
     if "limit" in kwargs: filter_args["MaxKeys"] = kwargs["limit"]
-    if "start_on" in kwargs: filter_args["KeyMarker"] = kwargs["start_on"]
+    if "start_on" in kwargs: filter_args["Marker"] = kwargs["start_on"]
     print(filter_args)
     if kwargs.get("ignore_glacier"):
         return [x.key for x in bucket.objects.filter(**filter_args) if x.storage_class == 'STANDARD']
