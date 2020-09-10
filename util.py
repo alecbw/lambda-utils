@@ -131,10 +131,10 @@ def ez_try_and_get(nested_data, *keys):
 def ez_join(phrase, delimiter):
     if is_none(phrase):
         return ""
+    elif isinstance(phrase, list) or isinstance(phrase, set):
+        return delimiter.join(str(v) for v in phrase)
     elif isinstance(phrase, str):
         return phrase
-    elif isinstance(phrase, list):
-        return delimiter.join(str(v) for v in phrase)
     elif type(phrase) == 'numpy.ndarray':
         return delimiter.join(list(phrase))
     else:
