@@ -40,7 +40,7 @@ def write_to_gsheet(rows_lod, sheet, tab, primary_key, **kwargs):
     else:
         print(f"Error writing to Google Sheet {sheet}. Status code {status_code}; message: {resp}")
 
-
+# Use if you're hitting the 2MB Lambda limit
 def naive_append_gsheet_tab(sheet, tab, data_lod, headers):
     data_lol = []
     for row in data_lod:
@@ -52,8 +52,10 @@ def naive_append_gsheet_tab(sheet, tab, data_lod, headers):
 ########################################################################################################################
 
 
-def append_to_csv(rows_lod, csv_type):
-    with open(f'output 3 {csv_type}.csv', 'a+', newline='') as output_file:
+def append_to_csv(rows_lod, csv_name):
+    csv_name = csv_name + ".csv" if ".csv" not in csv_name else csv_name
+
+    with open(csv_name, 'a+', newline='') as output_file:
         dict_writer = csv.DictWriter(output_file, rows_lod[0].keys())
         dict_writer.writerows(rows_lod)
 
