@@ -357,11 +357,8 @@ def list_s3_bucket_contents(bucket_name, path, **kwargs):
 
     response = client.list_objects_v2(**filter_args)
     return [x.get("Key") for x in response["Contents"]]
-    # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs.get("limit", None)) if x.storage_class in storage_classes]
-        # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs["limit"])]
-    # return [x.key for x in bucket.objects.filter(**filter_args)]
 
-#
+
 # def list_s3_bucket_contents(bucket_name, path, **kwargs):
 #     bucket = boto3.resource("s3").Bucket(bucket_name)
 #     storage_classes = ["STANDARD"] if kwargs.get("ignore_glacier") else ["STANDARD", "STANDARD_IA", "GLACIER"]
