@@ -147,7 +147,7 @@ def handle_request_exception(e, disable_error_messages):
     elif "TimeoutError" in str(e):
         warning = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e}<-----'
         message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----', 408
-    elif "Caused by NewConnectionError" in str(e): # double check TODO
+    elif "Caused by NewConnectionError" in str(e) and "ProxyError" not in str(e):
         warning = f'-----> ERROR. EFFECTIVE 404. {e}<-----'
         message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw NewConnectionError: {e} <-----', 404
     elif any(x for x in ["HTTPConnectionPool", "MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
@@ -247,7 +247,7 @@ def extract_stripped_string(html_tag):
 # Will extract the text from, and concatenate together, all elements of a given selector
 def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
     if not enclosing_element:
-        logging.warning('no enclosing element for flatten_enclosed_elements')
+        logging.debug('no enclosing element for flatten_enclosed_elements')
         return None
 
     selector_type = None if selector_type.lower() == "all" else selector_type
