@@ -23,14 +23,14 @@ def read_from_gsheet(sheet, tab):
     return data
 
 
-def write_to_gsheet(rows_lod, sheet, tab, primary_key, **kwargs):
+def write_to_gsheet(output_lod, sheet, tab, primary_key, **kwargs):
 
     resp, status_code = invoke_lambda({
             "Gsheet": sheet,
             "Tab": tab,
             "Type": kwargs.get("write_type", "Append_All"),
             "Primary_Key": primary_key,
-            "Data": rows_lod
+            "Data": output_lod
         },
         "contextify-serverless-prod-gsheet-write",
         kwargs.get("invoke_type", "RequestResponse"),
@@ -41,9 +41,9 @@ def write_to_gsheet(rows_lod, sheet, tab, primary_key, **kwargs):
         print(f"Error writing to Google Sheet {sheet}. Status code {status_code}; message: {resp}")
 
 # Use if you're hitting the 2MB Lambda limit
-def naive_append_gsheet_tab(sheet, tab, data_lod, headers):
+def naive_append_gsheet_tab(sheet, tab, output_lod, headers):
     data_lol = []
-    for row in data_lod:
+    for row in output_lod:
         data_lol.append([row.get(x) for x in headers])
 
     sh, worksheet_list = open_gsheet(sheet)
@@ -52,12 +52,12 @@ def naive_append_gsheet_tab(sheet, tab, data_lod, headers):
 ########################################################################################################################
 
 
-def append_to_csv(rows_lod, csv_name):
+def append_to_csv(output_lod, csv_name, **kwargs):
     csv_name = csv_name + ".csv" if ".csv" not in csv_name else csv_name
 
     with open(csv_name, 'a+', newline='') as output_file:
-        dict_writer = csv.DictWriter(output_file, rows_lod[0].keys())
-        dict_writer.writerows(rows_lod)
+        dict_writer = csv.DictWriter(output_file, kwargs.get("header", output_lod[0].keys()))
+        dict_writer.writerows(output_lod)
 
 
 def read_input_csv(filename, **kwargs):
