@@ -213,9 +213,7 @@ def format_url(url, **kwargs):
         url = url[:url.rfind(".")]
     if kwargs.get("remove_port"):
         pattern = re.compile("(:\d{2,})")
-        print(url)
         url = pattern.sub('', url)
-        print(url)
     if kwargs.get("https"):
         url = "https://" + url
     if kwargs.get("remove_trailing_slash") and url.endswith("/"):
