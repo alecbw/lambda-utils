@@ -8,13 +8,10 @@ import logging
 try:
     import sentry_sdk
     from sentry_sdk.integrations.aws_lambda import AwsLambdaIntegration
-    sentry_kwargs = {"integrations": [AwsLambdaIntegration()]} if os.environ.get("_HANDLER") else {}
-    sentry_sdk.init(
-        dsn=os.environ["SENTRY_DSN"],
-        **sentry_kwargs
-    )
-except ImportError:
-    logging.warning("Sentry did not init")
+    sentry_kwargs = {"integrations": [AwsLambdaIntegration()]} if os.getenv("_HANDLER") else {}
+    sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], **sentry_kwargs)
+except (ImportError, KeyError) as e:
+    logging.warning(f"Sentry did not init: {e}")
 
 import boto3
 
@@ -208,18 +205,29 @@ def format_url(url, **kwargs):
     url = ez_split(url, "www.", 1)
 
     if kwargs.get("remove_subsite"):
-        url = ez_split(url, "/", 0) # maybe rfind instead TODO
+        url = ez_split(url, "/", 0)
     if kwargs.get("remove_tld"):
         url = url[:url.rfind(".")]
     if kwargs.get("remove_port"):
         pattern = re.compile("(:\d{2,})")
         url = pattern.sub('', url)
-    if kwargs.get("https"):
-        url = "https://" + url
-    if kwargs.get("remove_trailing_slash") and url.endswith("/"):
+    if kwargs.get("remove_trailing_slash"):
         url = url.rstrip("/")
 
+    if kwargs.get("remove_subdomain") and url.count(".") < 2:
+        logging.warning(f"URL: {url} does not have enough periods; skipping")
+    elif kwargs.get("remove_subdomain"):
+        url = url[url[:url.rfind(".")].rfind(".")+1:]
+        if not is_url(url): logging.warning(f"URL: {url} is probably broken now; wrong # of periods")
+
+    if kwargs.get("https"):
+        url = "https://" + url
+    elif kwargs.get("http"):
+        url = "http://" + url
+
     return url.rstrip()
+
+
 
 
 # It's faster if you have a primary_key in each dict
