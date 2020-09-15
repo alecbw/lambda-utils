@@ -49,16 +49,9 @@ def naive_append_gsheet_tab(sheet, tab, output_lod, headers):
     sh, worksheet_list = open_gsheet(sheet)
     resp = sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
     print(resp)
+
+
 ########################################################################################################################
-
-
-def append_to_csv(output_lod, csv_name, **kwargs):
-    csv_name = csv_name + ".csv" if ".csv" not in csv_name else csv_name
-
-    with open(csv_name, 'a+', newline='') as output_file:
-        dict_writer = csv.DictWriter(output_file, kwargs.get("header", output_lod[0].keys()))
-        dict_writer.writerows(output_lod)
-
 
 def read_input_csv(filename, **kwargs):
     filename = filename + ".csv" if ".csv" not in filename else filename
@@ -93,6 +86,14 @@ def write_output_csv(filename, output_lod):
         dict_writer.writerows(output_lod)
 
     print(f"Write to csv {'Output ' + filename} was successful\n")
+
+
+def append_to_csv(filename, output_lod, **kwargs):
+    filename = filename + ".csv" if ".csv" not in filename else filename
+
+    with open(filename, 'a+', newline='') as output_file:
+        dict_writer = csv.DictWriter(output_file, kwargs.get("header", output_lod[0].keys()))
+        dict_writer.writerows(output_lod)
 
 
 ###################################################################################################
