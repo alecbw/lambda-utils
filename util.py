@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from datetime import datetime, timedelta
 from functools import reduce
 import logging
@@ -211,7 +212,10 @@ def format_url(url, **kwargs):
     if kwargs.get("remove_tld"):
         url = url[:url.rfind(".")]
     if kwargs.get("remove_port"):
-        url = url.replace(":80", "")
+        pattern = re.compile("(:\d{2,})")
+        print(url)
+        url = pattern.sub('', url)
+        print(url)
     if kwargs.get("https"):
         url = "https://" + url
     if kwargs.get("remove_trailing_slash") and url.endswith("/"):
