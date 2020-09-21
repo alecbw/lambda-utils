@@ -77,11 +77,11 @@ def read_input_csv(filename, **kwargs):
     return file_lod
 
 
-def write_output_csv(filename, output_lod):
+def write_output_csv(filename, output_lod, **kwargs):
     filename = filename + ".csv" if ".csv" not in filename else filename
 
     with open(f"Output {filename}", 'w') as output_file:
-        dict_writer = csv.DictWriter(output_file, output_lod[0].keys())
+        dict_writer = csv.DictWriter(output_file, kwargs.get("header", output_lod[0].keys()))
         dict_writer.writeheader()
         dict_writer.writerows(output_lod)
 
