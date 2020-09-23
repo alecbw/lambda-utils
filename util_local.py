@@ -114,3 +114,18 @@ def write_separate_output_json(filename, output_lod):
             json.dump(row, f)
 
     print("Write to JSON was successful\n")
+
+
+def open_local_json():
+    json_files = [f for f in os.listdir('.') if ".json" in f and os.path.isfile(f)]
+    if len(json_files) == 0:
+        sys.exit("Make sure you have downloaded the .json private key from the API Console GUI")
+    elif len(json_files) > 1:
+        sys.exit("There's more than one JSON. Remove one or write a function referencing its name.")
+
+    json_file = json_files[0]
+
+    pwd = os.path.dirname(os.path.abspath(__file__))
+
+    with open(pwd + "/" + json_file) as f_in:
+        return(json.load(f_in, strict=False))
