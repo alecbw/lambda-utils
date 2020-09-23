@@ -1,4 +1,6 @@
 import os
+import json
+import time
 
 import gspread
 import requests
@@ -57,11 +59,10 @@ def gsa_make_jwt_request(signed_jwt):
     return response.json().get("access_token")
 
 
-def generate_service_account_access_token(PRIVATE_KEY_JSON):
+def generate_service_account_access_token(SA_PRIVATE_KEY_JSON):
+    SA_PRIVATE_KEY_JSON = json.loads(SA_PRIVATE_KEY_JSON)
 
-    google_oauth_endpoint = "https://oauth2.googleapis.com/token"
-    
-    jwt = gsa_generate_jwt(PRIVATE_KEY_JSON)
+    jwt = gsa_generate_jwt(SA_PRIVATE_KEY_JSON)
 
     return gsa_make_jwt_request(jwt)
 
