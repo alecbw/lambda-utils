@@ -19,11 +19,28 @@ def auth_gspread():
     return gspread.authorize(credentials)
 
 
+
+"""
+A Google Service Account with configured Oauth2 ClientID can create a long-lived refresh token
+That refresh token can then be exchanged for a short-lived (1 hour) access token
+We fetch a new access token each invocation because it's easier than storing secrets' state
+"""
+def service_account_exchange_refresh_token_for_access_token(refresh_token_json):
+    refresh_token_json = json.loads(refresh_token_json)
+    
+    url = "https://accounts.google.com/o/oauth2/token?grant_type=refresh_token"
+    url += "&client_secret=" + refresh_token_json["GA_CLIENT_SECRET"]
+    url += "&client_id=" + refresh_token_json["GA_CLIENT_ID"]
+    url += "&refresh_token=" + refresh_token_json["GA_REFRESH_TOKEN"]
+
+    resp = requests.post(url)
+    return resp.json().get("access_token")
+
+
 """ 
 Note: the above uses the same overarching Google OAuth2 system. The difference is:
-    * auth_gspread uses a service worker JSON
-    * auth_google_analytics uses a service worker's 
-
+    * auth_gspread uses a service worker private_key -> client SDK auth'd
+    * auth_google_analytics uses a service worker's private_key -> access_key
 """
 def gsa_generate_jwt(private_key_json):
     payload = {
