@@ -281,12 +281,17 @@ def flatten_neighboring_selectors(enclosing_element, selector_type, **kwargs):
 
 def safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs):
     html_tags = parsed.find_all(html_type, {property_type : identifier})
-    data = [x.get_text().replace("\n", "").strip() for x in html_tags] if html_tags else None
 
-    if data and kwargs.pop("output_str", False):
-        return ", ".join(data)
-    elif data:
-        return data
+    if not html_tags:
+        return null_value
+
+    if kwargs.get("get_link"):
+        data = [x.get("href").strip() if html_tag.get("href") else x.a.get("href", null_value).strip() for x in html_tags]
+    else:
+        data = [x.get_text().replace("\n", "").strip() for x in html_tags]
+
+    if data: 
+        return ", ".join(data) if kwargs.get("output_str") else data
     else:
         return null_value
 

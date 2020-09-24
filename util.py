@@ -228,8 +228,6 @@ def format_url(url, **kwargs):
     return url.rstrip()
 
 
-
-
 # It's faster if you have a primary_key in each dict
 def deduplicate_lod(input_lod, primary_key):
     if not primary_key:

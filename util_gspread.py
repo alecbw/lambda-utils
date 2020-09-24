@@ -44,8 +44,8 @@ Note: the above uses the same overarching Google OAuth2 system. The difference i
 """
 def gsa_generate_jwt(private_key_json):
     payload = {
-        'iss': private_key_json["client_email"], # '123456-compute@developer.gserviceaccount.com',
-        'sub': private_key_json["client_email"], #'123456-compute@developer.gserviceaccount.com',
+        'iss': private_key_json["client_email"],
+        'sub': private_key_json["client_email"],
         'iat': time.time(),
         'exp': time.time() + 3600,
         'aud': "https://oauth2.googleapis.com/token", 
@@ -83,9 +83,8 @@ def generate_service_account_access_token(SA_PRIVATE_KEY_JSON):
 
     return gsa_make_jwt_request(jwt)
 
+
 ####################################################################################
-
-
 
 
 def open_gsheet(sheet_name):
