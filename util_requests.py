@@ -288,10 +288,12 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
     if kwargs.get("get_link"):
         data = [x.get("href").strip() if html_tag.get("href") else x.a.get("href", null_value).strip() for x in html_tags]
     else:
-        data = [x.get_text().replace("\n", "").strip() for x in html_tags]
+        data = [x.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").strip() for x in html_tags]
 
-    if data: 
-        return ", ".join(data) if kwargs.get("output_str") else data
+    if data and kwargs.get("output_str"):
+        return ", ".join(data)
+    elif data:
+        return data
     else:
         return null_value
 
