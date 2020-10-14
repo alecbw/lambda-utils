@@ -238,11 +238,14 @@ def iterative_managed_site_request(url_list, **kwargs):
 
 ############################## ~ Handling HTML ~ ####################################
 
-def extract_stripped_string(html_tag):
+def extract_stripped_string(html_tag, **kwargs):
+    if html_tag and str(html_tag) and isinstance(html_tag, NavigableString):
+        return str(html_tag).replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').strip()
+
     if not html_tag or not html_tag.get_text():
         return html_tag
 
-    return html_tag.get_text().strip().replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
+    return html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
 
 # Will extract the text from, and concatenate together, all elements of a given selector
 def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
@@ -255,7 +258,7 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
 
     text_list = []
     for ele in child_elements:
-        ele_str = extract_stripped_string(ele)
+        ele_str = extract_stripped_string(ele, **kwargs)
         if isinstance(ele_str, str):
             text_list.append(ele_str)
 
@@ -275,7 +278,8 @@ def flatten_neighboring_selectors(enclosing_element, selector_type, **kwargs):
         if not (next_s and isinstance(next_s, NavigableString)):
             continue # TODO extract with .string
         elif next_s and str(next_s):
-            text_list.append(next_s.get_text().strip().replace("\n", "").replace("\r", ""))
+            text_list.append(extract_stripped_string(next_s, **kwargs))
+
     return ", ".join(text_list) if kwargs.get("output_str") else text_list
 
 
