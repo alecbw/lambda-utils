@@ -241,12 +241,22 @@ def deduplicate_lod(input_lod, primary_key):
 
     return list(output_dict.values())
 
+
 # e.g. checking if any tld exists in a string
 def find_substrings_in_string(value, list_of_substrings):
     return [sub_str for sub_str in list_of_substrings if sub_str.lower().strip() in value.lower().strip()]
+
 
 # e.g. split a list of len n into x smaller lists of len (n/x)
 def split_list_to_fixed_length_lol(full_list, subsection_size):
     if not len(full_list) > subsection_size:
         return [full_list] # Return list as LoL
     return [full_list[i:i+subsection_size] for i in range(0, len(full_list), subsection_size)]
+
+
+def combine_lists_unique_values(*args):
+    output_set = set()
+    for input_list in args:
+        for item in input_list:
+            output_set.add(item)
+    return output_set
