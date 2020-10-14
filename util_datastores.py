@@ -384,8 +384,6 @@ def get_s3_file(bucket_name, filename, **kwargs):
     try:
         s3_obj = boto3.client("s3").get_object(Bucket=bucket_name, Key=filename)["Body"]
         return s3_obj if kwargs.get("raw") else s3_obj.read().decode('utf-8')
-    except s3.exceptions.NoSuchKey:
-        logging.error(f"S3 file requested: {filename} does not exist")
     except Exception as e:
         logging.error(e)
         raise e
