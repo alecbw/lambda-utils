@@ -96,9 +96,9 @@ def rotate_accept():
     return random.choice(accepts)
 
 
-################################# ~ Outbound Requests ~ ####################################
+################################# ~ Proxies ~ ####################################
 
-# TODO restore level
+
 def get_ds_proxy_list(**kwargs):
     countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GB|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
     url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&country={countries}&https={kwargs.get('HTTPS', 'yes')}"
@@ -106,24 +106,26 @@ def get_ds_proxy_list(**kwargs):
 
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
-    logging.info(f"{len(proxies)} proxies were found")
+    logging.info(f"{len(proxies)} proxies were found (DS)")
     if kwargs.get('show_country'):
         return [x.split("#") for x in proxies]
 
     return proxies
 
-def rotate_ds_proxy(proxies):
-    if len(proxies) == 0:
-        logging.info("Exhausted list; getting another")
-        proxies = get_ds_proxy_list()
+# def rotate_ds_proxy(proxies):
+#     if len(proxies) == 0:
+#         logging.info("Exhausted list; getting another")
+#         proxies = get_ds_proxy_list()
+#
+#     proxy = proxies.pop(0)
+#     return proxy, proxies
 
-    proxy = proxies.pop(0)
-    return proxy, proxies
 
-def rotate_proxy(proxies):
+def rotate_proxy(proxies, **kwargs):
     if not proxies:
         proxies =  prioritize_proxy(scan_dynamodb('proxyTable'), "US")
-    return proxies.pop(0).get("full"), proxies
+
+    return proxies.pop(0), proxies if kwargs.get("return_proxy_dict") else proxies.pop(0).get("full"), proxies
 
 
 # Sorts the list of proxies by location so the specified locations' proxies are first
@@ -135,6 +137,9 @@ def prioritize_proxy(proxies, location):
         else:
             output_proxies_list.append(proxy)
     return output_proxies_list
+
+
+################################# ~ Outbound Requests ~ ####################################
 
 
 def handle_request_exception(e, disable_error_messages):
@@ -188,7 +193,7 @@ def site_request(url, proxy, wait, **kwargs):
     try:
         approved_request_kwargs = ["prevent_redirects", "timeout", "hooks"]
         request_kwargs = {k:v for k,v in kwargs.items() if k in approved_request_kwargs}
-        request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True
+        request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True # TODO refactor this out
 
         if kwargs.get("http_proxy"):
             request_kwargs["proxies"] = {"http": f"http://{proxy}"}
