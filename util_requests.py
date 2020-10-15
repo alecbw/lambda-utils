@@ -290,7 +290,7 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
         return null_value
 
     if kwargs.get("get_link"):
-        data = [x.get("href").strip() if html_tag.get("href") else x.a.get("href", null_value).strip() for x in html_tags]
+        data = [x.get("href").strip() if x.get("href") else x.a.get("href", null_value).strip() for x in html_tags]
     else:
         data = [x.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").strip() for x in html_tags]
 
@@ -326,11 +326,9 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
 
         if kwargs.get("get_link") and html_tag:
             return html_tag.get("href").strip() if html_tag.get("href") else html_tag.a.get("href", null_value).strip()
-            # return html_link.strip()
-        elif kwargs.get("meta") and html_tag:
-            return html_tag.get("content") if html_tag.get("content") else null_value
-
-        if isinstance(html_tag, NavigableString):
+        elif html_type == "meta" and html_tag:
+            return html_tag.get("content", null_value)
+        elif isinstance(html_tag, NavigableString):
             return str(html_tag).replace("\n", "").replace('\\xa0', ' ').strip() if (html_tag and str(html_tag)) else null_value
         else:
             return html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").replace('\\xa0', ' ') if (html_tag and html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True)) else null_value
