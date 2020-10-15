@@ -141,7 +141,7 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
             if standard_item:
                 batch.put_item(Item=standard_item)
 
-    logging.info(f"Succcessfully did a Dynamo Batch Write to {table}")
+    logging.info(f"Succcessfully did a Dynamo Batch Write of length {len(lod_to_write)} to {table}")
     return True
 
 

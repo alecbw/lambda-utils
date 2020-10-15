@@ -82,7 +82,7 @@ def rotate_referer():
 
 
 def rotate_encoding():
-    encodings = ["gzip, deflate, br, sdch", "gzip, deflate, br"]
+    encodings = ["gzip, deflate, sdch", "gzip, deflate"] #"gzip, deflate, br, sdch", "gzip, deflate, br"
     return random.choice(encodings)
 
 
@@ -325,7 +325,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
                 html_tag = html_tag.key if html_tag else html_tag
 
         if kwargs.get("get_link") and html_tag:
-            return html_tag.get("href").strip() if html_tag.get("href") else html_tag.a.get("href", null_value).strip()
+            return html_tag.get("href").strip().rstrip("/") if html_tag.get("href") else html_tag.a.get("href", null_value).strip()
         elif html_type == "meta" and html_tag:
             return html_tag.get("content", null_value)
         elif isinstance(html_tag, NavigableString):
