@@ -125,7 +125,10 @@ def rotate_proxy(proxies, **kwargs):
     if not proxies:
         proxies =  prioritize_proxy(scan_dynamodb('proxyTable'), "US")
 
-    return proxies.pop(0), proxies if kwargs.get("return_proxy_dict") else proxies.pop(0).get("full"), proxies
+    if kwargs.get("return_proxy_dict"):
+        return proxies.pop(0), proxies
+
+    return proxies.pop(0).get("full"), proxies
 
 
 # Sorts the list of proxies by location so the specified locations' proxies are first
