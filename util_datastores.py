@@ -139,7 +139,10 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
         for item in lod_to_write:
             standard_item = standardize_dynamo_query(item, **kwargs)
             if standard_item:
-                batch.put_item(Item=standard_item)
+                try:
+                    batch.put_item(Item=standard_item)
+                except Exception as e:
+                    logging.error(f"{e} -- {standard_item}")
 
     logging.info(f"Succcessfully did a Dynamo Batch Write of length {len(lod_to_write)} to {table}")
     return True

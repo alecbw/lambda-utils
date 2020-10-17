@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta
 from functools import reduce
 import logging
+from collections import Counter
 
 try:
     import sentry_sdk
@@ -260,3 +261,12 @@ def combine_lists_unique_values(*args):
         for item in input_list:
             output_set.add(item)
     return output_set
+
+
+def increment_counter(counter, *args):
+    if len(args) == 1 and isinstance(args[0], list):
+        args = args[0]
+    for arg in args:
+        counter[arg] += 1
+
+    return counter

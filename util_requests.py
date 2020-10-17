@@ -148,27 +148,27 @@ def prioritize_proxy(proxies, location):
 def handle_request_exception(e, disable_error_messages):
     if "Caused by SSLError(SSLCertVerificationError" in str(e):
         warning = f'-----> ERROR. Request Threw: Certificate Error. {e}<-----'
-        message, status_code = None, 495
+        status_code = 495
     elif "Exceeded 30 redirects" in str(e):
         warning = f'-----> ERROR. Request Threw: Too Many Redirects Error. {e}<-----'
-        message, status_code = None, 399
+        status_code = 399
     elif "TimeoutError" in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e}<-----'
-        message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----', 408
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----'
+        status_code = 408
     elif "Caused by NewConnectionError" in str(e) and "ProxyError" not in str(e):
-        warning = f'-----> ERROR. EFFECTIVE 404. {e}<-----'
-        message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw NewConnectionError: {e} <-----', 404
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Effective 404 - Request Threw NewConnectionError: {e} <-----'
+        status_code = 404
     elif any(x for x in ["HTTPConnectionPool", "MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
         warning = f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----'
-        message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
+        status_code = 601
     else:
         warning = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----'
-        message, status_code = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
+        status_code = 609
 
     if not disable_error_messages:
         logging.warning(warning)
 
-    return message, status_code
+    return warning, status_code
 
 
 # Mock a browser and visit a site
