@@ -5,6 +5,7 @@ import random
 import logging
 import os
 from time import sleep
+import warnings
 
 from bs4 import BeautifulSoup, element, NavigableString
 import requests
@@ -173,6 +174,10 @@ def handle_request_exception(e, disable_error_messages):
 
 # Mock a browser and visit a site
 def site_request(url, proxy, wait, **kwargs):
+    # if kwargs.get("disable_error_messages"):
+    #     warnings.simplefilter('ignore', SSLError)
+
+
     if wait and wait != 0:
         sleep(random.uniform(wait, wait+1))    # +/- 0.5 sec from specified wait time. Pseudorandomized.
 
@@ -333,7 +338,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
                 html_tag = html_tag.key if html_tag else html_tag
 
         if kwargs.get("get_link") and html_tag:
-            return html_tag.get("href").strip().rstrip("/") if html_tag.get("href") else html_tag.a.get("href", null_value).strip()
+            return html_tag.get("href").strip().rstrip("/") if html_tag.get("href") else html_tag.a.get("href", null_value).strip().rstrip("/")
         elif html_type == "meta" and html_tag:
             return html_tag.get("content", null_value)
         elif isinstance(html_tag, NavigableString):
