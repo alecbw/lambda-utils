@@ -196,7 +196,8 @@ def site_request(url, proxy, wait, **kwargs):
         'cache-control': "no-cache",
         'DNT': "1",                                              # Ask the server to not be tracked (lol)
     }
-    if not kwargs.get("http_proxy"): headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
+    if not kwargs.get("http_proxy") and not kwargs.get("upgrade_insecure_requests"): 
+        headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
 
     try:
         approved_request_kwargs = ["prevent_redirects", "timeout", "hooks"]

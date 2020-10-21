@@ -15,7 +15,7 @@ from botocore.exceptions import ClientError
 
 ####################################################################################
 
-
+ 
 # Opinion: Whoever designed the response schema hates developers
 def standardize_athena_query_result(results, **kwargs):
     results = [x["Data"] for x in results['ResultSet']['Rows']]
