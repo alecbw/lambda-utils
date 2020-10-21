@@ -231,10 +231,13 @@ def format_url(url, **kwargs):
 
 # It's faster if you have a primary_key in each dict
 def deduplicate_lod(input_lod, primary_key):
-    if not primary_key:
-        output_lod = {json.dumps(d, sort_keys=True) for d in input_lod}  # convert to JSON to make dicts hashable
-        return [json.loads(x) for x in output_lod]                 # unpack the JSON
 
+    # convert to JSON to make dicts hashable then add to a set to dedupe
+    if not primary_key:
+        output_los = {json.dumps(d, sort_keys=True) for d in input_lod}  
+        return [json.loads(d) for d in output_los]
+
+    # for each input dict, check if the value of the dict's primary_key is in the output already, if so, write the dict to the output.value
     output_dict = {}
     for d in input_lod:
         if d.get(primary_key) not in output_dict.keys():
@@ -248,7 +251,7 @@ def find_substrings_in_string(value, list_of_substrings):
     return [sub_str for sub_str in list_of_substrings if sub_str.lower().strip() in value.lower().strip()]
 
 
-# e.g. split a list of len n into x smaller lists of len (n/x)
+# i.e. split a list of len n into x smaller lists of len (n/x)
 def split_list_to_fixed_length_lol(full_list, subsection_size):
     if not len(full_list) > subsection_size:
         return [full_list] # Return list as LoL
