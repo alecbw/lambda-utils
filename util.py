@@ -100,7 +100,7 @@ def invoke_lambda(params, function_name, invoke_type):
 def standardize_dict(input_dict):
     return {k.title().strip().replace(" ", "_"):(False if is_none(v) else v) for (k, v) in input_dict.items()}
 
-
+# can this be deprecated? TODO
 def standardize_str_to_list(input_str):
     if isinstance(input_str, list):
         return input_str
