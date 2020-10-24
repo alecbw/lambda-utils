@@ -36,6 +36,7 @@ def validate_params(event, required_params, **kwargs):
 
     return param_only_dict, False
 
+
 # unpack the k:v pairs into the top level dict. Standard across invoke types.
 def standardize_event(event):
     # if event.get("body"):  # POST, synchronous API Gateway TODO
@@ -96,9 +97,11 @@ def invoke_lambda(params, function_name, invoke_type):
 
 ######################### ~ General str/list Formatting ~ ########################################################
 
+
 # This corrects for an edge case where some None values may convert to str "None" by API Gateway
 def standardize_dict(input_dict):
     return {k.title().strip().replace(" ", "_"):(False if is_none(v) else v) for (k, v) in input_dict.items()}
+
 
 # can this be deprecated? TODO
 def standardize_str_to_list(input_str):
@@ -234,7 +237,7 @@ def deduplicate_lod(input_lod, primary_key):
 
     # convert to JSON to make dicts hashable then add to a set to dedupe
     if not primary_key:
-        output_los = {json.dumps(d, sort_keys=True) for d in input_lod}  
+        output_los = {json.dumps(d, sort_keys=True) for d in input_lod}
         return [json.loads(d) for d in output_los]
 
     # for each input dict, check if the value of the dict's primary_key is in the output already, if so, write the dict to the output.value
