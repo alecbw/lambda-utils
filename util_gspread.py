@@ -14,6 +14,15 @@ def auth_gspread():
     credentials = service_account.Credentials.from_service_account_info(auth, scopes=scopes)
     return gspread.authorize(credentials)
 
+def auth_google_analytics():
+    auth = {
+        "private_key": os.environ["GA_PRIVATE_KEY"].replace("\\n", "\n").replace('"', ''),
+        "client_email": os.environ["GA_CLIENT_EMAIL"],
+        "token_uri": "https://oauth2.googleapis.com/token",
+    }
+    scopes = ["https://www.googleapis.com/auth/analytics.readonly"]
+    credentials = service_account.Credentials.from_service_account_info(auth, scopes=scopes)
+    return gspread.authorize(credentials)
 
 def open_gsheet(sheet_name):
     gc = auth_gspread()
@@ -23,7 +32,11 @@ def open_gsheet(sheet_name):
     elif len(sheet_name) == 44:
         sh = gc.open_by_key(sheet_name)
     else:  # You must have enabled the Google Drive API in console.developers.google.com to use this
-        sh = gc.open(sheet_name)
+        try:
+            sh = gc.open(sheet_name)
+        except Exception as e:
+            logging.error(e)
+            return None, None
 
     worksheet_list = get_gsheet_worksheet_names(sh)
     return sh, worksheet_list

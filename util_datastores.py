@@ -154,16 +154,16 @@ def scan_dynamodb(table, **kwargs):
     else:
         result = table.scan()
 
-    data = result['Items']
+    data_lod = result['Items']
 
     while 'LastEvaluatedKey' in result and result['Count'] < kwargs.get("limit", 10000000): # Pagination
         result = table.scan(ExclusiveStartKey=result['LastEvaluatedKey'])
-        data.extend(result['Items'])
+        data_lod.extend(result['Items'])
 
     if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo List from {table}, found {result['Count']} results")
-    for row in data:
+    for row in data_lod:
         row = standardize_dynamo_output(row)
-    return data
+    return data_lod
 
 
 # returns a list of items
