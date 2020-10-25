@@ -33,6 +33,7 @@ def standardize_athena_query_result(results, **kwargs):
 
 
 # Figure out pagination / 1000 row limit
+# TODO implement a timeout in the query wait
 def query_athena_table(sql_query, database, **kwargs):
     client = boto3.client('athena')
     queryStart = client.start_query_execution(
@@ -41,14 +42,21 @@ def query_athena_table(sql_query, database, **kwargs):
         ResultConfiguration={"OutputLocation": f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/"}
     )
 
+    timeout_value = kwargs.get("timeout", 15)
     finished = False
     while not finished:
         query_status = client.get_query_execution(QueryExecutionId=queryStart["QueryExecutionId"])
+
         if query_status["QueryExecution"]["Status"]["State"] == "SUCCEEDED":
             results = client.get_query_results(QueryExecutionId=queryStart["QueryExecutionId"])
             finished = True
+
+        elif timeout_value > ez_get(query_status, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
+            logging.error(f"Query timed out with no response (timeout val: {timeout_value})")
+            return None
+        
         else:
-            sleep(kwargs.get("wait_interval", 0.5))
+            sleep(kwargs.get("wait_interval", 0.1))
             logging.info(query_status["QueryExecution"]["Status"]["State"])
             if query_status["QueryExecution"]["Status"]["State"] == "FAILED":
                 logging.error(query_status["QueryExecution"]["Status"]["StateChangeReason"])
