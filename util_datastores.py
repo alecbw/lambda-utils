@@ -15,7 +15,7 @@ from botocore.exceptions import ClientError
 
 ####################################################################################
 
-
+ 
 # Opinion: Whoever designed the response schema hates developers
 def standardize_athena_query_result(results, **kwargs):
     results = [x["Data"] for x in results['ResultSet']['Rows']]
@@ -139,9 +139,12 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
         for item in lod_to_write:
             standard_item = standardize_dynamo_query(item, **kwargs)
             if standard_item:
-                batch.put_item(Item=standard_item)
+                try:
+                    batch.put_item(Item=standard_item)
+                except Exception as e:
+                    logging.error(f"{e} -- {standard_item}")
 
-    logging.info(f"Succcessfully did a Dynamo Batch Write to {table}")
+    logging.info(f"Succcessfully did a Dynamo Batch Write of length {len(lod_to_write)} to {table}")
     return True
 
 
@@ -384,8 +387,6 @@ def get_s3_file(bucket_name, filename, **kwargs):
     try:
         s3_obj = boto3.client("s3").get_object(Bucket=bucket_name, Key=filename)["Body"]
         return s3_obj if kwargs.get("raw") else s3_obj.read().decode('utf-8')
-    except s3.exceptions.NoSuchKey:
-        logging.error(f"S3 file requested: {filename} does not exist")
     except Exception as e:
         logging.error(e)
         raise e

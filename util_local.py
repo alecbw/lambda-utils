@@ -49,16 +49,9 @@ def naive_append_gsheet_tab(sheet, tab, output_lod, headers):
     sh, worksheet_list = open_gsheet(sheet)
     resp = sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
     print(resp)
+
+
 ########################################################################################################################
-
-
-def append_to_csv(output_lod, csv_name, **kwargs):
-    csv_name = csv_name + ".csv" if ".csv" not in csv_name else csv_name
-
-    with open(csv_name, 'a+', newline='') as output_file:
-        dict_writer = csv.DictWriter(output_file, kwargs.get("header", output_lod[0].keys()))
-        dict_writer.writerows(output_lod)
-
 
 def read_input_csv(filename, **kwargs):
     filename = filename + ".csv" if ".csv" not in filename else filename
@@ -84,15 +77,23 @@ def read_input_csv(filename, **kwargs):
     return file_lod
 
 
-def write_output_csv(filename, output_lod):
+def write_output_csv(filename, output_lod, **kwargs):
     filename = filename + ".csv" if ".csv" not in filename else filename
 
     with open(f"Output {filename}", 'w') as output_file:
-        dict_writer = csv.DictWriter(output_file, output_lod[0].keys())
+        dict_writer = csv.DictWriter(output_file, kwargs.get("header", output_lod[0].keys()))
         dict_writer.writeheader()
         dict_writer.writerows(output_lod)
 
     print(f"Write to csv {'Output ' + filename} was successful\n")
+
+
+def append_to_csv(filename, output_lod, **kwargs):
+    filename = filename + ".csv" if ".csv" not in filename else filename
+
+    with open(filename, 'a+', newline='') as output_file:
+        dict_writer = csv.DictWriter(output_file, kwargs.get("header", output_lod[0].keys()))
+        dict_writer.writerows(output_lod)
 
 
 ###################################################################################################
@@ -113,3 +114,18 @@ def write_separate_output_json(filename, output_lod):
             json.dump(row, f)
 
     print("Write to JSON was successful\n")
+
+
+def open_local_json():
+    json_files = [f for f in os.listdir('.') if ".json" in f and os.path.isfile(f)]
+    if len(json_files) == 0:
+        sys.exit("Make sure you have downloaded the .json private key from the API Console GUI")
+    elif len(json_files) > 1:
+        sys.exit("There's more than one JSON. Remove one or write a function referencing its name.")
+
+    json_file = json_files[0]
+
+    pwd = os.path.dirname(os.path.abspath(__file__))
+
+    with open(pwd + "/" + json_file) as f_in:
+        return(json.load(f_in, strict=False))

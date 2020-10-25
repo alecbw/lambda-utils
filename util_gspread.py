@@ -1,7 +1,11 @@
-import gspread
-from google.oauth2 import service_account
-
 import os
+import json
+import time
+
+import gspread
+import requests
+import jwt # pip install PyJWT
+from google.oauth2 import service_account
 
 
 def auth_gspread():
@@ -23,6 +27,74 @@ def auth_google_analytics():
     scopes = ["https://www.googleapis.com/auth/analytics.readonly"]
     credentials = service_account.Credentials.from_service_account_info(auth, scopes=scopes)
     return gspread.authorize(credentials)
+
+
+"""
+A Google Service Account with configured Oauth2 ClientID can create a long-lived refresh token
+That refresh token can then be exchanged for a short-lived (1 hour) access token
+We fetch a new access token each invocation because it's easier than storing secrets' state
+"""
+def service_account_exchange_refresh_token_for_access_token(refresh_token_json):
+    refresh_token_json = json.loads(refresh_token_json)
+    
+    url = "https://accounts.google.com/o/oauth2/token?grant_type=refresh_token"
+    url += "&client_secret=" + refresh_token_json["GA_CLIENT_SECRET"]
+    url += "&client_id=" + refresh_token_json["GA_CLIENT_ID"]
+    url += "&refresh_token=" + refresh_token_json["GA_REFRESH_TOKEN"]
+
+    resp = requests.post(url)
+    return resp.json().get("access_token")
+
+
+""" 
+Note: the above uses the same overarching Google OAuth2 system. The difference is:
+    * auth_gspread uses a service worker private_key -> client SDK auth'd
+    * auth_google_analytics uses a service worker's private_key -> access_key
+"""
+def gsa_generate_jwt(private_key_json):
+    payload = {
+        'iss': private_key_json["client_email"],
+        'sub': private_key_json["client_email"],
+        'iat': time.time(),
+        'exp': time.time() + 3600,
+        'aud': "https://oauth2.googleapis.com/token", 
+        "scope": "https://www.googleapis.com/auth/analytics",
+    }
+    signed_jwt = jwt.encode(
+        payload, 
+        private_key_json["private_key"], 
+        headers={'kid': private_key_json["private_key_id"]},
+        algorithm='RS256'
+    )
+    return signed_jwt
+
+
+def gsa_make_jwt_request(signed_jwt):
+    headers = {
+        'Authorization': f"Bearer {signed_jwt}",
+        'content-type': "application/x-www-form-urlencoded",
+    }
+    body = {
+        'grant_type': "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        "assertion": signed_jwt,
+    }
+
+    response = requests.post("https://oauth2.googleapis.com/token", headers=headers, data=body)
+    response.raise_for_status()
+
+    return response.json().get("access_token")
+
+
+def generate_service_account_access_token(SA_PRIVATE_KEY_JSON):
+    SA_PRIVATE_KEY_JSON = json.loads(SA_PRIVATE_KEY_JSON)
+
+    jwt = gsa_generate_jwt(SA_PRIVATE_KEY_JSON)
+
+    return gsa_make_jwt_request(jwt)
+
+
+####################################################################################
+
 
 def open_gsheet(sheet_name):
     gc = auth_gspread()

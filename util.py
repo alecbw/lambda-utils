@@ -1,19 +1,18 @@
 import os
 import json
+import re
 from datetime import datetime, timedelta
 from functools import reduce
 import logging
+from collections import Counter
 
 try:
     import sentry_sdk
     from sentry_sdk.integrations.aws_lambda import AwsLambdaIntegration
-    sentry_kwargs = {"integrations": [AwsLambdaIntegration()]} if os.environ.get("_HANDLER") else {}
-    sentry_sdk.init(
-        dsn=os.environ["SENTRY_DSN"],
-        **sentry_kwargs
-    )
-except ImportError:
-    logging.warning("Sentry did not init")
+    sentry_kwargs = {"integrations": [AwsLambdaIntegration()]} if os.getenv("_HANDLER") else {}
+    sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], **sentry_kwargs)
+except (ImportError, KeyError) as e:
+    logging.warning(f"Sentry did not init: {e}")
 
 import boto3
 
@@ -36,6 +35,7 @@ def validate_params(event, required_params, **kwargs):
         return param_only_dict, missing_params
 
     return param_only_dict, False
+
 
 # unpack the k:v pairs into the top level dict. Standard across invoke types.
 def standardize_event(event):
@@ -97,11 +97,13 @@ def invoke_lambda(params, function_name, invoke_type):
 
 ######################### ~ General str/list Formatting ~ ########################################################
 
+
 # This corrects for an edge case where some None values may convert to str "None" by API Gateway
 def standardize_dict(input_dict):
     return {k.title().strip().replace(" ", "_"):(False if is_none(v) else v) for (k, v) in input_dict.items()}
 
 
+# can this be deprecated? TODO
 def standardize_str_to_list(input_str):
     if isinstance(input_str, list):
         return input_str
@@ -207,25 +209,38 @@ def format_url(url, **kwargs):
     url = ez_split(url, "www.", 1)
 
     if kwargs.get("remove_subsite"):
-        url = ez_split(url, "/", 0) # maybe rfind instead TODO
+        url = ez_split(url, "/", 0)
     if kwargs.get("remove_tld"):
         url = url[:url.rfind(".")]
     if kwargs.get("remove_port"):
-        url = url.replace(":80", "")
+        pattern = re.compile("(:\d{2,})")
+        url = pattern.sub('', url)
+    if kwargs.get("remove_trailing_slash"):
+        url = url.rstrip("/")
+
+    if kwargs.get("remove_subdomain") and url.count(".") < 2:
+        logging.warning(f"URL: {url} does not have enough periods; skipping")
+    elif kwargs.get("remove_subdomain"):
+        url = url[url[:url.rfind(".")].rfind(".")+1:]
+        if not is_url(url): logging.warning(f"URL: {url} is probably broken now; wrong # of periods")
+
     if kwargs.get("https"):
         url = "https://" + url
-    if kwargs.get("remove_trailing_slash") and url.endswith("/"):
-        url = url.rstrip("/")
+    elif kwargs.get("http"):
+        url = "http://" + url
 
     return url.rstrip()
 
 
 # It's faster if you have a primary_key in each dict
 def deduplicate_lod(input_lod, primary_key):
-    if not primary_key:
-        output_lod = {json.dumps(d, sort_keys=True) for d in input_lod}  # convert to JSON to make dicts hashable
-        return [json.loads(x) for x in output_lod]                 # unpack the JSON
 
+    # convert to JSON to make dicts hashable then add to a set to dedupe
+    if not primary_key:
+        output_los = {json.dumps(d, sort_keys=True) for d in input_lod}
+        return [json.loads(d) for d in output_los]
+
+    # for each input dict, check if the value of the dict's primary_key is in the output already, if so, write the dict to the output.value
     output_dict = {}
     for d in input_lod:
         if d.get(primary_key) not in output_dict.keys():
@@ -233,12 +248,31 @@ def deduplicate_lod(input_lod, primary_key):
 
     return list(output_dict.values())
 
+
 # e.g. checking if any tld exists in a string
 def find_substrings_in_string(value, list_of_substrings):
     return [sub_str for sub_str in list_of_substrings if sub_str.lower().strip() in value.lower().strip()]
 
-# e.g. split a list of len n into x smaller lists of len (n/x)
+
+# i.e. split a list of len n into x smaller lists of len (n/x)
 def split_list_to_fixed_length_lol(full_list, subsection_size):
     if not len(full_list) > subsection_size:
         return [full_list] # Return list as LoL
     return [full_list[i:i+subsection_size] for i in range(0, len(full_list), subsection_size)]
+
+
+def combine_lists_unique_values(*args):
+    output_set = set()
+    for input_list in args:
+        for item in input_list:
+            output_set.add(item)
+    return output_set
+
+
+def increment_counter(counter, *args):
+    if len(args) == 1 and isinstance(args[0], list):
+        args = args[0]
+    for arg in args:
+        counter[arg] += 1
+
+    return counter

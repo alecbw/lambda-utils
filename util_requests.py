@@ -5,6 +5,7 @@ import random
 import logging
 import os
 from time import sleep
+import warnings
 
 from bs4 import BeautifulSoup, element, NavigableString
 import requests
@@ -82,7 +83,7 @@ def rotate_referer():
 
 
 def rotate_encoding():
-    encodings = ["gzip, deflate, br, sdch", "gzip, deflate, br"]
+    encodings = ["gzip, deflate, sdch", "gzip, deflate"] #"gzip, deflate, br, sdch", "gzip, deflate, br"
     return random.choice(encodings)
 
 
@@ -96,9 +97,9 @@ def rotate_accept():
     return random.choice(accepts)
 
 
-################################# ~ Outbound Requests ~ ####################################
+################################# ~ Proxies ~ ####################################
 
-# TODO restore level
+
 def get_ds_proxy_list(**kwargs):
     countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GB|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
     url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&country={countries}&https={kwargs.get('HTTPS', 'yes')}"
@@ -106,23 +107,28 @@ def get_ds_proxy_list(**kwargs):
 
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
-    logging.info(f"{len(proxies)} proxies were found")
+    logging.info(f"{len(proxies)} proxies were found (DS)")
     if kwargs.get('show_country'):
         return [x.split("#") for x in proxies]
 
     return proxies
 
-def rotate_ds_proxy(proxies):
-    if len(proxies) == 0:
-        logging.info("Exhausted list; getting another")
-        proxies = get_ds_proxy_list()
+# def rotate_ds_proxy(proxies):
+#     if len(proxies) == 0:
+#         logging.info("Exhausted list; getting another")
+#         proxies = get_ds_proxy_list()
+#
+#     proxy = proxies.pop(0)
+#     return proxy, proxies
 
-    proxy = proxies.pop(0)
-    return proxy, proxies
 
-def rotate_proxy(proxies):
+def rotate_proxy(proxies, **kwargs):
     if not proxies:
         proxies =  prioritize_proxy(scan_dynamodb('proxyTable'), "US")
+
+    if kwargs.get("return_proxy_dict"):
+        return proxies.pop(0), proxies
+
     return proxies.pop(0).get("full"), proxies
 
 
@@ -137,34 +143,41 @@ def prioritize_proxy(proxies, location):
     return output_proxies_list
 
 
+################################# ~ Outbound Requests ~ ####################################
+
+
 def handle_request_exception(e, disable_error_messages):
     if "Caused by SSLError(SSLCertVerificationError" in str(e):
         warning = f'-----> ERROR. Request Threw: Certificate Error. {e}<-----'
-        message, status_code = None, 495
+        status_code = 495
     elif "Exceeded 30 redirects" in str(e):
         warning = f'-----> ERROR. Request Threw: Too Many Redirects Error. {e}<-----'
-        message, status_code = None, 399
+        status_code = 399
     elif "TimeoutError" in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e}<-----'
-        message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----', 408
-    elif "Caused by NewConnectionError" in str(e): # double check TODO
-        warning = f'-----> ERROR. EFFECTIVE 404. {e}<-----'
-        message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw NewConnectionError: {e} <-----', 404
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----'
+        status_code = 408
+    elif "Caused by NewConnectionError" in str(e) and "ProxyError" not in str(e):
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Effective 404 - Request Threw NewConnectionError: {e} <-----'
+        status_code = 404
     elif any(x for x in ["HTTPConnectionPool", "MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
         warning = f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----'
-        message, status_code = f'-----> ERROR. ROTATE YOUR PROXY. {e} <-----', 601
+        status_code = 601
     else:
         warning = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----'
-        message, status_code = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----', 609
+        status_code = 609
 
     if not disable_error_messages:
         logging.warning(warning)
 
-    return message, status_code
+    return warning, status_code
 
 
 # Mock a browser and visit a site
 def site_request(url, proxy, wait, **kwargs):
+    # if kwargs.get("disable_error_messages"):
+    #     warnings.simplefilter('ignore', SSLError)
+
+
     if wait and wait != 0:
         sleep(random.uniform(wait, wait+1))    # +/- 0.5 sec from specified wait time. Pseudorandomized.
 
@@ -183,12 +196,13 @@ def site_request(url, proxy, wait, **kwargs):
         'cache-control': "no-cache",
         'DNT': "1",                                              # Ask the server to not be tracked (lol)
     }
-    if not kwargs.get("http_proxy"): headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
+    if not kwargs.get("http_proxy") and not kwargs.get("upgrade_insecure_requests"): 
+        headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
 
     try:
         approved_request_kwargs = ["prevent_redirects", "timeout", "hooks"]
         request_kwargs = {k:v for k,v in kwargs.items() if k in approved_request_kwargs}
-        request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True
+        request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True # TODO refactor this out
 
         if kwargs.get("http_proxy"):
             request_kwargs["proxies"] = {"http": f"http://{proxy}"}
@@ -238,16 +252,19 @@ def iterative_managed_site_request(url_list, **kwargs):
 
 ############################## ~ Handling HTML ~ ####################################
 
-def extract_stripped_string(html_tag):
+def extract_stripped_string(html_tag, **kwargs):
+    if html_tag and str(html_tag) and isinstance(html_tag, NavigableString):
+        return str(html_tag).replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').strip()
+
     if not html_tag or not html_tag.get_text():
         return html_tag
 
-    return html_tag.get_text().strip().replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
+    return html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
 
 # Will extract the text from, and concatenate together, all elements of a given selector
 def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
     if not enclosing_element:
-        logging.warning('no enclosing element for flatten_enclosed_elements')
+        logging.debug('no enclosing element for flatten_enclosed_elements')
         return None
 
     selector_type = None if selector_type.lower() == "all" else selector_type
@@ -255,7 +272,7 @@ def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
 
     text_list = []
     for ele in child_elements:
-        ele_str = extract_stripped_string(ele)
+        ele_str = extract_stripped_string(ele, **kwargs)
         if isinstance(ele_str, str):
             text_list.append(ele_str)
 
@@ -275,15 +292,23 @@ def flatten_neighboring_selectors(enclosing_element, selector_type, **kwargs):
         if not (next_s and isinstance(next_s, NavigableString)):
             continue # TODO extract with .string
         elif next_s and str(next_s):
-            text_list.append(next_s.get_text().strip().replace("\n", "").replace("\r", ""))
+            text_list.append(extract_stripped_string(next_s, **kwargs))
+
     return ", ".join(text_list) if kwargs.get("output_str") else text_list
 
 
 def safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs):
     html_tags = parsed.find_all(html_type, {property_type : identifier})
-    data = [x.get_text().replace("\n", "").strip() for x in html_tags] if html_tags else None
 
-    if data and kwargs.pop("output_str", False):
+    if not html_tags:
+        return null_value
+
+    if kwargs.get("get_link"):
+        data = [x.get("href").strip() if x.get("href") else x.a.get("href", null_value).strip() for x in html_tags]
+    else:
+        data = [x.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").strip() for x in html_tags]
+
+    if data and kwargs.get("output_str"):
         return ", ".join(data)
     elif data:
         return data
@@ -314,15 +339,13 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
                 html_tag = html_tag.key if html_tag else html_tag
 
         if kwargs.get("get_link") and html_tag:
-            return html_tag.get("href").strip() if html_tag.get("href") else html_tag.a.get("href", null_value).strip()
-            # return html_link.strip()
-        elif kwargs.get("meta") and html_tag:
-            return html_tag.get("content") if html_tag.get("content") else null_value
-
-        if isinstance(html_tag, NavigableString):
+            return html_tag.get("href").strip().rstrip("/") if html_tag.get("href") else html_tag.a.get("href", null_value).strip().rstrip("/")
+        elif html_type == "meta" and html_tag:
+            return html_tag.get("content", null_value)
+        elif isinstance(html_tag, NavigableString):
             return str(html_tag).replace("\n", "").replace('\\xa0', ' ').strip() if (html_tag and str(html_tag)) else null_value
         else:
-            return html_tag.get_text().replace("\n", "").replace('\\xa0', ' ').strip() if (html_tag and html_tag.get_text().strip()) else null_value
+            return html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").replace('\\xa0', ' ') if (html_tag and html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True)) else null_value
 
     except Exception as e:
         logging.warning(e)
