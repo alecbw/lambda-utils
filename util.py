@@ -143,9 +143,9 @@ def ez_join(phrase, delimiter):
         return phrase
 
 
-def ez_split(phrase, delimiter, return_slice):
+def ez_split(phrase, delimiter, return_slice, **kwargs):
     if not (phrase and delimiter in phrase):
-        return phrase
+        return kwargs.get("fallback_value", phrase)
 
     if type(return_slice) != type(True) and isinstance(return_slice, int):
         return phrase.split(delimiter)[return_slice]
@@ -219,7 +219,7 @@ def format_url(url, **kwargs):
         url = url.rstrip("/")
 
     if kwargs.get("remove_subdomain") and url.count(".") < 2:
-        logging.warning(f"URL: {url} does not have enough periods; skipping")
+        logging.debug(f"URL: {url} does not have enough periods; skipping")
     elif kwargs.get("remove_subdomain"):
         url = url[url[:url.rfind(".")].rfind(".")+1:]
         if not is_url(url): logging.warning(f"URL: {url} is probably broken now; wrong # of periods")
@@ -266,7 +266,7 @@ def combine_lists_unique_values(*args):
     for input_list in args:
         for item in input_list:
             output_set.add(item)
-    return output_set
+    return list(output_set)
 
 
 def increment_counter(counter, *args):

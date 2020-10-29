@@ -216,7 +216,6 @@ def site_request(url, proxy, wait, **kwargs):
         message, applied_status_code = handle_request_exception(e, kwargs.get("disable_error_messages"))
         return message, applied_status_code
 
-    # if response.status_code in [406] and "Mod_Security" in response.text:
 
     if response.status_code in [502, 503, 999] and not kwargs.get("disable_error_messages"):
         logging.warning(f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----')
@@ -304,17 +303,22 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
         return null_value
 
     if kwargs.get("get_link"):
-        data = [x.get("href").strip() if x.get("href") else x.a.get("href", null_value).strip() for x in html_tags]
+        data = [x.get("href").strip() if x.get("href") else x.a.get("href", "").strip() for x in html_tags]
     else:
         data = [x.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").strip() for x in html_tags]
 
-    if data and kwargs.get("output_str"):
-        return ", ".join(data)
-    elif data:
-        return data
-    else:
+    if not data:
         return null_value
 
+    data = [x for x in data if x] # drop empty strings
+    return ", ".join(data) if kwargs.get("output_str") else data
+
+"""
+Supported kwargs
+null_value: any_type - the value you want returned if a null would otherwise be returned
+children: list - an ordered list of child tags you want to walk down into. ex: ["li", "a", "nextSibling"]
+get_link: bool - 
+"""
 
 def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
     null_value = kwargs.get("null_value", "")
