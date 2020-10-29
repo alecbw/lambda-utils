@@ -13,6 +13,11 @@ import threading
 import boto3
 from botocore.exceptions import ClientError
 
+""" Note: imported below
+import pandas as pd
+import awswrangler as wr
+"""
+
 ####################################################################################
 
  
@@ -561,6 +566,35 @@ def aurora_execute_sql(db, sql, **kwargs):
     if not kwargs.get("disable_print"): logging.info(f"Successful execution: {sql} / {len(result)}")
 
     return result
+
+
+########################### ~ S3 Data Lake Specific ~ ###################################################
+
+
+def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
+    import pandas as pd
+    import awswrangler as wr
+
+
+    if isinstance(data, list) and isinstance(data[0], dict):
+        data = pd.DataFrame(data) # convert_to_dataframe(df, )
+    
+    s3_path = "s3://" + s3_path if not s3_path.startswith("s3://") else s3_path
+
+    wr.s3.to_parquet(
+        df=data,
+        path=s3_path,
+        dataset=True,           # Stores as parquet dataset instead of 'ordinary file'
+        mode=kwargs.get("write_mode", "overwrite"), # Could be append, overwrite or overwrite_partitions
+        database=kwargs.get("database", None),      # Optional, only with you want it available on Athena/Glue Catalog
+        table=kwargs.get("table", None),
+        compression=kwargs.get("compression", "snappy"),   # TODO check if this is ideal
+        # dtype                 # TODO Dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {‘col name’: ‘bigint’, ‘col2 name’: ‘int’})
+        max_rows_by_file=kwargs.get("max_rows_by_file", None), # If set = n, every n rows, split into a new file. If None, don't split
+        partition_cols=kwargs.get("partition_cols_list", None)
+    )
+
+    logging.info(f"Write was successful to path {s3_path}")
 
 
 ########################### ~ CloudWatch Specific ~ ###################################################
