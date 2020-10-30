@@ -269,10 +269,13 @@ def combine_lists_unique_values(*args):
     return list(output_set)
 
 
-def increment_counter(counter, *args):
+def increment_counter(counter, *args, **kwargs):
     if len(args) == 1 and isinstance(args[0], list):
         args = args[0]
     for arg in args:
         counter[arg] += 1
+
+    for arg_to_del in kwargs.get("del_keys", []):
+        del counter[arg_to_del]
 
     return counter

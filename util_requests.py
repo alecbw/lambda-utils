@@ -147,7 +147,7 @@ def prioritize_proxy(proxies, location):
 
 
 def handle_request_exception(e, disable_error_messages):
-    if "Caused by SSLError(SSLCertVerificationError" in str(e): #CertificateError
+    if "Caused by SSLError(SSLCertVerificationError" in str(e): # CertificateError
         warning = f'-----> ERROR. Request Threw: Certificate Error. {e}<-----'
         status_code = 495
     elif "Exceeded 30 redirects" in str(e):
@@ -197,7 +197,7 @@ def site_request(url, proxy, wait, **kwargs):
         'cache-control': "no-cache",
         'DNT': "1",                                              # Ask the server to not be tracked (lol)
     }
-    if not kwargs.get("http_proxy") and not kwargs.get("upgrade_insecure_requests"): 
+    if not kwargs.get("http_proxy") and kwargs.get("upgrade_insecure_requests"):
         headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
 
     try:
