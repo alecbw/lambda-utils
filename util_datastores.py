@@ -413,11 +413,15 @@ def stream_s3_file(bucket_name, filename, **kwargs):
 
 
 def write_s3_file(bucket_name, filename, json_data, **kwargs):
-    s3_object = boto3.resource("s3").Object(bucket_name, filename)
-    response = s3_object.put(Body=(bytes(json.dumps(json_data).encode("UTF-8"))))
-    status_code = ez_try_and_get(response, 'ResponseMetadata', 'HTTPStatusCode')
-    if kwargs.get("enable_print"): logging.info(f"Successful write to {filename} / {status_code}")
-    return status_code
+    try:
+        s3_object = boto3.resource("s3").Object(bucket_name, filename)
+        response = s3_object.put(Body=(bytes(json.dumps(json_data).encode("UTF-8"))))
+        status_code = ez_try_and_get(response, 'ResponseMetadata', 'HTTPStatusCode')
+        if kwargs.get("enable_print"): logging.info(f"Successful write to {filename} / {status_code}")
+        return status_code
+    except Exception as e:
+        # logging.error(e)
+        logging.error(e, bucket_name, filename, json_data)
 
 
 #http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/

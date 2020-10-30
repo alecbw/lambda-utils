@@ -147,7 +147,7 @@ def prioritize_proxy(proxies, location):
 
 
 def handle_request_exception(e, disable_error_messages):
-    if "Caused by SSLError(SSLCertVerificationError" in str(e):
+    if "Caused by SSLError(SSLCertVerificationError" in str(e): #CertificateError
         warning = f'-----> ERROR. Request Threw: Certificate Error. {e}<-----'
         status_code = 495
     elif "Exceeded 30 redirects" in str(e):
@@ -174,9 +174,10 @@ def handle_request_exception(e, disable_error_messages):
 
 # Mock a browser and visit a site
 def site_request(url, proxy, wait, **kwargs):
-    # if kwargs.get("disable_error_messages"):
-    #     warnings.simplefilter('ignore', SSLError)
-
+    if kwargs.get("disable_error_messages"):
+        # warnings.simplefilter('ignore', SSLError)
+        logging.getLogger("requests").setLevel(logging.ERROR)
+        logging.getLogger("urllib3").setLevel(logging.ERROR)
 
     if wait and wait != 0:
         sleep(random.uniform(wait, wait+1))    # +/- 0.5 sec from specified wait time. Pseudorandomized.
