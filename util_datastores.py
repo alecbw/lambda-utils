@@ -170,9 +170,9 @@ def scan_dynamodb(table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
 
     if kwargs.get("after") and isinstance(kwargs["after"], dict):
-        kwargs["FilterExpression"] = "#ts BETWEEN :start and :end"
+        kwargs["FilterExpression"] = "#ts > :start"
         kwargs["ExpressionAttributeNames"] = {"#ts": list(kwargs["after"].keys())[0]}
-        kwargs["ExpressionAttributeValues"] = {":start":  {"N": list(kwargs.pop("after").values())[0]}, ":end": {"N": int(datetime.utcnow().timestamp())}}
+        kwargs["ExpressionAttributeValues"] = {":start":  {"N": list(kwargs.pop("after").values())[0]}} #, ":end": {"N": int(datetime.utcnow().timestamp())}}
     elif kwargs.get("after"):
         logging.error("Check your after kwarg")
 
