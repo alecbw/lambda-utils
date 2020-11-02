@@ -162,13 +162,11 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
 
 
 # A single Scan request can retrieve a maximum of 1 MB of data.
+# kwarrgs - Limit, ExclusiveStartKey
 def scan_dynamodb(table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
 
-    if kwargs.get("limit"):
-        result = table.scan(**kwargs)
-    else:
-        result = table.scan()
+    result = table.scan(**kwargs)
 
     data_lod = result['Items']
 
