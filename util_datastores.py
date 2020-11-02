@@ -169,10 +169,10 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
 def scan_dynamodb(table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
 
-    if kwargs.pop("after", False):
+    if kwargs.get("after") and isinstance(kwargs["after"], dict):
         kwargs["FilterExpression"] = "#ts BETWEEN :start and :end"
-        kwargs["ExpressionAttributeNames"] = "#ts: timestamp"
-        kwargs["ExpressionAttributeValues"] = {":start":  {"N": kwargs["after"]}, ":end": {"N": int(datetime.utcnow().timestamp())}}
+        kwargs["ExpressionAttributeNames"] = "#ts: " + kwargs["after"].keys()[0]
+        kwargs["ExpressionAttributeValues"] = {":start":  {"N": kwargs.pop("after").values()[0]}, ":end": {"N": int(datetime.utcnow().timestamp())}}
 
     print(kwargs)
     result = table.scan(**kwargs)
