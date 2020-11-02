@@ -97,7 +97,7 @@ def standardize_dynamo_query(input_data, **kwargs):
         logging.error("wrong data type for dynamodb")
         return None
 
-    input_data['updatedAt'] = int(datetime.now().timestamp())
+    input_data['updatedAt'] = int(datetime.utcnow().timestamp())
 
     # TODO implement created logic
     if 'createdAt' not in input_data and kwargs.get("add_created"):
@@ -161,11 +161,20 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
     return True
 
 
-# A single Scan request can retrieve a maximum of 1 MB of data.
-# kwarrgs - Limit, ExclusiveStartKey
+"""
+    A single Scan request can retrieve a maximum of 1 MB of data, then you have to paginate
+    kwargs - Limit, ExclusiveStartKey
+    ExclusiveStartKey - may not return what you think. make sure inherent sorting is what you think
+"""
 def scan_dynamodb(table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
 
+    if kwargs.pop("after", False):
+        kwargs["FilterExpression"] = "#ts BETWEEN :start and :end"
+        kwargs["ExpressionAttributeNames"] = "#ts: timestamp"
+        kwargs["ExpressionAttributeValues"] = {":start":  {"N": kwargs["after"]}, ":end": {"N": int(datetime.utcnow().timestamp())}}
+
+    print(kwargs)
     result = table.scan(**kwargs)
 
     data_lod = result['Items']
