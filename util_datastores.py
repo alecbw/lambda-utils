@@ -172,7 +172,7 @@ def scan_dynamodb(table, **kwargs):
     if kwargs.get("after") and isinstance(kwargs["after"], dict):
         kwargs["FilterExpression"] = "#ts > :start"
         kwargs["ExpressionAttributeNames"] = {"#ts": list(kwargs["after"].keys())[0]}
-        kwargs["ExpressionAttributeValues"] = {":start":  {"N": list(kwargs.pop("after").values())[0]}} #, ":end": {"N": int(datetime.utcnow().timestamp())}}
+        kwargs["ExpressionAttributeValues"] = {":start": list(kwargs.pop("after").values())[0]} #, ":end": {"N": int(datetime.utcnow().timestamp())}}
     elif kwargs.get("after"):
         logging.error("Check your after kwarg")
 
@@ -186,8 +186,10 @@ def scan_dynamodb(table, **kwargs):
         data_lod.extend(result['Items'])
 
     if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo List from {table}, found {result['Count']} results")
-    for row in data_lod:
-        row = standardize_dynamo_output(row)
+
+    for n, row in enumerate(data_lod):
+        data_lod[n] = standardize_dynamo_output(row)
+
     return data_lod
 
 
