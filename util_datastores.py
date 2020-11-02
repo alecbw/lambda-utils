@@ -163,8 +163,10 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
 
 """
     A single Scan request can retrieve a maximum of 1 MB of data, then you have to paginate
-    kwargs - Limit, ExclusiveStartKey
+    kwargs - Limit, after, ExclusiveStartKey
     ExclusiveStartKey - may not return what you think. make sure inherent sorting is what you think
+    after - a one-item dict, where k is the timestamp col name and v is the timestamp to start the comparison at
+            after={"timestamp": 1603678545}
 """
 def scan_dynamodb(table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
@@ -176,13 +178,13 @@ def scan_dynamodb(table, **kwargs):
     elif kwargs.get("after"):
         logging.error("Check your after kwarg")
 
-    print(kwargs)
     result = table.scan(**kwargs)
 
     data_lod = result['Items']
 
     while 'LastEvaluatedKey' in result and result['Count'] < kwargs.get("limit", 10000000): # Pagination
-        result = table.scan(ExclusiveStartKey=result['LastEvaluatedKey'])
+        kwargs["ExclusiveStartKey"] = result['LastEvaluatedKey']
+        result = table.scan(**kwargs)
         data_lod.extend(result['Items'])
 
     if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo List from {table}, found {result['Count']} results")
