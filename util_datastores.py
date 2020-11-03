@@ -614,6 +614,25 @@ def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
     logging.info(f"Write was successful to path {s3_path}")
 
 
+# when you read a year=2020, etc delimited data lake, the resulting df will have 'day', 'month', 'year' as columns
+def read_s3_parquet(s3_path, **kwargs):
+    import pandas as pd
+    import awswrangler as wr
+
+    if isinstance(s3_path, str):
+        s3_path = "s3://" + s3_path if not s3_path.startswith("s3://") else s3_path
+
+    df = wr.s3.read_parquet(
+        path=s3_path,
+        dataset=True,
+        validate_schema=kwargs.get("validate_schema", True), # raises an InvalidSchemaConvergence exception if > 1 schemas are found in the files
+        use_threads=False
+        # last_modified_begin=
+        # last_modified_end=
+        # columns=["only", "get", "these", "columns"]
+    )
+    return df
+
 ########################### ~ CloudWatch Specific ~ ###################################################
 
 # query = "fields @timestamp, @message | parse @message \"username: * ClinicID: * nodename: *\" as username, ClinicID, nodename | filter ClinicID = 7667 and username='simran+test@abc.com'"
