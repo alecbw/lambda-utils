@@ -178,7 +178,7 @@ def is_url(value):
 
     return False
 
-
+# TODO deprecate
 def format_timestamp(timestamp, **kwargs):
     if not timestamp:
         return None, None
@@ -202,6 +202,27 @@ def format_timestamp(timestamp, **kwargs):
         return None, None
 
     return timestamp_str, timestamp
+
+
+def detect_and_convert_datetime_str(datetime_str, **kwargs):
+    if not datetime_str:
+        return kwargs.get("null_value", "")
+
+    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%a, %d %b %Y %H:%M:%S %Z"]
+    for dt_format in LIST_OF_DT_FORMATS:
+        try:
+            dt_str = datetime.strptime(datetime_str, dt_format)
+            standard_dt_str = datetime.utctimetuple(dt_str) # convert to UTC
+            break
+        except:
+            if dt_format == LIST_OF_DT_FORMATS[-1]: # if none matched
+                logging.warning(f"The datetime_str {datetime_str} did not match any pattern")
+                return kwargs.get("null_value", "") # returns empty str by default
+
+
+    output_dt = datetime.fromtimestamp(time.mktime(standard_dt_str)) # convert from time.struct_time to datetime.date
+    output_dt = datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
+    return output_dt
 
 
 def format_url(url, **kwargs):
