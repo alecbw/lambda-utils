@@ -124,6 +124,7 @@ def standardize_dynamo_output(output_data, **kwargs):
 
     return json.dumps(output_data, cls=DynamoReadEncoder) if kwargs.get("output") == "json" else output_data
 
+
 # Note this will BY DEFAULT overwrite items with the same primary key (upsert)
 def write_dynamodb_item(dict_to_write, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
@@ -293,7 +294,8 @@ def delete_dynamodb_item(unique_key, key_value, table_name, **kwargs):
     result = table.delete_item(Key={unique_key:key_value})
     if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Delete of key {key_value} from {table_name}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
 
-# TODO test
+
+# TODO test. Alternate implementation: https://github.com/fernando-mc/nandolytics/blob/master/record.py
 def increment_dynamodb_item_counter(primary_key_value, counter_attr, table_name, **kwargs):
     table = boto3.resource('dynamodb').Table(table_name)
 
@@ -602,13 +604,15 @@ def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
         df=data,
         path=s3_path,
         dataset=True,           # Stores as parquet dataset instead of 'ordinary file'
-        mode=kwargs.get("write_mode", "overwrite"), # Could be append, overwrite or overwrite_partitions
+        mode=kwargs.get("write_mode", "append"), # Could be append, overwrite or overwrite_partitions
         database=kwargs.get("database", None),      # Optional, only with you want it available on Athena/Glue Catalog
-        table=kwargs.get("table", None),
-        compression=kwargs.get("compression", "snappy"),   # TODO check if this is ideal
+        table=kwargs.get("table", None),            # If not exists, it will create the table at the specific/s3/path you specify
+        compression=kwargs.get("compression", "snappy"),
         # dtype                 # TODO Dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {‘col name’: ‘bigint’, ‘col2 name’: ‘int’})
         max_rows_by_file=kwargs.get("max_rows_by_file", None), # If set = n, every n rows, split into a new file. If None, don't split
-        partition_cols=kwargs.get("partition_cols_list", None)
+        partition_cols=kwargs.get("partition_cols_list", None),
+        use_threads=kwargs.get("use_threads", False),
+        schema_evolution=kwargs.get("schema_evolution", False), # if True, and you pass a different schema, it will update the table
     )
 
     logging.info(f"Write was successful to path {s3_path}")
