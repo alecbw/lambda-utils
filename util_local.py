@@ -25,6 +25,9 @@ def read_from_gsheet(sheet, tab):
 
 def write_to_gsheet(output_lod, sheet, tab, primary_key, **kwargs):
 
+    if sys.getsizeof(output_lod) > (6291456-5000):
+        logging.warning("You need to split your data rows")
+
     resp, status_code = invoke_lambda({
             "Gsheet": sheet,
             "Tab": tab,

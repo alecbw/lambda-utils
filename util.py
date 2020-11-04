@@ -66,6 +66,17 @@ def package_response(message, status_code, **kwargs):
         'headers': {'Content-Type': 'application/json'}
     }
 
+class ComplexEncoder(json.JSONEncoder):
+    def default(self, obj):
+        # if isinstance(obj, complex):
+        #     return [obj.real, obj.imag]
+        if isinstance(obj, numpy.int64):
+            return int(obj)
+        if isinstance(obj, set):
+            return list(obj)
+        # Let the base class default method raise the TypeError
+        return json.JSONEncoder.default(self, obj)
+
 
 def invoke_lambda(params, function_name, invoke_type):
 
@@ -73,7 +84,7 @@ def invoke_lambda(params, function_name, invoke_type):
     lambda_response = lambda_client.invoke(
         FunctionName=function_name,
         InvocationType=invoke_type,
-        Payload=json.dumps(params),
+        Payload=json.dumps(params), # default=ComplexEncoder TODO
     )
     # Async Invoke returns only StatusCode
     if invoke_type.title() == "Event":
