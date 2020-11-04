@@ -435,18 +435,17 @@ def write_s3_file(bucket_name, filename, json_data, **kwargs):
         if kwargs.get("enable_print"): logging.info(f"Successful write to {filename} / {status_code}")
         return status_code
     except Exception as e:
-        # logging.error(e)
-        logging.error(e, bucket_name, filename, json_data)
+        logging.error(e, bucket_name, filename)
 
 
-#http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
-# list of tuples
+# http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
+# pass this a list of tuples of (filename, data)
 def parallel_write_s3_files(bucket_name, file_lot):
     boto3.client('s3')
     for file_tuple in file_lot:
         t = threading.Thread(target = write_s3_file, args=(bucket_name, file_tuple[0], file_tuple[1])).start()
 
-    logging.info(f"Parallel write to S3 Bucket {bucket_name} has finished")
+    logging.info(f"Parallel write to S3 Bucket {bucket_name} has commenced")
 
 
 def delete_s3_file(bucket_name, filename, **kwargs):
