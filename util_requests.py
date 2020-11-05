@@ -253,14 +253,26 @@ def iterative_managed_site_request(url_list, **kwargs):
 
 ############################## ~ Handling HTML ~ ####################################
 
-def extract_stripped_string(html_tag, **kwargs):
-    if html_tag and str(html_tag) and isinstance(html_tag, NavigableString):
-        return str(html_tag).replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').strip()
+def actual_strip(input_str):
+    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').strip()
 
-    if not html_tag or not html_tag.get_text():
-        return kwargs.get("null_value", html_tag)
 
-    return html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
+# TODO replace dumbass implementation of replacing newline chars
+def extract_stripped_string(html_tag_or_str, **kwargs):
+    if not html_tag_or_str:
+        return kwargs.get("null_value", html_tag_or_str)
+
+    elif isinstance(html_tag_or_str, NavigableString) and  str(html_tag_or_str):
+        return actual_strip(str(html_tag_or_str))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').strip()
+
+    elif isinstance(html_tag_or_str, str):
+        return actual_strip(html_tag_or_str)
+
+    elif html_tag_or_str.get_text():
+        return actual_strip(html_tag_or_str.get_text(separator=kwargs.get("text_sep", " "), strip=True))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
+
+    return kwargs.get("null_value", html_tag_or_str)
+
 
 # Will extract the text from, and concatenate together, all elements of a given selector
 def flatten_enclosed_elements(enclosing_element, selector_type, **kwargs):
@@ -348,7 +360,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         if kwargs.get("get_link") and html_tag:
             return html_tag.get("href").strip().rstrip("/") if html_tag.get("href") else html_tag.a.get("href", null_value).strip().rstrip("/")
         elif html_type == "meta" and html_tag:
-            return html_tag.get("content", null_value).strip().replace("\n", " ")
+            return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
         # elif isinstance(html_tag, NavigableString):
         #     return str(html_tag).replace("\n", " ").replace('\\xa0', ' ').strip() if (html_tag and str(html_tag)) else null_value
         else:
