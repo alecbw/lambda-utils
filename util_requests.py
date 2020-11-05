@@ -353,7 +353,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         #     return str(html_tag).replace("\n", " ").replace('\\xa0', ' ').strip() if (html_tag and str(html_tag)) else null_value
         else:
             # return html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", " ").replace('\\xa0', ' ') if (html_tag and html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True)) else null_value
-            return extract_stripped_string(html_tag)
+            return extract_stripped_string(html_tag, null_value=null_value)
 
     except Exception as e:
         logging.warning(e)
