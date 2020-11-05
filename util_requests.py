@@ -253,7 +253,10 @@ def iterative_managed_site_request(url_list, **kwargs):
 
 ############################## ~ Handling HTML ~ ####################################
 
-def actual_strip(input_str):
+def ez_strip_str(input_str):
+    if not isinstance(input_str, str):
+        logging.warning(f"non str fed to ez_strip_str {input_str}")
+        return input_str
     return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').strip()
 
 
@@ -263,13 +266,13 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
         return kwargs.get("null_value", html_tag_or_str)
 
     elif isinstance(html_tag_or_str, NavigableString) and  str(html_tag_or_str):
-        return actual_strip(str(html_tag_or_str))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').strip()
+        return ez_strip_str(str(html_tag_or_str))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').strip()
 
     elif isinstance(html_tag_or_str, str):
-        return actual_strip(html_tag_or_str)
+        return ez_strip_str(html_tag_or_str)
 
     elif html_tag_or_str.get_text():
-        return actual_strip(html_tag_or_str.get_text(separator=kwargs.get("text_sep", " "), strip=True))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
+        return ez_strip_str(html_tag_or_str.get_text(separator=kwargs.get("text_sep", " "), strip=True))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
 
     return kwargs.get("null_value", html_tag_or_str)
 
