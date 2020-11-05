@@ -6,6 +6,7 @@ import logging
 import os
 from time import sleep
 import warnings
+import re
 
 from bs4 import BeautifulSoup, element, NavigableString
 import requests
@@ -254,10 +255,10 @@ def iterative_managed_site_request(url_list, **kwargs):
 
 def extract_stripped_string(html_tag, **kwargs):
     if html_tag and str(html_tag) and isinstance(html_tag, NavigableString):
-        return str(html_tag).replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').strip()
+        return str(html_tag).replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').strip()
 
     if not html_tag or not html_tag.get_text():
-        return html_tag
+        return kwargs.get("null_value", html_tag)
 
     return html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
 
@@ -331,6 +332,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         if kwargs.pop("find_all", False):
             return safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs)
 
+        # Note: case sensitive, BUT the bs4 parser converts all  tag and attribute names to lower case so it nets out
         html_tag = parsed.find(html_type, {property_type : identifier})
 
         if not html_tag:
@@ -347,10 +349,11 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             return html_tag.get("href").strip().rstrip("/") if html_tag.get("href") else html_tag.a.get("href", null_value).strip().rstrip("/")
         elif html_type == "meta" and html_tag:
             return html_tag.get("content", null_value).strip().replace("\n", " ")
-        elif isinstance(html_tag, NavigableString):
-            return str(html_tag).replace("\n", " ").replace('\\xa0', ' ').strip() if (html_tag and str(html_tag)) else null_value
+        # elif isinstance(html_tag, NavigableString):
+        #     return str(html_tag).replace("\n", " ").replace('\\xa0', ' ').strip() if (html_tag and str(html_tag)) else null_value
         else:
-            return html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", " ").replace('\\xa0', ' ') if (html_tag and html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True)) else null_value
+            # return html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", " ").replace('\\xa0', ' ') if (html_tag and html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True)) else null_value
+            return extract_stripped_string(html_tag)
 
     except Exception as e:
         logging.warning(e)
