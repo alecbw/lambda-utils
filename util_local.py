@@ -27,6 +27,7 @@ def write_to_gsheet(output_lod, sheet, tab, primary_key, **kwargs):
 
     if sys.getsizeof(output_lod) > (6291456-5000):
         logging.warning("You need to split your data rows")
+        return 413 # payload too large
 
     resp, status_code = invoke_lambda({
             "Gsheet": sheet,
@@ -42,6 +43,8 @@ def write_to_gsheet(output_lod, sheet, tab, primary_key, **kwargs):
         print(f"Finished writing to Google Sheet {sheet}. Status code {status_code}")
     else:
         print(f"Error writing to Google Sheet {sheet}. Status code {status_code}; message: {resp}")
+
+    return status_code
 
 # Use if you're hitting the 2MB Lambda limit
 def naive_append_gsheet_tab(sheet, tab, output_lod, headers):
