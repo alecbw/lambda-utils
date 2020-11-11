@@ -146,13 +146,19 @@ def create_gsheet_tab(sh, tab_name, **kwargs):
 perm_type: The account type. Allowed values are: ``user``, ``group``, ``domain``, ``anyone``
 role: The primary role for this user. Allowed values are: ``owner``, ``writer``, ``reader``
 """
-def create_gsheet_sheet(sh, sheet_name, **kwargs):
+def create_gsheet_sheet(gc, sheet_name, **kwargs):
+    if not gc:
+        gc = auth_gspread()
+
+    # if kwargs:
+    #     kwargs = {k.lower():v for k,v in kwargs.items()}
+
     sh = gc.create(sheet_name)
     if kwargs.get("share_with"):
         sh.share(kwargs.get("share_with"), perm_type='user', role=kwargs.get("share_role", "reader"))
     
     return sh
-    
+
 
 def simple_tab_append(sheet, tab, data_lol):
     sh, worksheet_list = open_gsheet(sheet)
