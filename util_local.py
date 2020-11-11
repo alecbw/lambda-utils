@@ -4,7 +4,7 @@ from utility.util_gspread import open_gsheet
 import json
 import csv
 import sys
-
+import logging
 
 def read_from_gsheet(sheet, tab):
 
@@ -81,14 +81,17 @@ def read_input_csv(filename, **kwargs):
 
 
 def write_output_csv(filename, output_lod, **kwargs):
-    filename = filename + ".csv" if ".csv" not in filename else filename
+    if not kwargs.get("prevent_csv_suffix") and ".csv" not in filename:
+        filename = filename + ".csv"
+    if not kwargs.get("prevent_output_prefix") and "Output " not in filename:
+        filename = "Output " + filename
 
-    with open(f"Output {filename}", 'w') as output_file:
+    with open(filename, 'w') as output_file:
         dict_writer = csv.DictWriter(output_file, kwargs.get("header", output_lod[0].keys()))
         dict_writer.writeheader()
         dict_writer.writerows(output_lod)
 
-    print(f"Write to csv {'Output ' + filename} was successful\n")
+    logging.info(f"Write to csv {filename} was successful\n")
 
 
 def append_to_csv(filename, output_lod, **kwargs):

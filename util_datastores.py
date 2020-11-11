@@ -1,4 +1,5 @@
 from utility.util import is_none, ez_try_and_get, ez_get
+from utility.util_local import write_output_csv
 
 import os
 from time import sleep
@@ -9,6 +10,7 @@ import json
 import concurrent.futures
 import itertools
 import threading
+import csv
 
 import boto3
 from botocore.exceptions import ClientError
@@ -427,15 +429,29 @@ def stream_s3_file(bucket_name, filename, **kwargs):
     return s3_object.get()['Body'] #body returns streaming string
 
 
-def write_s3_file(bucket_name, filename, json_data, **kwargs):
+def write_s3_file(bucket_name, filename, file_data, **kwargs):
+    file_type = kwargs.get("file_type", "json")
+    if file_type == "json":
+        file_to_write = bytes(json.dumps(file_data).encode("UTF-8"))
+    elif file_type == "tmp_csv":
+        write_output_csv(f"/tmp/{filename}.txt", file_data, prevent_csv_suffix=True, prevent_output_prefix=True)
+        # with open(f'/tmp/{filename}.txt', 'w', newline='') as f:
+        #     dict_writer = csv.DictWriter(output_file, kwargs.get("header", output_lod[0].keys()))
+        #     dict_writer.writeheader()
+        #     dict_writer.writerows(output_lod)
+            # w.writerows(file_data)
+        file_to_write = open(f'/tmp/{filename}.txt', 'rb')
+        filename = filename + ".csv" if ".csv" not in filename else filename
+
     try:
         s3_object = boto3.resource("s3").Object(bucket_name, filename)
-        response = s3_object.put(Body=(bytes(json.dumps(json_data).encode("UTF-8"))))
+        response = s3_object.put(Body=(file_to_write)) #bytes(json.dumps(file_data).encode("UTF-8"))))
         status_code = ez_try_and_get(response, 'ResponseMetadata', 'HTTPStatusCode')
         if kwargs.get("enable_print"): logging.info(f"Successful write to {filename} / {status_code}")
         return status_code
     except Exception as e:
         logging.error(e, bucket_name, filename)
+
 
 
 # http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
