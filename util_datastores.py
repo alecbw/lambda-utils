@@ -433,13 +433,8 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
     file_type = kwargs.get("file_type", "json")
     if file_type == "json":
         file_to_write = bytes(json.dumps(file_data).encode("UTF-8"))
-    elif file_type == "tmp_csv":
+    elif file_type == "csv":
         write_output_csv(f"/tmp/{filename}.txt", file_data, prevent_csv_suffix=True, prevent_output_prefix=True)
-        # with open(f'/tmp/{filename}.txt', 'w', newline='') as f:
-        #     dict_writer = csv.DictWriter(output_file, kwargs.get("header", output_lod[0].keys()))
-        #     dict_writer.writeheader()
-        #     dict_writer.writerows(output_lod)
-            # w.writerows(file_data)
         file_to_write = open(f'/tmp/{filename}.txt', 'rb')
         filename = filename + ".csv" if ".csv" not in filename else filename
 
