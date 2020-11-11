@@ -438,9 +438,12 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         file_to_write = open(f'/tmp/{filename}.txt', 'rb')
         filename = filename + ".csv" if ".csv" not in filename else filename
 
+    if not filename.endswith(".{file_type}"):
+        filename = filename + ".{file_type}"
+
     try:
         s3_object = boto3.resource("s3").Object(bucket_name, filename)
-        response = s3_object.put(Body=(file_to_write)) #bytes(json.dumps(file_data).encode("UTF-8"))))
+        response = s3_object.put(Body=(file_to_write))
         status_code = ez_try_and_get(response, 'ResponseMetadata', 'HTTPStatusCode')
         if kwargs.get("enable_print"): logging.info(f"Successful write to {filename} / {status_code}")
         return status_code
