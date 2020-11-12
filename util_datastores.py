@@ -60,7 +60,7 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
 
     results = []
 
-    # Iterate through pages. The NextPage logic is handled for you.
+    # Iterate through pages. The NextToken logic is handled for you.
     for n, page in enumerate(response_iterator):
         logging.info(f"Now on page {n}, rows on this page: {len(page['ResultSet']['Rows'])}")
 
