@@ -160,6 +160,7 @@ def create_gsheet_sheet(gc, sheet_name, **kwargs):
     return sh
 
 
+# better version in util_local TODO
 def simple_tab_append(sheet, tab, data_lol):
     sh, worksheet_list = open_gsheet(sheet)
     sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
