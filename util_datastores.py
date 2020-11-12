@@ -79,6 +79,9 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
 
 # Figure out pagination / 1000 row limit
 def query_athena_table(sql_query, database, **kwargs):
+    if database not in sql_query:
+        logging.warning("The provided database is not in your provided SQL query")
+        
     client = boto3.client('athena')
     query_started = client.start_query_execution(
         QueryString=sql_query,
