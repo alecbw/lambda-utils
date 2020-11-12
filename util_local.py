@@ -46,6 +46,7 @@ def write_to_gsheet(output_lod, sheet, tab, primary_key, **kwargs):
 
     return status_code
 
+
 # Use if you're hitting the 2MB Lambda limit
 def naive_append_gsheet_tab(sheet, tab, output_lod, headers):
     data_lol = []

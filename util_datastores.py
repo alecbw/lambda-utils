@@ -1,5 +1,4 @@
 from utility.util import is_none, ez_try_and_get, ez_get
-from utility.util_local import write_output_csv
 
 import os
 from time import sleep
@@ -434,12 +433,16 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
     if file_type == "json":
         file_to_write = bytes(json.dumps(file_data).encode("UTF-8"))
     elif file_type == "csv":
-        write_output_csv(f"/tmp/{filename}.txt", file_data, prevent_csv_suffix=True, prevent_output_prefix=True)
+        with open(f"/tmp/{filename}.txt", 'w') as output_file:
+            dict_writer = csv.DictWriter(file_data, output_lod[0].keys())
+            dict_writer.writeheader()
+            dict_writer.writerows(output_lod)
+        # write_output_csv(f"/tmp/{filename}.txt", file_data, prevent_csv_suffix=True, prevent_output_prefix=True)
         file_to_write = open(f'/tmp/{filename}.txt', 'rb')
         filename = filename + ".csv" if ".csv" not in filename else filename
 
-    if not filename.endswith(".{file_type}"):
-        filename = filename + ".{file_type}"
+    if not filename.endswith(f".{file_type}"):
+        filename = filename + f".{file_type}"
 
     try:
         s3_object = boto3.resource("s3").Object(bucket_name, filename)
