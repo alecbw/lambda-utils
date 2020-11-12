@@ -64,10 +64,14 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
     for n, page in enumerate(response_iterator):
         logging.info(f"Now on page {n}, rows on this page: {len(page['ResultSet']['Rows'])}")
 
-        if n > 0 and len(page['ResultSet']['Rows']) == 0: # probably redundant
-            break
+        # if n > 0 and len(page['ResultSet']['Rows']) == 0: # probably redundant
+        #     break
 
         results += standardize_athena_query_result(page, **kwargs)
+        
+        if not results:
+            break
+
         kwargs["headers"] = list(results[0].keys()) # prevent parser from .pop(0) after 1st page
 
     return results
