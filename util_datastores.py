@@ -24,12 +24,14 @@ import awswrangler as wr
  
 # Opinion: Whoever designed the response schema hates developers
 def standardize_athena_query_result(results, **kwargs):
+    print(kwargs.keys())
     results = [x["Data"] for x in results['ResultSet']['Rows']]
     for n, row in enumerate(results):
         results[n] = [x['VarCharValue'] for x in row]
 
     if kwargs.get("output_lod"):
-        headers = results.pop(0)
+        headers = kwargs.get("headers") or results.pop(0)
+        
         output_lod = []
         for n, result_row in enumerate(results):
             output_lod.append({headers[i]:result_row[i] for i in range(0, len(result_row))})
@@ -39,40 +41,115 @@ def standardize_athena_query_result(results, **kwargs):
 
 
 # Figure out pagination / 1000 row limit
-# TODO implement a timeout in the query wait
 def query_athena_table(sql_query, database, **kwargs):
     client = boto3.client('athena')
-    queryStart = client.start_query_execution(
+    query_started = client.start_query_execution(
         QueryString=sql_query,
         QueryExecutionContext={'Database': database},
         ResultConfiguration={"OutputLocation": f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/"}
     )
 
-    timeout_value = kwargs.get("timeout", 15)
+    timeout_value = kwargs.get("timeout", 15) * 1000 # bc its in milliseconds
     finished = False
+    logging.info("Started Athena Query")
+
     while not finished:
-        query_status = client.get_query_execution(QueryExecutionId=queryStart["QueryExecutionId"])
+        query_in_flight = client.get_query_execution(QueryExecutionId=query_started["QueryExecutionId"])
+        query_status = query_in_flight["QueryExecution"]["Status"]["State"]
 
-        if query_status["QueryExecution"]["Status"]["State"] == "SUCCEEDED":
-            results = client.get_query_results(QueryExecutionId=queryStart["QueryExecutionId"])
+        if query_status == 'SUCCEEDED':
             finished = True
-
-        elif timeout_value > ez_get(query_status, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
-            logging.error(f"Query timed out with no response (timeout val: {timeout_value})")
+        elif query_status in ['FAILED', 'CANCELLED']: # TODO test cancelled
+            logging.error(stats['QueryExecution']['Status']['StateChangeReason'])
             return None
-        
         else:
             sleep(kwargs.get("wait_interval", 0.1))
-            logging.info(query_status["QueryExecution"]["Status"]["State"])
-            if query_status["QueryExecution"]["Status"]["State"] == "FAILED":
-                logging.error(query_status["QueryExecution"]["Status"]["StateChangeReason"])
-                return None
 
-    results = standardize_athena_query_result(results, **kwargs)
+    # # if <1000 rows, no need to paginate
+    # if not ez_get(query_in_flight, "ResultSet", "NextToken"):
+    #     print('no need to paginate')
+    #     page = client.get_query_results(QueryExecutionId=query_started["QueryExecutionId"])
+    #     return standardize_athena_query_result(page, **kwargs)
+
+    return build_response(
+        client=client,
+        execution_id=query_started["QueryExecutionId"], 
+        starting_token=ez_get(query_in_flight, "ResultSet", "NextToken"),
+        page_size=999,
+        **kwargs
+    )
+
+#         if query_status["QueryExecution"]["Status"]["State"] == "SUCCEEDED":
+#             results = client.get_query_results(QueryExecutionId=query_started["QueryExecutionId"])
+#             finished = True
+# # ResultSet NextToken
+#         elif timeout_value < ez_get(query_status, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
+#             logging.error(f"Query timed out with no response (timeout val: {timeout_value})")
+#             return None
+        
+#         else:
+#             sleep(kwargs.get("wait_interval", 0.1))
+#             # logging.info(query_status["QueryExecution"]["Status"]["State"])
+#             if query_status["QueryExecution"]["Status"]["State"] == "FAILED":
+#                 logging.error(query_status["QueryExecution"]["Status"]["StateChangeReason"])
+#                 return None
+
+
+    # results = standardize_athena_query_result(results, **kwargs)
+    # return results
+
+def build_response(client, execution_id: str, starting_token: str, page_size: int, **kwargs):# -> AthenaPagedResult:
+    """
+    Returns the query result for the provided page as well as a token to the next page if there are more
+    results to retrieve for the query.
+    """
+    MAXIMUM_ALLOWED_ITEMS_NUMBER = int(kwargs.get("max_results", 100000))
+    EMPTY_ATHENA_RESPONSE = {'UpdateCount': 0, 'ResultSet': {'Rows': [{'Data': [{}]}]}}
+
+    paginator = client.get_paginator('get_query_results')
+
+    # The first page of response contains header. Increase the page size for a first page and then
+    # remove header so that all the pages would have the same size.
+    # if starting_token:
+    #     skip_header = False
+    # else:
+    #     page_size += 1
+    #     skip_header = True
+    
+    # max_items = page_size * 2
+
+    pagination_config = {
+        'MaxItems': MAXIMUM_ALLOWED_ITEMS_NUMBER, # min(max_items, MAXIMUM_ALLOWED_ITEMS_NUMBER),
+        'PageSize': page_size, # min(page_size, MAXIMUM_ALLOWED_ITEMS_NUMBER)
+    }
+    # if starting_token:
+    #     pagination_config['StartingToken'] = starting_token
+
+    response_iterator = paginator.paginate(QueryExecutionId=execution_id, PaginationConfig=pagination_config)
+
+
+    iterator_index = 0
+    results = [] #EMPTY_ATHENA_RESPONSE
+    next_token = None
+
+    # Retrieve only a single page and return the next token for the caller to iterate the response.
+    for page in response_iterator:
+        print(iterator_index, len(page['ResultSet']['Rows']))
+        if iterator_index > 0 and len(page['ResultSet']['Rows']) == 0:
+            # next_token = None
+            break
+        # next_token = page.get('NextToken')
+        # results = page
+        results += standardize_athena_query_result(page, **kwargs)
+        iterator_index += 1
+        kwargs["headers"] = list(results[0].keys())
+
+    # results = standardize_athena_query_result(results, **kwargs)
     return results
 
 
 ################################### ~ Dynamo Operations ~  ############################################
+
 
 # def decimal_default(obj):
 #     # print(obj)

@@ -46,7 +46,7 @@ def standardize_event(event):
         event.update(event["queryStringParameters"])
     if event.get("query"):  # GET, async API Gateway
         event.update(event["query"])
-    if event.get("Records"):  # triggered directly by SQS queue
+    if event.get("Records"):  # triggered directly by SQS queue TODO only first record?
         event.update(json.loads(ez_try_and_get(event, "Records", 0, "body")))
 
 
@@ -86,7 +86,7 @@ def invoke_lambda(params, function_name, invoke_type):
         InvocationType=invoke_type,
         Payload=json.dumps(params), # default=ComplexEncoder TODO
     )
-    # Async Invoke returns only StatusCode
+    # Async Invoke (Event) returns only StatusCode
     if invoke_type.title() == "Event":
         return None, lambda_response.get("StatusCode", 666)
 
