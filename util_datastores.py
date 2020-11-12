@@ -93,7 +93,7 @@ def query_athena_table(sql_query, database, **kwargs):
         if query_status == 'SUCCEEDED':
             finished = True
         elif query_status in ['FAILED', 'CANCELLED']: # TODO test cancelled
-            logging.error(stats['QueryExecution']['Status']['StateChangeReason'])
+            logging.error(query_in_flight['QueryExecution']['Status']['StateChangeReason'])
             return None
         elif timeout_value < ez_get(query_in_flight, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
             logging.warning(f"Query timed out with no response (timeout val: {timeout_value})")
