@@ -39,6 +39,40 @@ def standardize_athena_query_result(results, **kwargs):
     return results
 
 
+# about 4s per 10k rows, with a floor of ~0.33s if only one page
+def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPagedResult:
+    """
+    Returns the query result for the provided page as well as a token to the next page if there are more
+    results to retrieve for the query.
+    
+    EMPTY_ATHENA_RESPONSE = {'UpdateCount': 0, 'ResultSet': {'Rows': [{'Data': [{}]}]}}
+    """
+
+    paginator = client.get_paginator('get_query_results')
+
+    response_iterator = paginator.paginate(
+        QueryExecutionId=execution_id, 
+        PaginationConfig={
+            'MaxItems': kwargs.get("max_results", 100000),
+            'PageSize': 1000,
+            'StartingToken': kwargs.get("pagination_starting_token", None),
+    })
+
+    results = []
+
+    # Iterate through pages. The NextPage logic is handled for you.
+    for n, page in enumerate(response_iterator):
+        logging.info(f"Now on page {n}, rows on this page: {len(page['ResultSet']['Rows'])}")
+
+        if n > 0 and len(page['ResultSet']['Rows']) == 0: # probably redundant
+            break
+
+        results += standardize_athena_query_result(page, **kwargs)
+        kwargs["headers"] = list(results[0].keys()) # prevent parser from .pop(0) after 1st page
+
+    return results
+
+
 # Figure out pagination / 1000 row limit
 def query_athena_table(sql_query, database, **kwargs):
     client = boto3.client('athena')
@@ -67,51 +101,10 @@ def query_athena_table(sql_query, database, **kwargs):
         else:
             sleep(kwargs.get("wait_interval", 0.1))
 
-    return paginate_athena_response(
-        client=client,
-        execution_id=query_started["QueryExecutionId"], 
-        starting_token=None,
-        page_size=999,
-        **kwargs
-    )
-
-# about 4s per 10k rows, with a floor of ~0.33s if only one page
-def paginate_athena_response(client, execution_id: str, starting_token: str, page_size: int, **kwargs):# -> AthenaPagedResult:
-    """
-    Returns the query result for the provided page as well as a token to the next page if there are more
-    results to retrieve for the query.
-    """
-
-    MAXIMUM_ALLOWED_ITEMS_NUMBER = int(kwargs.get("max_results", 100000))
-    # EMPTY_ATHENA_RESPONSE = {'UpdateCount': 0, 'ResultSet': {'Rows': [{'Data': [{}]}]}}
-
-    paginator = client.get_paginator('get_query_results')
-
-    pagination_config = {
-        'MaxItems': MAXIMUM_ALLOWED_ITEMS_NUMBER, # min(max_items, MAXIMUM_ALLOWED_ITEMS_NUMBER),
-        'PageSize': page_size, # min(page_size, MAXIMUM_ALLOWED_ITEMS_NUMBER)
-    }
-    if starting_token:
-        pagination_config['StartingToken'] = starting_token
-
-    response_iterator = paginator.paginate(QueryExecutionId=execution_id, PaginationConfig=pagination_config)
+    return paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
 
-    iterator_index = 0
-    results = []
 
-    # Retrieve only a single page and return the next token for the caller to iterate the response.
-    for page in response_iterator:
-        logging.info(f"Now on page {iterator_index}, rows on this page: {len(page['ResultSet']['Rows'])}")
-
-        if iterator_index > 0 and len(page['ResultSet']['Rows']) == 0:
-            break
-
-        results += standardize_athena_query_result(page, **kwargs)
-        iterator_index += 1
-        kwargs["headers"] = list(results[0].keys())
-
-    return results
 
 
 ################################### ~ Dynamo Operations ~  ############################################
