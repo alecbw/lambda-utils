@@ -9,6 +9,7 @@ import json
 import concurrent.futures
 import itertools
 import threading
+import csv
 
 import boto3
 from botocore.exceptions import ClientError
@@ -18,7 +19,7 @@ import pandas as pd
 import awswrangler as wr
 """
 
-####################################################################################
+######################## ~ Athena Queries ~ #############################################
 
  
 # Opinion: Whoever designed the response schema hates developers
@@ -28,7 +29,8 @@ def standardize_athena_query_result(results, **kwargs):
         results[n] = [x['VarCharValue'] for x in row]
 
     if kwargs.get("output_lod"):
-        headers = results.pop(0)
+        headers = kwargs.get("headers") or results.pop(0)
+
         output_lod = []
         for n, result_row in enumerate(results):
             output_lod.append({headers[i]:result_row[i] for i in range(0, len(result_row))})
@@ -37,41 +39,83 @@ def standardize_athena_query_result(results, **kwargs):
     return results
 
 
+# about 4s per 10k rows, with a floor of ~0.33s if only one page
+def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPagedResult:
+    """
+    Returns the query result for the provided page as well as a token to the next page if there are more
+    results to retrieve for the query.
+    
+    EMPTY_ATHENA_RESPONSE = {'UpdateCount': 0, 'ResultSet': {'Rows': [{'Data': [{}]}]}}
+    """
+
+    paginator = client.get_paginator('get_query_results')
+
+    response_iterator = paginator.paginate(
+        QueryExecutionId=execution_id, 
+        PaginationConfig={
+            'MaxItems': kwargs.get("max_results", 100000),
+            'PageSize': 1000,
+            'StartingToken': kwargs.get("pagination_starting_token", None),
+    })
+
+    results = []
+
+    # Iterate through pages. The NextToken logic is handled for you.
+    for n, page in enumerate(response_iterator):
+        logging.info(f"Now on page {n}, rows on this page: {len(page['ResultSet']['Rows'])}")
+
+        # if n > 0 and len(page['ResultSet']['Rows']) == 0: # probably redundant
+        #     break
+
+        results += standardize_athena_query_result(page, **kwargs)
+        
+        if not results:
+            break
+
+        kwargs["headers"] = list(results[0].keys()) # prevent parser from .pop(0) after 1st page
+
+    return results
+
+
 # Figure out pagination / 1000 row limit
-# TODO implement a timeout in the query wait
 def query_athena_table(sql_query, database, **kwargs):
+    if database not in sql_query:
+        logging.warning("The provided database is not in your provided SQL query")
+        
     client = boto3.client('athena')
-    queryStart = client.start_query_execution(
+    query_started = client.start_query_execution(
         QueryString=sql_query,
         QueryExecutionContext={'Database': database},
         ResultConfiguration={"OutputLocation": f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/"}
     )
 
-    timeout_value = kwargs.get("timeout", 15)
+    timeout_value = kwargs.get("timeout", 15) * 1000 # bc its in milliseconds
     finished = False
+    logging.info("Started Athena Query")
+
     while not finished:
-        query_status = client.get_query_execution(QueryExecutionId=queryStart["QueryExecutionId"])
+        query_in_flight = client.get_query_execution(QueryExecutionId=query_started["QueryExecutionId"])
+        query_status = query_in_flight["QueryExecution"]["Status"]["State"]
 
-        if query_status["QueryExecution"]["Status"]["State"] == "SUCCEEDED":
-            results = client.get_query_results(QueryExecutionId=queryStart["QueryExecutionId"])
+        if query_status == 'SUCCEEDED':
             finished = True
-
-        elif timeout_value > ez_get(query_status, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
-            logging.error(f"Query timed out with no response (timeout val: {timeout_value})")
+        elif query_status in ['FAILED', 'CANCELLED']: # TODO test cancelled
+            logging.error(query_in_flight['QueryExecution']['Status']['StateChangeReason'])
             return None
-        
+        elif timeout_value < ez_get(query_in_flight, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
+            logging.warning(f"Query timed out with no response (timeout val: {timeout_value})")
+            return None
         else:
             sleep(kwargs.get("wait_interval", 0.1))
-            logging.info(query_status["QueryExecution"]["Status"]["State"])
-            if query_status["QueryExecution"]["Status"]["State"] == "FAILED":
-                logging.error(query_status["QueryExecution"]["Status"]["StateChangeReason"])
-                return None
 
-    results = standardize_athena_query_result(results, **kwargs)
-    return results
+    return paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
+
+
+
 
 
 ################################### ~ Dynamo Operations ~  ############################################
+
 
 # def decimal_default(obj):
 #     # print(obj)
@@ -427,15 +471,29 @@ def stream_s3_file(bucket_name, filename, **kwargs):
     return s3_object.get()['Body'] #body returns streaming string
 
 
-def write_s3_file(bucket_name, filename, json_data, **kwargs):
+def write_s3_file(bucket_name, filename, file_data, **kwargs):
+    file_type = kwargs.get("file_type", "json")
+    if file_type == "json":
+        file_to_write = bytes(json.dumps(file_data).encode("UTF-8"))
+    elif file_type == "csv":
+        with open(f"/tmp/{filename}.txt", 'w') as output_file:
+            dict_writer = csv.DictWriter(output_file, file_data[0].keys())
+            dict_writer.writeheader()
+            dict_writer.writerows(file_data)
+        file_to_write = open(f'/tmp/{filename}.txt', 'rb')
+
+    if not filename.endswith(f".{file_type}"):
+        filename = filename + f".{file_type}"
+
     try:
         s3_object = boto3.resource("s3").Object(bucket_name, filename)
-        response = s3_object.put(Body=(bytes(json.dumps(json_data).encode("UTF-8"))))
+        response = s3_object.put(Body=(file_to_write))
         status_code = ez_try_and_get(response, 'ResponseMetadata', 'HTTPStatusCode')
         if kwargs.get("enable_print"): logging.info(f"Successful write to {filename} / {status_code}")
         return status_code
     except Exception as e:
         logging.error(e, bucket_name, filename)
+
 
 
 # http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/

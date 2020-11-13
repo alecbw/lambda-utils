@@ -110,11 +110,11 @@ def open_gsheet(sheet_name):
             logging.error(e)
             return None, None
 
-    worksheet_list = get_gsheet_worksheet_names(sh)
+    worksheet_list = get_gsheet_tab_names(sh)
     return sh, worksheet_list
 
 
-def get_gsheet_worksheet_names(sh):
+def get_gsheet_tab_names(sh):
     return [x.title for x in sh.worksheets()]
 
 
@@ -134,7 +134,7 @@ def get_gsheet_tab(sh, tab_name, **kwargs):
 
 
 # Create a worksheet.
-def create_gsheet_worksheet(sh, tab_name, **kwargs):
+def create_gsheet_tab(sh, tab_name, **kwargs):
     return sh.add_worksheet(
         title=tab_name,
         rows=kwargs.get("rows", "50"),
@@ -142,6 +142,25 @@ def create_gsheet_worksheet(sh, tab_name, **kwargs):
     )
 
 
+"""
+perm_type: The account type. Allowed values are: ``user``, ``group``, ``domain``, ``anyone``
+role: The primary role for this user. Allowed values are: ``owner``, ``writer``, ``reader``
+"""
+def create_gsheet_sheet(gc, sheet_name, **kwargs):
+    if not gc:
+        gc = auth_gspread()
+
+    # if kwargs:
+    #     kwargs = {k.lower():v for k,v in kwargs.items()}
+
+    sh = gc.create(sheet_name)
+    if kwargs.get("share_with"):
+        sh.share(kwargs.get("share_with"), perm_type='user', role=kwargs.get("share_role", "reader"))
+    
+    return sh
+
+
+# better version in util_local TODO
 def simple_tab_append(sheet, tab, data_lol):
     sh, worksheet_list = open_gsheet(sheet)
     sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
