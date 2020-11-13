@@ -240,10 +240,12 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
                 logging.warning(f"The datetime_str {datetime_str} did not match any pattern")
                 return kwargs.get("null_value", "") # returns empty str by default
 
-
-    output_dt = datetime.fromtimestamp(time.mktime(standard_dt_str)) # convert from time.struct_time to datetime.date
-    output_dt = datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
-    return output_dt
+    try:
+        output_dt = datetime.fromtimestamp(time.mktime(standard_dt_str)) # convert from time.struct_time to datetime.date
+        output_dt = datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
+        return output_dt
+    except:
+        return kwargs.get("null_value", "")
 
 
 def format_url(url, **kwargs):
