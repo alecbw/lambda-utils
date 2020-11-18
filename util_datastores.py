@@ -602,16 +602,16 @@ def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
     wr.s3.to_parquet(
         df=data,
         path=s3_path,
-        dataset=True,           # Stores as parquet dataset instead of 'ordinary file'
-        mode=kwargs.get("write_mode", "append"), # Could be append, overwrite or overwrite_partitions
+        dataset=True,                               # Stores as parquet dataset instead of 'ordinary file'
+        mode=kwargs.get("write_mode", "append"),    # Could be append, overwrite or overwrite_partitions
         database=kwargs.get("database", None),      # Optional, only with you want it available on Athena/Glue Catalog
         table=kwargs.get("table", None),            # If not exists, it will create the table at the specific/s3/path you specify
         compression=kwargs.get("compression", "snappy"),
-        # dtype                 # TODO Dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {‘col name’: ‘bigint’, ‘col2 name’: ‘int’})
         max_rows_by_file=kwargs.get("max_rows_by_file", None), # If set = n, every n rows, split into a new file. If None, don't split
         partition_cols=kwargs.get("partition_cols_list", None),
         use_threads=kwargs.get("use_threads", False),
         schema_evolution=kwargs.get("schema_evolution", False), # if True, and you pass a different schema, it will update the table
+        # dtype                 # TODO Dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {‘col name’: ‘bigint’, ‘col2 name’: ‘int’})
     )
 
     logging.info(f"Write was successful to path {s3_path}")
