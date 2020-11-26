@@ -141,7 +141,10 @@ def standardize_dynamo_query(input_data, **kwargs):
         logging.error("wrong data type for dynamodb")
         return None
 
-    input_data['updatedAt'] = int(datetime.utcnow().timestamp())
+    if not kwargs.get("skip_updated"):
+        input_data['updatedAt'] = int(datetime.utcnow().timestamp())
+    elif "updatedAt" in input_data:
+        input_data['updatedAt'] = int(input_data['updatedAt'])
 
     # TODO implement created logic
     if 'createdAt' not in input_data and kwargs.get("add_created"):
