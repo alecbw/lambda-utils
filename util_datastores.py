@@ -338,9 +338,8 @@ def get_dynamodb_item_from_index(primary_key_dict, table, index_name, **kwargs):
         "IndexName": index_name,
     }
 
-    results = table.query(**query_dict)
-
-    return results
+    result = table.query(**query_dict)
+    return result
 
 # If you set a composite primary key (both a HASH and RANGE, both a partition key and sort key), YOU NEED BOTH to getItem and updateItem
 def get_dynamodb_item(primary_key_dict, table_name, **kwargs):
@@ -350,9 +349,10 @@ def get_dynamodb_item(primary_key_dict, table_name, **kwargs):
     table = boto3.resource('dynamodb').Table(table_name)
 
     if kwargs.get("index"):
-        get_dynamodb_item_from_index(primary_key_dict, table, kwargs.pop("index"), **kwargs)
+        result = get_dynamodb_item_from_index(primary_key_dict, table, kwargs.pop("index"), **kwargs)
+    else:
+        result = table.get_item(Key=primary_key_dict)
 
-    result = table.get_item(Key=primary_key_dict)
     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Get from {table_name}: {result.get('Item', None)}")
     return standardize_dynamo_output(result.get('Item')) if result.get("Item") else None
 
