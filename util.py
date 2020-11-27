@@ -253,10 +253,12 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
                 logging.warning(f"The datetime_str {datetime_str} did not match any pattern")
                 return kwargs.get("null_value", "") # returns empty str by default
 
-
-    output_dt = datetime.fromtimestamp(time.mktime(standard_dt_str)) # convert from time.struct_time to datetime.date
-    output_dt = datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
-    return output_dt
+    try:
+        output_dt = datetime.fromtimestamp(time.mktime(standard_dt_str)) # convert from time.struct_time to datetime.date
+        output_dt = datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
+        return output_dt
+    except:
+        return kwargs.get("null_value", "")
 
 
 def format_url(url, **kwargs):
@@ -306,6 +308,9 @@ def deduplicate_lod(input_lod, primary_key):
 
 # e.g. checking if any tld exists in a string
 def find_substrings_in_string(value, list_of_substrings):
+    if not value or not list_of_substrings:
+        logging.debug("One of value or list_of_substrings was None in find_substrings_in_string")
+        return []
     return [sub_str for sub_str in list_of_substrings if sub_str.lower().strip() in value.lower().strip()]
 
 

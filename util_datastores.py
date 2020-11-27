@@ -206,7 +206,7 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
                 except Exception as e:
                     logging.error(f"{e} -- {standard_item}")
 
-    logging.info(f"Succcessfully did a Dynamo Batch Write of length {len(lod_to_write)} to {table}")
+    logging.info(f"Successfully did a Dynamo Batch Write of length {len(lod_to_write)} to {table}")
     return True
 
 
@@ -236,7 +236,7 @@ def scan_dynamodb(table, **kwargs):
         result = table.scan(**kwargs)
         data_lod.extend(result['Items'])
 
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo List from {table}, found {result['Count']} results")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo List from {table}, found {result['Count']} results")
 
     for n, row in enumerate(data_lod):
         data_lod[n] = standardize_dynamo_output(row)
@@ -361,7 +361,7 @@ def delete_dynamodb_item(unique_key, key_value, table_name, **kwargs):
     table = boto3.resource('dynamodb').Table(table_name)
 
     result = table.delete_item(Key={unique_key:key_value})
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Delete of key {key_value} from {table_name}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Delete of key {key_value} from {table_name}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
 
 
 # TODO test. Alternate implementation: https://github.com/fernando-mc/nandolytics/blob/master/record.py
@@ -376,7 +376,7 @@ def increment_dynamodb_item_counter(primary_key_value, counter_attr, table_name,
         "ReturnValues": "UPDATED_OLD",
     }
     result = table.update_item(**update_item_dict)
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Increment from {table_name}")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Increment from {table_name}")
     return result.get('Attributes')
 
 
@@ -399,7 +399,7 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
 
     result = table.update_item(**update_item_dict)
 
-    logging.info(f"Succcessfully did a Dynamo Upsert to {table_name}")
+    logging.info(f"Successfully did a Dynamo Upsert to {table_name}")
     if kwargs.get("print_old_values"):
         logging.info(f"The updates that were attributed (and their OLD VALUES): {result.get('Attributes', None)}")
 
@@ -431,7 +431,7 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
 #     # result = table.query(
 #         KeyConditionExpression=boto3.dynamodb.conditions.Key(primary_key).eq(primary_key_value)
 #     )
-#     if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Query on {table}")
+#     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Query on {table}")
 #     return data
 # TODO decimal encoding? https://github.com/serverless/examples/blob/master/aws-python-rest-api-with-dynamodb/todos/decimalencoder.py
 # TODO Upsert https://github.com/serverless/examples/blob/master/aws-python-rest-api-with-dynamodb/todos/update.py
@@ -685,16 +685,16 @@ def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
     wr.s3.to_parquet(
         df=data,
         path=s3_path,
-        dataset=True,           # Stores as parquet dataset instead of 'ordinary file'
-        mode=kwargs.get("write_mode", "append"), # Could be append, overwrite or overwrite_partitions
+        dataset=True,                               # Stores as parquet dataset instead of 'ordinary file'
+        mode=kwargs.get("write_mode", "append"),    # Could be append, overwrite or overwrite_partitions
         database=kwargs.get("database", None),      # Optional, only with you want it available on Athena/Glue Catalog
         table=kwargs.get("table", None),            # If not exists, it will create the table at the specific/s3/path you specify
         compression=kwargs.get("compression", "snappy"),
-        # dtype                 # TODO Dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {‘col name’: ‘bigint’, ‘col2 name’: ‘int’})
         max_rows_by_file=kwargs.get("max_rows_by_file", None), # If set = n, every n rows, split into a new file. If None, don't split
         partition_cols=kwargs.get("partition_cols_list", None),
         use_threads=kwargs.get("use_threads", False),
         schema_evolution=kwargs.get("schema_evolution", False), # if True, and you pass a different schema, it will update the table
+        # dtype                 # TODO Dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {‘col name’: ‘bigint’, ‘col2 name’: ‘int’})
     )
 
     logging.info(f"Write was successful to path {s3_path}")
