@@ -166,6 +166,9 @@ def standardize_dynamo_query(input_data, **kwargs):
 
 # Converts timestamps back to human readable
 def standardize_dynamo_output(output_data, **kwargs):
+    if not output_data:
+        return output_data
+
     datetime_keys = [key for key in output_data.keys() if key in ["updatedAt", "createdAt", 'ttl']]
     for key in datetime_keys:
         output_data[key] = datetime.fromtimestamp(output_data[key])#.replace(tzinfo=timezone.utc)
@@ -338,8 +341,10 @@ def get_dynamodb_item_from_index(primary_key_dict, table, index_name, **kwargs):
         "IndexName": index_name,
     }
 
-    result = table.query(**query_dict)
-    return result
+    results = table.query(**query_dict)
+
+    items = standardize_dynamo_output(results.get('Items'))
+    return items[0] if len(items) == 1 else items
 
 # If you set a composite primary key (both a HASH and RANGE, both a partition key and sort key), YOU NEED BOTH to getItem and updateItem
 def get_dynamodb_item(primary_key_dict, table_name, **kwargs):
@@ -352,9 +357,10 @@ def get_dynamodb_item(primary_key_dict, table_name, **kwargs):
         result = get_dynamodb_item_from_index(primary_key_dict, table, kwargs.pop("index"), **kwargs)
     else:
         result = table.get_item(Key=primary_key_dict)
+        result = standardize_dynamo_output(result.get('Item')) # if result.get("Item") else None
 
     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Get from {table_name}: {result.get('Item', None)}")
-    return standardize_dynamo_output(result.get('Item')) if result.get("Item") else None
+    return result
 
 
 def delete_dynamodb_item(unique_key, key_value, table_name, **kwargs):
