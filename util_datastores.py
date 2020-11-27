@@ -359,7 +359,7 @@ def get_dynamodb_item(primary_key_dict, table_name, **kwargs):
         result = table.get_item(Key=primary_key_dict)
         result = standardize_dynamo_output(result.get('Item')) # if result.get("Item") else None
 
-    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Get from {table_name}: {result.get('Item', None)}")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Get from {table_name}: {result}")
     return result
 
 
