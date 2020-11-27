@@ -343,7 +343,7 @@ def get_dynamodb_item_from_index(primary_key_dict, table, index_name, **kwargs):
 
     results = table.query(**query_dict)
 
-    items = standardize_dynamo_output(results.get('Items'))
+    items = [standardize_dynamo_output(x) for x in results.get('Items', [])]
     return items[0] if len(items) == 1 else items
 
 # If you set a composite primary key (both a HASH and RANGE, both a partition key and sort key), YOU NEED BOTH to getItem and updateItem
