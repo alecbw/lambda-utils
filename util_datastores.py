@@ -343,10 +343,10 @@ def get_dynamodb_item_from_index(primary_key_dict, table, index_name, **kwargs):
 
     results = table.query(**query_dict)
 
-    if not results.get("items"):
+    if not results.get("Items"):
         return {}
     elif len(results.get('Items')) == 1:
-        return items[0]
+        return results['Items'][0]
     else:
         return [standardize_dynamo_output(x) for x in results['Items']]
 
