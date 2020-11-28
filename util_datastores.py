@@ -10,6 +10,7 @@ import concurrent.futures
 import itertools
 import threading
 import csv
+# import ast
 
 import boto3
 from botocore.exceptions import ClientError
@@ -27,7 +28,6 @@ def standardize_athena_query_result(results, **kwargs):
     results = [x["Data"] for x in results['ResultSet']['Rows']]
     for n, row in enumerate(results):
         results[n] = [x['VarCharValue'] for x in row]
-
     if kwargs.get("output_lod"):
         headers = kwargs.get("headers") or results.pop(0)
 
@@ -81,7 +81,7 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
 def query_athena_table(sql_query, database, **kwargs):
     if database not in sql_query:
         logging.warning("The provided database is not in your provided SQL query")
-        
+
     client = boto3.client('athena')
     query_started = client.start_query_execution(
         QueryString=sql_query,
@@ -103,14 +103,12 @@ def query_athena_table(sql_query, database, **kwargs):
             logging.error(query_in_flight['QueryExecution']['Status']['StateChangeReason'])
             return None
         elif timeout_value < ez_get(query_in_flight, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
-            logging.warning(f"Query timed out with no response (timeout val: {timeout_value})")
+            logging.error(f"Query timed out with no response (timeout val: {timeout_value})")
             return None
         else:
             sleep(kwargs.get("wait_interval", 0.1))
 
     return paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
-
-
 
 
 
@@ -141,7 +139,13 @@ def standardize_dynamo_query(input_data, **kwargs):
         logging.error("wrong data type for dynamodb")
         return None
 
-    input_data['updatedAt'] = int(datetime.utcnow().timestamp())
+    if not kwargs.get("skip_updated"):
+        input_data['updatedAt'] = int(datetime.utcnow().timestamp())
+    elif "updatedAt" in input_data:
+        # try:
+        input_data['updatedAt'] = int(input_data['updatedAt'])
+        # except:
+        #     input_data['updatedAt'] = int(datetime.utcnow().timestamp())
 
     # TODO implement created logic
     if 'createdAt' not in input_data and kwargs.get("add_created"):
@@ -162,6 +166,9 @@ def standardize_dynamo_query(input_data, **kwargs):
 
 # Converts timestamps back to human readable
 def standardize_dynamo_output(output_data, **kwargs):
+    if not output_data:
+        return output_data
+
     datetime_keys = [key for key in output_data.keys() if key in ["updatedAt", "createdAt", 'ttl']]
     for key in datetime_keys:
         output_data[key] = datetime.fromtimestamp(output_data[key])#.replace(tzinfo=timezone.utc)
@@ -202,7 +209,7 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
                 except Exception as e:
                     logging.error(f"{e} -- {standard_item}")
 
-    logging.info(f"Succcessfully did a Dynamo Batch Write of length {len(lod_to_write)} to {table}")
+    logging.info(f"Successfully did a Dynamo Batch Write of length {len(lod_to_write)} to {table}")
     return True
 
 
@@ -232,7 +239,7 @@ def scan_dynamodb(table, **kwargs):
         result = table.scan(**kwargs)
         data_lod.extend(result['Items'])
 
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo List from {table}, found {result['Count']} results")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo List from {table}, found {result['Count']} results")
 
     for n, row in enumerate(data_lod):
         data_lod[n] = standardize_dynamo_output(row)
@@ -319,6 +326,30 @@ def parallel_scan_dynamodb(TableName, **kwargs):
                 futures[executor.submit(dynamo_client.scan, **scan_params)] = scan_params
 
 
+def get_dynamodb_item_from_index(primary_key_dict, table, index_name, **kwargs):
+    dict_of_attributes = standardize_dynamo_query(primary_key_dict, skip_updated=True, **kwargs)
+
+    string_of_attributes = ""
+    for k in dict_of_attributes.keys():
+        string_of_attributes += f"#{k} = :{k} AND "
+    string_of_attributes = string_of_attributes.rstrip(" AND ")
+
+    query_dict = {
+        "KeyConditionExpression": string_of_attributes,
+        "ExpressionAttributeNames": {f"#{k}": k for k in dict_of_attributes},
+        "ExpressionAttributeValues": {f":{k}": v for k,v in dict_of_attributes.items()},
+        "IndexName": index_name,
+    }
+
+    results = table.query(**query_dict)
+
+    if not results.get("Items"):
+        return {}
+    elif len(results.get('Items')) == 1:
+        return results['Items'][0]
+    else:
+        return [standardize_dynamo_output(x) for x in results['Items']]
+
 
 # If you set a composite primary key (both a HASH and RANGE, both a partition key and sort key), YOU NEED BOTH to getItem and updateItem
 def get_dynamodb_item(primary_key_dict, table_name, **kwargs):
@@ -327,16 +358,21 @@ def get_dynamodb_item(primary_key_dict, table_name, **kwargs):
 
     table = boto3.resource('dynamodb').Table(table_name)
 
-    result = table.get_item(Key=primary_key_dict)
-    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Get from {table_name}: {result.get('Item', None)}")
-    return standardize_dynamo_output(result.get('Item')) if result.get("Item") else None
+    if kwargs.get("index"):
+        result = get_dynamodb_item_from_index(primary_key_dict, table, kwargs.pop("index"), **kwargs)
+    else:
+        result = table.get_item(Key=primary_key_dict)
+        result = standardize_dynamo_output(result.get('Item')) # if result.get("Item") else None
+
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Get from {table_name}: {result}")
+    return result
 
 
 def delete_dynamodb_item(unique_key, key_value, table_name, **kwargs):
     table = boto3.resource('dynamodb').Table(table_name)
 
     result = table.delete_item(Key={unique_key:key_value})
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Delete of key {key_value} from {table_name}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Delete of key {key_value} from {table_name}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
 
 
 # TODO test. Alternate implementation: https://github.com/fernando-mc/nandolytics/blob/master/record.py
@@ -351,7 +387,7 @@ def increment_dynamodb_item_counter(primary_key_value, counter_attr, table_name,
         "ReturnValues": "UPDATED_OLD",
     }
     result = table.update_item(**update_item_dict)
-    if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Increment from {table_name}")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Increment from {table_name}")
     return result.get('Attributes')
 
 
@@ -374,40 +410,40 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
 
     result = table.update_item(**update_item_dict)
 
-    logging.info(f"Succcessfully did a Dynamo Upsert to {table_name}")
+    logging.info(f"Successfully did a Dynamo Upsert to {table_name}")
     if kwargs.get("print_old_values"):
         logging.info(f"The updates that were attributed (and their OLD VALUES): {result.get('Attributes', None)}")
 
     return result.get('Attributes')
 
 
-# TODO implement
+# # TODO implement
 # def query_dynamodb_table(operation_parameters_dict, table, **kwargs):
 #     table = boto3.resource('dynamodb').Table(table)
-    # dict_of_attributes = standardize_dynamo_query(dict_of_attributes, **kwargs)
-
+#     dict_of_attributes = standardize_dynamo_query(dict_of_attributes, **kwargs)
+#
 #     operation_parameters_dict["TableName"] = table
 #     result = table.query(**operation_parameters_dict)
 #     # client = boto3.client('dynamodb')
-    # paginator = client.get_paginator('query')
-    # operation_parameters = {
-      # 'TableName': table,
-    #   'FilterExpression': 'bar > :x AND bar < :y',
-    #   'ExpressionAttributeValues': {
-    #     ':x': {'S': '2017-01-31T01:35'},
-    #     ':y': {'S': '2017-01-31T02:08'},
-    #   }
-    # }
-
-    # page_iterator = paginator.paginate(**operation_parameters_dict)
-    # for page in page_iterator:
-    #     # do something
-    #     print(page)
-    # # result = table.query(
-    #     KeyConditionExpression=boto3.dynamodb.conditions.Key(primary_key).eq(primary_key_value)
-    # )
-    # if not kwargs.get("disable_print"): logging.info(f"Succcessfully did a Dynamo Query on {table}")
-    # return data
+#     paginator = client.get_paginator('query')
+#     operation_parameters = {
+#       'TableName': table,
+#       'FilterExpression': 'bar > :x AND bar < :y',
+#       'ExpressionAttributeValues': {
+#         ':x': {'S': '2017-01-31T01:35'},
+#         ':y': {'S': '2017-01-31T02:08'},
+#       }
+#     }
+#
+#     page_iterator = paginator.paginate(**operation_parameters_dict)
+#     for page in page_iterator:
+#         # do something
+#         print(page)
+#     # result = table.query(
+#         KeyConditionExpression=boto3.dynamodb.conditions.Key(primary_key).eq(primary_key_value)
+#     )
+#     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Query on {table}")
+#     return data
 # TODO decimal encoding? https://github.com/serverless/examples/blob/master/aws-python-rest-api-with-dynamodb/todos/decimalencoder.py
 # TODO Upsert https://github.com/serverless/examples/blob/master/aws-python-rest-api-with-dynamodb/todos/update.py
 
