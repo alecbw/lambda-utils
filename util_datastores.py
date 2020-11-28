@@ -10,6 +10,7 @@ import concurrent.futures
 import itertools
 import threading
 import csv
+# import ast
 
 import boto3
 from botocore.exceptions import ClientError
@@ -27,7 +28,6 @@ def standardize_athena_query_result(results, **kwargs):
     results = [x["Data"] for x in results['ResultSet']['Rows']]
     for n, row in enumerate(results):
         results[n] = [x['VarCharValue'] for x in row]
-
     if kwargs.get("output_lod"):
         headers = kwargs.get("headers") or results.pop(0)
 
@@ -349,6 +349,7 @@ def get_dynamodb_item_from_index(primary_key_dict, table, index_name, **kwargs):
         return results['Items'][0]
     else:
         return [standardize_dynamo_output(x) for x in results['Items']]
+
 
 # If you set a composite primary key (both a HASH and RANGE, both a partition key and sort key), YOU NEED BOTH to getItem and updateItem
 def get_dynamodb_item(primary_key_dict, table_name, **kwargs):
