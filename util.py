@@ -318,10 +318,13 @@ def deduplicate_lod(input_lod, primary_key):
 
 
 # e.g. checking if any tld exists in a string
-def find_substrings_in_string(value, list_of_substrings):
+def find_substrings_in_string(value, list_of_substrings, **kwargs):
     if not value or not list_of_substrings:
         logging.debug("One of value or list_of_substrings was None in find_substrings_in_string")
         return []
+
+    if kwargs.get("no_strip"): # no whitespace strip
+        return [sub_str for sub_str in list_of_substrings if sub_str.lower() in value.lower()]
     return [sub_str for sub_str in list_of_substrings if sub_str.lower().strip() in value.lower().strip()]
 
 

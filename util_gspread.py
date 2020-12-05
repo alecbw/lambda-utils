@@ -4,7 +4,7 @@ import time
 
 import gspread
 import requests
-import jwt # pip install PyJWT
+# import jwt
 from google.oauth2 import service_account
 
 
@@ -86,11 +86,14 @@ def gsa_make_jwt_request(signed_jwt):
 
 
 def generate_service_account_access_token(SA_PRIVATE_KEY_JSON):
+    import jwt # pip install PyJWT
+
     SA_PRIVATE_KEY_JSON = json.loads(SA_PRIVATE_KEY_JSON)
 
     jwt = gsa_generate_jwt(SA_PRIVATE_KEY_JSON)
 
     return gsa_make_jwt_request(jwt)
+
 
 
 ####################################################################################

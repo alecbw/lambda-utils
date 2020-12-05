@@ -24,7 +24,7 @@ import awswrangler as wr
 
 ######################## ~ Athena Queries ~ #############################################
 
- 
+
 # Opinion: Whoever designed the response schema hates developers
 def standardize_athena_query_result(results, **kwargs):
     results = [x["Data"] for x in results['ResultSet']['Rows']]
@@ -46,14 +46,14 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
     """
     Returns the query result for the provided page as well as a token to the next page if there are more
     results to retrieve for the query.
-    
+
     EMPTY_ATHENA_RESPONSE = {'UpdateCount': 0, 'ResultSet': {'Rows': [{'Data': [{}]}]}}
     """
 
     paginator = client.get_paginator('get_query_results')
 
     response_iterator = paginator.paginate(
-        QueryExecutionId=execution_id, 
+        QueryExecutionId=execution_id,
         PaginationConfig={
             'MaxItems': kwargs.get("max_results", 100000),
             'PageSize': 1000,
@@ -70,7 +70,7 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
         #     break
 
         results += standardize_athena_query_result(page, **kwargs)
-        
+
         if not results:
             break
 
@@ -711,7 +711,7 @@ def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
 
     if isinstance(data, list) and isinstance(data[0], dict):
         data = pd.DataFrame(data) # convert_to_dataframe(df, )
-    
+
     s3_path = "s3://" + s3_path if not s3_path.startswith("s3://") else s3_path
 
     wr.s3.to_parquet(
