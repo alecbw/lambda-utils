@@ -10,7 +10,9 @@ import concurrent.futures
 import itertools
 import threading
 import csv
-# import ast
+# import timeit
+import ast
+# from pprint import pprint
 
 import boto3
 from botocore.exceptions import ClientError
@@ -98,6 +100,8 @@ def query_athena_table(sql_query, database, **kwargs):
         query_status = query_in_flight["QueryExecution"]["Status"]["State"]
 
         if query_status == 'SUCCEEDED':
+            s3_result_path = query_in_flight['QueryExecution']['ResultConfiguration']['OutputLocation'].replace("s3://", "")
+            s3_result_dict = {"bucket": s3_result_path[:s3_result_path.rfind("/")], "filename": s3_result_path[s3_result_path.rfind("/")+1:]}
             finished = True
         elif query_status in ['FAILED', 'CANCELLED']: # TODO test cancelled
             logging.error(query_in_flight['QueryExecution']['Status']['StateChangeReason'])
@@ -107,6 +111,17 @@ def query_athena_table(sql_query, database, **kwargs):
             return None
         else:
             sleep(kwargs.get("wait_interval", 0.1))
+
+    if kwargs.get("return_s3_path"):
+        return s3_result_dict
+    if kwargs.get("return_s3_file"):
+        # s3_data_csv =
+        s3_result_dict["data"] = get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True)
+        if kwargs.get("convert_array_cols"):
+            s3_result_dict["data"] = [{k:(ast.literal_eval(v) if k in kwargs["convert_array_cols"] else v) for k, v in row.items()} for row in s3_result_dict["data"]]
+        # s3_result_dict["data"] = [{k:v for k, v in row.items()} for row in csv.DictReader(s3_data_csv.splitlines(True))]
+        # s3_result_dict["data"] = [{k:v for k, v in row.items()} for row in csv.DictReader(s3_data_csv, skipinitialspace=True)]
+        return s3_result_dict
 
     return paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
@@ -494,7 +509,13 @@ def list_s3_bucket_contents(bucket_name, path, **kwargs):
 def get_s3_file(bucket_name, filename, **kwargs):
     try:
         s3_obj = boto3.client("s3").get_object(Bucket=bucket_name, Key=filename)["Body"]
-        return s3_obj if kwargs.get("raw") else s3_obj.read().decode('utf-8')
+        if kwargs.get("raw"):
+            return s3_obj
+        elif kwargs.get("convert_csv"):
+            return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
+        else:
+            return s3_obj.read().decode('utf-8')
+
     except Exception as e:
         logging.error(e)
         raise e
