@@ -126,15 +126,17 @@ def query_athena_table(sql_query, database, **kwargs):
         else:
             sleep(kwargs.get("wait_interval", 0.1))
 
-    if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling: {round(timeit.default_timer() - start_time, 4)} seconds")
+    if kwargs.get("time_it"): logging.info(f"{round(timeit.default_timer() - start_time, 4)} seconds - Query execution time (NOT including pagination/file-handling)")
 
     if kwargs.get("return_s3_path"):
-        return s3_result_dict
+        result = s3_result_dict
     elif kwargs.get("return_s3_file"):
-        return prepare_athena_s3_file_output(s3_result_dict, **kwargs)
+        result = prepare_athena_s3_file_output(s3_result_dict, **kwargs)
     else:
-        return paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
+        result = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
+    if kwargs.get("time_it"): logging.info(f"{round(timeit.default_timer() - start_time, 4)} seconds - Query execution time (all-in)")
+    return result
 
 ################################### ~ Dynamo Operations ~  ############################################
 
