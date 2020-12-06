@@ -498,9 +498,9 @@ def list_s3_bucket_contents(bucket_name, path, **kwargs):
     filter_args = {"Bucket":bucket_name, "Prefix": path.lstrip("/")}
 
     if "start_after" in kwargs:
-            filter_args["StartAfter"] = kwargs["start_after"]
+        filter_args["StartAfter"] = kwargs["start_after"]
     if "limit" in kwargs:
-            filter_args["MaxKeys"] = kwargs["limit"]
+        filter_args["MaxKeys"] = kwargs["limit"]
 
     response = client.list_objects_v2(**filter_args)
     return [x.get("Key") for x in response["Contents"]]
@@ -603,6 +603,12 @@ def move_s3_file_to_glacier(bucket_name, path):
     s3.copy({"Bucket": bucket_name, "Key": path}, bucket_name, path,
         ExtraArgs={'StorageClass': 'GLACIER', 'MetadataDirective': 'COPY'})
     return
+
+def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest_path):
+    destination_bucket = boto3.resource('s3').Bucket(dest_bucket)
+    destination_bucket.copy({'Bucket': start_bucket, 'Key': start_path}, dest_path)
+
+    return logging.info("Copy appears to have been a success")
 
 
 
