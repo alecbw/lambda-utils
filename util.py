@@ -245,8 +245,8 @@ def format_url(url, **kwargs):
     if kwargs.get("remove_subsite"):
         url = ez_split(url, "/", 0)
     if kwargs.get("remove_tld"):
-        url = url.replace(find_url_tld(url, kwargs["remove_tld"]), "")
-    if kwargs.get("remove_port"):
+        url = ez_split(url, find_url_tld(url, kwargs["remove_tld"]), 0)
+    if kwargs.get("remove_port") and ":" in url:
         pattern = re.compile("(:\d{2,})")
         url = pattern.sub('', url)
     if kwargs.get("remove_trailing_slash"):
