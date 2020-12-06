@@ -218,7 +218,11 @@ def is_none(value, **kwargs):
 
 ################################################ ~ URL string handling ~ ######################################################################
 
-
+"""
+Note: this will return false positives for made up TLDs that contain viable TLDs
+ex: '.ae.com' is a true positive TLD, but the made up '.aee.com' is false positive, as it contains '.com'
+This shouldn't be a problem if your data isn't extremely dirty
+"""
 def is_url(potential_url_str):
     # tld_list = ['.de', '.html', '.com', '.info', '.es', '.mil', '.no', '.vc', '.au', '.se', '.io', '.tv', '.co', '.fr', '.uk', '.ai', '.ch', '.org', '.ca', '.gov', '.ly', '.net', '.ru', '.nl', '.us', '.it', '.jp', '.edu', '.biz', '.xml', '.ph', '.id', '.tw', '.hk', '.ro', '.eu', '.in', '.by', '.mx', '.cz', '.dk', '.si', '.solutions', '.fi', '.life', '.city', '.ie', '.br', '.pk', '.be', '.ae', '.pl', '.do', '.earth', '.lt', '.pt', '.cl', '.br', '.cd', '.uz', '.nu', '.cn', '.at', '.fm', '.ir', '.nz', '.trading', '.mn', '.wales']
     if find_substrings_in_string(potential_url_str, get_tld_list()):
@@ -230,6 +234,10 @@ def is_url(potential_url_str):
     return False
 
 
+"""
+Keep in mind removals stack - e.g. remove_tld will remove subsite, port, and trailing slash
+for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time and pass it in to save 1ms per 
+"""
 def format_url(url, **kwargs):
     url = ez_split(url, "://", 1)
     url = ez_split(url, "www.", 1)
@@ -244,7 +252,8 @@ def format_url(url, **kwargs):
     if kwargs.get("remove_trailing_slash"):
         url = url.rstrip("/")
     if kwargs.get("remove_subdomain") and url.count(".") > 1:
-        subdomain = ez_split(url, find_url_tld(url, kwargs["remove_subdomain"]), 0)
+        tld = find_url_tld(url, kwargs["remove_subdomain"])
+        subdomain = ez_split(url, tld, 0)
         domain = subdomain[subdomain.rfind(".")+1:]
         url = domain + tld
 
