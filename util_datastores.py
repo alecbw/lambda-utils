@@ -10,7 +10,7 @@ import concurrent.futures
 import itertools
 import threading
 import csv
-# import timeit
+import timeit
 import ast
 # from pprint import pprint
 
@@ -33,15 +33,14 @@ def prepare_athena_s3_file_output(s3_result_dict, **kwargs):
                 if k not in kwargs["convert_array_cols"]:
                     continue
                 elif v == '[]':
-                    print('toierhcase')
                     row[k] = []
                 else:
                     row[k] = v.strip('][').split(', ')
 
             s3_result_dict["data"][n] = row
-        # s3_result_dict["data"] = [{k:(v.strip('][').split(', ') if k in kwargs["convert_array_cols"] else v) for k, v in row.items()} for row in s3_result_dict["data"]] # ast.literal_eval(v) # (ez_split(v, ", ", None, fallback_value=[v]) # json.loads(v)
 
     return s3_result_dict
+
 
 # Opinion: Whoever designed the response schema hates developers
 def standardize_athena_query_result(results, **kwargs):
@@ -87,17 +86,18 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
         if not results:
             break
 
-        kwargs["headers"] = list(results[0].keys()) # prevent parser from .pop(0) after 1st page
+        if kwargs.get("output_lod"):
+            kwargs["headers"] = list(results[0].keys()) # prevent parser from .pop(0) after 1st page
 
     return results
 
 
-# Figure out pagination / 1000 row limit
 def query_athena_table(sql_query, database, **kwargs):
     if database not in sql_query:
         logging.warning("The provided database is not in your provided SQL query")
 
-    logging.info(f"Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default'}")
+    if kwargs.get("time_it"): start_time = timeit.default_timer()
+    logging.info(f"Athena query data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
 
     client = boto3.client('athena')
     query_started = client.start_query_execution(
@@ -127,6 +127,7 @@ def query_athena_table(sql_query, database, **kwargs):
         else:
             sleep(kwargs.get("wait_interval", 0.1))
 
+    if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling: {round(timeit.default_timer() - start_time, 4)} seconds")
 
     if kwargs.get("return_s3_path"):
         return s3_result_dict
