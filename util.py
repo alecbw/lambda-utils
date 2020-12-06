@@ -181,7 +181,7 @@ def ez_join(phrase, delimiter):
 
 
 def ez_split(phrase, delimiter, return_slice, **kwargs):
-    if not (phrase and delimiter in phrase):
+    if not (phrase and delimiter and delimiter in phrase):
         return kwargs.get("fallback_value", phrase)
 
     if type(return_slice) != type(True) and isinstance(return_slice, int):
@@ -267,7 +267,7 @@ def format_url(url, **kwargs):
 
 def find_url_tld(url, tld_list):
     tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
-    tld =  max(find_substrings_in_string(url, tld_list)) # get the longest matching string TLD
+    tld = max(find_substrings_in_string(url, tld_list), default=None) # get the longest matching string TLD
     return tld
 
 
