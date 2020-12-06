@@ -41,23 +41,6 @@ def convert_athena_array_cols(data_lod, ** kwargs):
 
     return data_lod
 
-# def prepare_athena_s3_file_output(s3_result_dict, **kwargs):
-#     s3_result_dict["data"] = get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True)
-#
-#     if kwargs.get("convert_array_cols"):
-#         for n, row in enumerate(s3_result_dict["data"]):
-#             for k,v in row.items():
-#                 if k not in kwargs["convert_array_cols"]:
-#                     continue
-#                 elif v == '[]':
-#                     row[k] = []
-#                 else:
-#                     row[k] = v.strip('][').split(', ')
-#
-#             s3_result_dict["data"][n] = row
-#
-#     return s3_result_dict
-
 
 # Opinion: Whoever designed the response schema hates developers
 def standardize_athena_query_result(results, **kwargs):
@@ -150,7 +133,7 @@ def query_athena_table(sql_query, database, **kwargs):
         result = s3_result_dict
     elif kwargs.get("return_s3_file"):
         s3_result_dict["data"] = convert_athena_array_cols(get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True), **kwargs)
-        result = s3_result_dict # prepare_athena_s3_file_output(s3_result_dict, **kwargs)
+        result = s3_result_dict
     else:
         result = convert_athena_array_cols(paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs), **kwargs)
 
