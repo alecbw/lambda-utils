@@ -121,7 +121,7 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
     )
     return response.get("items", {})
 
-######################### ~ General str/list Formatting ~ ########################################################
+######################### ~ General  Formatting ~ ########################################################
 
 
 # This corrects for an edge case where some None values may convert to str "None" by API Gateway
@@ -205,13 +205,64 @@ def is_none(value, **kwargs):
     return False
 
 
-def is_url(value):
-    tld_list = ['.de', '.html', '.com', '.info', '.es', '.mil', '.no', '.vc', '.au', '.se', '.io', '.tv', '.co', '.fr', '.uk', '.ai', '.ch', '.org', '.ca', '.gov', '.ly', '.net', '.ru', '.nl', '.us', '.it', '.jp', '.edu', '.biz', '.xml', '.ph', '.id', '.tw', '.hk', '.ro', '.eu', '.in', '.by', '.mx', '.cz', '.dk', '.si', '.solutions', '.fi', '.life', '.city', '.ie', '.br', '.pk', '.be', '.ae', '.pl', '.do', '.earth', '.lt', '.pt', '.cl', '.br', '.cd', '.uz', '.nu', '.cn', '.at', '.fm', '.ir', '.nz', '.trading', '.mn', '.wales']
-    if any(tld for tld in tld_list if tld.lower().strip() in value.lower().strip()):
+################################################ ~ URL string handling ~ ######################################################################
+
+
+def is_url(potential_url_str):
+    # tld_list = ['.de', '.html', '.com', '.info', '.es', '.mil', '.no', '.vc', '.au', '.se', '.io', '.tv', '.co', '.fr', '.uk', '.ai', '.ch', '.org', '.ca', '.gov', '.ly', '.net', '.ru', '.nl', '.us', '.it', '.jp', '.edu', '.biz', '.xml', '.ph', '.id', '.tw', '.hk', '.ro', '.eu', '.in', '.by', '.mx', '.cz', '.dk', '.si', '.solutions', '.fi', '.life', '.city', '.ie', '.br', '.pk', '.be', '.ae', '.pl', '.do', '.earth', '.lt', '.pt', '.cl', '.br', '.cd', '.uz', '.nu', '.cn', '.at', '.fm', '.ir', '.nz', '.trading', '.mn', '.wales']
+    if find_substrings_in_string(potential_url_str, get_tld_list()):
         return True
-    print(value)
+    # if any(tld for tld in tld_list if tld.lower().strip() in value.lower().strip()):
+    #     return True
+    # print(value)
 
     return False
+
+
+def format_url(url, **kwargs):
+    url = ez_split(url, "://", 1)
+    url = ez_split(url, "www.", 1)
+
+    if kwargs.get("remove_subsite"):
+        url = ez_split(url, "/", 0)
+    if kwargs.get("remove_tld"):
+        url = url.replace(find_url_tld(url, kwargs["remove_tld"]), "")
+    if kwargs.get("remove_port"):
+        pattern = re.compile("(:\d{2,})")
+        url = pattern.sub('', url)
+    if kwargs.get("remove_trailing_slash"):
+        url = url.rstrip("/")
+    if kwargs.get("remove_subdomain") and url.count(".") > 1:
+        subdomain = ez_split(url, find_url_tld(url, kwargs["remove_subdomain"]), 0)
+        domain = subdomain[subdomain.rfind(".")+1:]
+        url = domain + tld
+
+    if kwargs.get("https"):
+        url = "https://" + url
+    elif kwargs.get("http"):
+        url = "http://" + url
+
+    return url.strip()
+
+
+def find_url_tld(url, tld_list):
+    tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
+    tld =  max(find_substrings_in_string(url, tld_list)) # get the longest matching string TLD
+    return tld
+
+
+def get_tld_list():
+    # from https://tld-list.com/tlds-from-a-z
+    try:
+        with open("utility/TLD_list.txt") as f:
+            return [line.rstrip() for line in f]
+        # lines = tuple(open("utility/TLD_list.txt", 'r'))
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"Make sure your utility submodule folder is called utility. {e}")
+
+
+############################################# ~ Datetime/str handling ~ ##########################################################
+
 
 # TODO deprecate
 def format_timestamp(timestamp, **kwargs):
@@ -262,62 +313,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
         return kwargs.get("null_value", "")
 
 
-def format_url(url, **kwargs):
-    url = ez_split(url, "://", 1)
-    url = ez_split(url, "www.", 1)
-
-    if kwargs.get("remove_subsite"):
-        url = ez_split(url, "/", 0)
-    if kwargs.get("remove_tld"):
-        url = url.replace(find_url_tld(url, kwargs["remove_tld"]), "")
-        # url = url[:url.rfind(".")]
-    if kwargs.get("remove_port"):
-        pattern = re.compile("(:\d{2,})")
-        url = pattern.sub('', url)
-    if kwargs.get("remove_trailing_slash"):
-        url = url.rstrip("/")
-
-    if kwargs.get("remove_subdomain") and url.count(".") > 1:
-        tld = find_url_tld(url, kwargs["remove_tld"])
-        tld_list = kwargs["remove_subdomain"] if isinstance(kwargs["remove_subdomain"], list) else get_tld_list()
-        tld =  max(find_substrings_in_string(url, tld_list)) # get the longest matching string TLD
-        subdomain = ez_split(url, tld, 0)
-        domain = subdomain[subdomain.rfind(".")+1:]
-        url = domain + tld
-
-        # lines = tuple(open("utility/TLD_list.txt", 'r'))
-        # print(lines)
-        # print(len(lines))
-    # if kwargs.get("remove_subdomain") and url.count(".") < 2:
-    #     logging.debug(f"URL: {url} does not have enough periods; skipping")
-    # elif kwargs.get("remove_subdomain"):
-    #     url = url[url[:url.rfind(".")].rfind(".")+1:]
-    #     if not is_url(url): logging.warning(f"URL: {url} is probably broken now; wrong # of periods")
-
-    if kwargs.get("https"):
-        url = "https://" + url
-    elif kwargs.get("http"):
-        url = "http://" + url
-
-    return url.rstrip()
-
-
-def find_url_tld(url, tld_list):
-    tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
-    tld =  max(find_substrings_in_string(url, tld_list)) # get the longest matching string TLD
-    return tld
-
-def get_tld_list():
-    # from https://tld-list.com/tlds-from-a-z
-    try:
-        with open("utility/TLD_list.txt") as f:
-            return [line.rstrip() for line in f]
-        # lines = tuple(open("utility/TLD_list.txt", 'r'))
-    except FileNotFoundError as e:
-        raise FileNotFoundError(f"Make sure your utility submodule folder is called utility. {e}")
-
-
-#######################################################################################################################
+############################################# ~ List/dict handling ~ ##########################################################
 
 
 # It's faster if you have a primary_key in each dict
