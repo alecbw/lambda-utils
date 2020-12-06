@@ -63,7 +63,7 @@ def package_response(message, status_code, **kwargs):
 
     return {
         'statusCode': status_code if status_code else '200',
-        'body': json.dumps({'data': message}),
+        'body': json.dumps({'data': message}) if not kwargs.get("message_as_key") else json.dumps({'message': message}),
         'headers': {'Content-Type': 'application/json'}
     }
 
@@ -139,8 +139,19 @@ def standardize_str_to_list(input_str):
     return output_list
 
 
-def get_list_overlap(list_1, list2):
-    return list(set(list_1).intersection(list2))
+def get_list_overlap(list_1, list_2, **kwargs):
+    if kwargs.get("case_insensitive"): # will keep item from 1st list
+
+        list_2 = [x.lower() if isinstance(x, str) else x for x in list_2]
+        output_list = []
+        for item in list_1:
+            if isinstance(item, str) and item.lower().strip() in list_2:
+                output_list.append(item)
+            elif item in list_2:
+                output_list.append(item)
+        return output_list
+
+    return list(set(list_1).intersection(list_2))
 
 
 def ez_get(nested_data, *keys):

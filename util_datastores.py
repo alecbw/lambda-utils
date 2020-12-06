@@ -1,4 +1,4 @@
-from utility.util import is_none, ez_try_and_get, ez_get
+from utility.util import is_none, ez_try_and_get, ez_get, ez_split
 
 import os
 from time import sleep
@@ -10,7 +10,10 @@ import concurrent.futures
 import itertools
 import threading
 import csv
-# import ast
+import timeit
+import ast
+from pprint import pprint
+from io import StringIO
 
 import boto3
 from botocore.exceptions import ClientError
@@ -21,6 +24,23 @@ import awswrangler as wr
 """
 
 ######################## ~ Athena Queries ~ #############################################
+
+# TODO implement in standardize_athena_query_result so not iterating over list twice
+def convert_athena_array_cols(data_lod, ** kwargs):
+    if not kwargs.get("convert_array_cols"):
+        return data_lod
+
+    for n, row in enumerate(data_lod):
+        for k,v in row.items():
+            if k not in kwargs["convert_array_cols"]:
+                continue
+            elif v == '[]':
+                row[k] = []
+            else:
+                row[k] = v.strip('][').split(', ') # MAYBETODO: sort?
+        data_lod[n] = row
+
+    return data_lod
 
 
 # Opinion: Whoever designed the response schema hates developers
@@ -47,7 +67,6 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
 
     EMPTY_ATHENA_RESPONSE = {'UpdateCount': 0, 'ResultSet': {'Rows': [{'Data': [{}]}]}}
     """
-
     paginator = client.get_paginator('get_query_results')
 
     response_iterator = paginator.paginate(
@@ -59,28 +78,27 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
     })
 
     results = []
-
     # Iterate through pages. The NextToken logic is handled for you.
     for n, page in enumerate(response_iterator):
-        logging.info(f"Now on page {n}, rows on this page: {len(page['ResultSet']['Rows'])}")
-
-        # if n > 0 and len(page['ResultSet']['Rows']) == 0: # probably redundant
-        #     break
+        logging.debug(f"Now on page {n}, rows on this page: {len(page['ResultSet']['Rows'])}")
 
         results += standardize_athena_query_result(page, **kwargs)
 
         if not results:
             break
 
-        kwargs["headers"] = list(results[0].keys()) # prevent parser from .pop(0) after 1st page
+        if kwargs.get("output_lod"):
+            kwargs["headers"] = list(results[0].keys()) # prevent parser from .pop(0) after 1st page
 
     return results
 
 
-# Figure out pagination / 1000 row limit
 def query_athena_table(sql_query, database, **kwargs):
     if database not in sql_query:
         logging.warning("The provided database is not in your provided SQL query")
+
+    if kwargs.get("time_it"): start_time = timeit.default_timer()
+    logging.info(f"Athena query data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
 
     client = boto3.client('athena')
     query_started = client.start_query_execution(
@@ -91,13 +109,14 @@ def query_athena_table(sql_query, database, **kwargs):
 
     timeout_value = kwargs.get("timeout", 15) * 1000 # bc its in milliseconds
     finished = False
-    logging.info("Started Athena Query")
 
     while not finished:
         query_in_flight = client.get_query_execution(QueryExecutionId=query_started["QueryExecutionId"])
         query_status = query_in_flight["QueryExecution"]["Status"]["State"]
 
         if query_status == 'SUCCEEDED':
+            s3_result_path = query_in_flight['QueryExecution']['ResultConfiguration']['OutputLocation'].replace("s3://", "")
+            s3_result_dict = {"bucket": s3_result_path[:s3_result_path.rfind("/")], "filename": s3_result_path[s3_result_path.rfind("/")+1:]}
             finished = True
         elif query_status in ['FAILED', 'CANCELLED']: # TODO test cancelled
             logging.error(query_in_flight['QueryExecution']['Status']['StateChangeReason'])
@@ -108,8 +127,21 @@ def query_athena_table(sql_query, database, **kwargs):
         else:
             sleep(kwargs.get("wait_interval", 0.1))
 
-    return paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
+    if kwargs.get("time_it"): logging.info(f"{round(timeit.default_timer() - start_time, 4)} seconds - Query execution time (NOT including pagination/file-handling)")
+
+    if kwargs.get("return_s3_path"):
+        s3_result_dict["entry_count"] = get_row_count_of_s3_csv(s3_result_dict['bucket'], s3_result_dict['filename'])
+        result = s3_result_dict
+    elif kwargs.get("return_s3_file"):
+        s3_result_dict["data"] = convert_athena_array_cols(get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True), **kwargs)
+        result = s3_result_dict
+    else:
+        result = convert_athena_array_cols(paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs), **kwargs)
+
+    if kwargs.get("time_it"): logging.info(f"{round(timeit.default_timer() - start_time, 4)} seconds - Query execution time (all-in)")
+
+    return result
 
 
 ################################### ~ Dynamo Operations ~  ############################################
@@ -456,45 +488,51 @@ def get_s3_bucket_file_count(bucket_name, path):
     bucket = boto3.resource("s3").Bucket(bucket_name)
     return sum(1 for _ in bucket.objects.all())
 
+
 # The path should be `folder/` NOT `/folder`
 # MaxKeys = number of results per page, NOT number of total results
 def list_s3_bucket_contents(bucket_name, path, **kwargs):
-    client = boto3.client("s3")
     storage_classes = ["STANDARD"] if kwargs.get("ignore_glacier") else ["STANDARD", "STANDARD_IA", "GLACIER"]
-    filter_args = {"Bucket":bucket_name, "Prefix": path}
-    if "start_after" in kwargs: filter_args["StartAfter"] = kwargs["start_after"]
-    if "limit" in kwargs: filter_args["MaxKeys"] = kwargs["limit"]
-    print(filter_args)
+
+    client = boto3.client("s3")
+    filter_args = {"Bucket":bucket_name, "Prefix": path.lstrip("/")}
+
+    if "start_after" in kwargs:
+        filter_args["StartAfter"] = kwargs["start_after"]
+    if "limit" in kwargs:
+        filter_args["MaxKeys"] = kwargs["limit"]
 
     response = client.list_objects_v2(**filter_args)
     return [x.get("Key") for x in response["Contents"]]
 
 
-# def list_s3_bucket_contents(bucket_name, path, **kwargs):
-#     bucket = boto3.resource("s3").Bucket(bucket_name)
-#     storage_classes = ["STANDARD"] if kwargs.get("ignore_glacier") else ["STANDARD", "STANDARD_IA", "GLACIER"]
-#     filter_args = {"Prefix": path}
-#     if "start_on" in kwargs: filter_args["StartAfter"] = kwargs["start_on"]
-#     if "limit" in kwargs: filter_args["MaxKeys"] = kwargs["limit"]
-#     print(filter_args)
-#
-#     # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs.get("limit", None)) if x.storage_class in storage_classes]
-#         # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs["limit"])]
-#     client = boto3.client("s3")
-#     # return [x.key for x in bucket.objects.filter(**filter_args)]
-#     response = client.list_objects_v2(
-#         bucket=bucket_name
-#         prefix=path,
-#         **filter_args
-#     )
+# Via S3 Select. Note: intra-AWS data transfer (e.g. Lambda <> S3) is much faster than egress, so this optimization is less impactful to intra-AWS use cases
+def get_row_count_of_s3_csv(bucket_name, path):
+    sql_stmt = """SELECT count(*) FROM s3object """
+    req = boto3.client('s3').select_object_content(
+        Bucket=bucket_name,
+        Key=path,
+        ExpressionType="SQL",
+        Expression=sql_stmt,
+        InputSerialization = {"CSV": {"FileHeaderInfo": "Use", "AllowQuotedRecordDelimiter": True}},
+        OutputSerialization = {"CSV": {}},
+    )
 
+    row_count = next(int(x["Records"]["Payload"]) for x in req["Payload"])
+    return row_count
 
 
 # default encoding of ISO-8859-1? TODO
 def get_s3_file(bucket_name, filename, **kwargs):
     try:
         s3_obj = boto3.client("s3").get_object(Bucket=bucket_name, Key=filename)["Body"]
-        return s3_obj if kwargs.get("raw") else s3_obj.read().decode('utf-8')
+        if kwargs.get("raw"):
+            return s3_obj
+        elif kwargs.get("convert_csv"):
+            return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
+        else:
+            return s3_obj.read().decode('utf-8')
+
     except Exception as e:
         logging.error(e)
         raise e
@@ -565,6 +603,12 @@ def move_s3_file_to_glacier(bucket_name, path):
     s3.copy({"Bucket": bucket_name, "Key": path}, bucket_name, path,
         ExtraArgs={'StorageClass': 'GLACIER', 'MetadataDirective': 'COPY'})
     return
+
+def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest_path):
+    destination_bucket = boto3.resource('s3').Bucket(dest_bucket)
+    destination_bucket.copy({'Bucket': start_bucket, 'Key': start_path}, dest_path)
+
+    return logging.info("Copy appears to have been a success")
 
 
 
@@ -705,7 +749,7 @@ def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
         partition_cols=kwargs.get("partition_cols_list", None),
         use_threads=kwargs.get("use_threads", False),
         schema_evolution=kwargs.get("schema_evolution", False), # if True, and you pass a different schema, it will update the table
-        # dtype                 # TODO Dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {‘col name’: ‘bigint’, ‘col2 name’: ‘int’})
+        # dtype                 # TODO Dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {'col name': 'bigint', 'col2 name': 'int'})
     )
 
     logging.info(f"Write was successful to path {s3_path}")
