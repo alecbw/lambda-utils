@@ -13,6 +13,7 @@ import csv
 import timeit
 import ast
 from pprint import pprint
+from io import StringIO
 
 import boto3
 from botocore.exceptions import ClientError
@@ -29,14 +30,14 @@ def convert_athena_array_cols(data_lod, ** kwargs):
     if not kwargs.get("convert_array_cols"):
         return data_lod
 
-    for n, row in enumerate(data_lod): #s3_result_dict["data"])
+    for n, row in enumerate(data_lod):
         for k,v in row.items():
             if k not in kwargs["convert_array_cols"]:
                 continue
             elif v == '[]':
                 row[k] = []
             else:
-                row[k] = v.strip('][').split(', ')
+                row[k] = v.strip('][').split(', ') # MAYBETODO: sort?
         data_lod[n] = row
 
     return data_lod
@@ -486,38 +487,38 @@ def get_s3_bucket_file_count(bucket_name, path):
     bucket = boto3.resource("s3").Bucket(bucket_name)
     return sum(1 for _ in bucket.objects.all())
 
+
 # The path should be `folder/` NOT `/folder`
 # MaxKeys = number of results per page, NOT number of total results
 def list_s3_bucket_contents(bucket_name, path, **kwargs):
-    client = boto3.client("s3")
     storage_classes = ["STANDARD"] if kwargs.get("ignore_glacier") else ["STANDARD", "STANDARD_IA", "GLACIER"]
-    filter_args = {"Bucket":bucket_name, "Prefix": path}
-    if "start_after" in kwargs: filter_args["StartAfter"] = kwargs["start_after"]
-    if "limit" in kwargs: filter_args["MaxKeys"] = kwargs["limit"]
-    print(filter_args)
+
+    client = boto3.client("s3")
+    filter_args = {"Bucket":bucket_name, "Prefix": path.lstrip("/")}
+
+    if "start_after" in kwargs:
+            filter_args["StartAfter"] = kwargs["start_after"]
+    if "limit" in kwargs:
+            filter_args["MaxKeys"] = kwargs["limit"]
 
     response = client.list_objects_v2(**filter_args)
     return [x.get("Key") for x in response["Contents"]]
 
 
-# def list_s3_bucket_contents(bucket_name, path, **kwargs):
-#     bucket = boto3.resource("s3").Bucket(bucket_name)
-#     storage_classes = ["STANDARD"] if kwargs.get("ignore_glacier") else ["STANDARD", "STANDARD_IA", "GLACIER"]
-#     filter_args = {"Prefix": path}
-#     if "start_on" in kwargs: filter_args["StartAfter"] = kwargs["start_on"]
-#     if "limit" in kwargs: filter_args["MaxKeys"] = kwargs["limit"]
-#     print(filter_args)
-#
-#     # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs.get("limit", None)) if x.storage_class in storage_classes]
-#         # return [x.key for x in bucket.objects.filter(**filter_args).limit(kwargs["limit"])]
-#     client = boto3.client("s3")
-#     # return [x.key for x in bucket.objects.filter(**filter_args)]
-#     response = client.list_objects_v2(
-#         bucket=bucket_name
-#         prefix=path,
-#         **filter_args
-#     )
+# Via S3 Select. Note: intra-AWS data transfer (e.g. Lambda <> S3) is much faster than egress, so this optimization is less impactful to intra-AWS use cases
+def get_row_count_of_s3_csv(bucket_name, path):
+    sql_stmt = """SELECT count(*) FROM s3object """
+    req = boto3.client('s3').select_object_content(
+        Bucket=bucket_name,
+        Key=path,
+        ExpressionType="SQL",
+        Expression=sql_stmt,
+        InputSerialization = {"CSV": {"FileHeaderInfo": "Use", "AllowQuotedRecordDelimiter": True}},
+        OutputSerialization = {"CSV": {}},
+    )
 
+    row_count = next(int(x["Records"]["Payload"]) for x in req["Payload"])
+    return row_count
 
 
 # default encoding of ISO-8859-1? TODO
@@ -741,7 +742,7 @@ def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
         partition_cols=kwargs.get("partition_cols_list", None),
         use_threads=kwargs.get("use_threads", False),
         schema_evolution=kwargs.get("schema_evolution", False), # if True, and you pass a different schema, it will update the table
-        # dtype                 # TODO Dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {‘col name’: ‘bigint’, ‘col2 name’: ‘int’})
+        # dtype                 # TODO Dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {'col name': 'bigint', 'col2 name': 'int'})
     )
 
     logging.info(f"Write was successful to path {s3_path}")
