@@ -97,8 +97,7 @@ def query_athena_table(sql_query, database, **kwargs):
     if database not in sql_query:
         logging.warning("The provided database is not in your provided SQL query")
 
-    print(kwargs)
-    logging.info(f"Data return will be {next(x for x in kwargs.keys() if x in ['return_s3_path', 'return_s3_file', 'output_lod'])}")
+    logging.info(f"Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default'}")
 
     client = boto3.client('athena')
     query_started = client.start_query_execution(
@@ -133,14 +132,8 @@ def query_athena_table(sql_query, database, **kwargs):
         return s3_result_dict
     elif kwargs.get("return_s3_file"):
         return prepare_athena_s3_file_output(s3_result_dict, **kwargs)
-
-        # s3_result_dict["data"] = get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True)
-        # if kwargs.get("convert_array_cols"):
-        #     s3_result_dict["data"] = [{k:(v.strip('][').split(', ') if k in kwargs["convert_array_cols"] else v) for k, v in row.items()} for row in s3_result_dict["data"]] # ast.literal_eval(v) # (ez_split(v, ", ", None, fallback_value=[v]) # json.loads(v)
-        # return s3_result_dict
     else:
         return paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
-
 
 
 ################################### ~ Dynamo Operations ~  ############################################
