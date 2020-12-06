@@ -234,11 +234,23 @@ def is_url(potential_url_str):
     return False
 
 
+def is_ipv4(potential_ip_str):
+    pieces = potential_ip_str.split('.')
+    if len(pieces) != 4: is_ip = False
+    try: is_ip = all(0<=int(p)<256 for p in pieces)
+    except ValueError: is_ip = False
+    logging.debug(f"String {potential_ip_str} is_ipv4: {is_ip}")
+    return is_ip
+
+
 """
 Keep in mind removals stack - e.g. remove_tld will remove subsite, port, and trailing slash
 for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time and pass it in to save 1ms per 
 """
 def format_url(url, **kwargs):
+    # if kwargs.get("check_if_ipv4") and is_ipv4(url): # TODO
+    #     return url
+
     url = ez_split(url, "://", 1)
     url = ez_split(url, "www.", 1)
 
@@ -253,7 +265,9 @@ def format_url(url, **kwargs):
         url = url.rstrip("/")
     if kwargs.get("remove_subdomain") and url.count(".") > 1:
         tld = find_url_tld(url, kwargs["remove_subdomain"])
-        subdomain = ez_split(url, tld, 0)
+        if not tld:
+            return url.strip()
+        subdomain = ez_split(url, tld, 0, fallback_value="")
         domain = subdomain[subdomain.rfind(".")+1:]
         url = domain + tld
 
@@ -268,6 +282,8 @@ def format_url(url, **kwargs):
 def find_url_tld(url, tld_list):
     tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
     tld = max(find_substrings_in_string(url, tld_list), default=None) # get the longest matching string TLD
+    if not tld:
+        logging.warning(f"No TLD in {url}")
     return tld
 
 
