@@ -6,6 +6,7 @@ import time
 from functools import reduce
 import logging
 from collections import Counter
+import timeit
 
 try:
     import sentry_sdk
@@ -268,18 +269,30 @@ def format_url(url, **kwargs):
     if kwargs.get("remove_subsite"):
         url = ez_split(url, "/", 0)
     if kwargs.get("remove_tld"):
-        url = url[:url.rfind(".")]
+        url = url.replace(find_url_tld(url, kwargs["remove_tld"]), "")
+        # url = url[:url.rfind(".")]
     if kwargs.get("remove_port"):
         pattern = re.compile("(:\d{2,})")
         url = pattern.sub('', url)
     if kwargs.get("remove_trailing_slash"):
         url = url.rstrip("/")
 
-    if kwargs.get("remove_subdomain") and url.count(".") < 2:
-        logging.debug(f"URL: {url} does not have enough periods; skipping")
-    elif kwargs.get("remove_subdomain"):
-        url = url[url[:url.rfind(".")].rfind(".")+1:]
-        if not is_url(url): logging.warning(f"URL: {url} is probably broken now; wrong # of periods")
+    if kwargs.get("remove_subdomain") and url.count(".") > 1:
+        tld = find_url_tld(url, kwargs["remove_tld"])
+        tld_list = kwargs["remove_subdomain"] if isinstance(kwargs["remove_subdomain"], list) else get_tld_list()
+        tld =  max(find_substrings_in_string(url, tld_list)) # get the longest matching string TLD
+        subdomain = ez_split(url, tld, 0)
+        domain = subdomain[subdomain.rfind(".")+1:]
+        url = domain + tld
+
+        # lines = tuple(open("utility/TLD_list.txt", 'r'))
+        # print(lines)
+        # print(len(lines))
+    # if kwargs.get("remove_subdomain") and url.count(".") < 2:
+    #     logging.debug(f"URL: {url} does not have enough periods; skipping")
+    # elif kwargs.get("remove_subdomain"):
+    #     url = url[url[:url.rfind(".")].rfind(".")+1:]
+    #     if not is_url(url): logging.warning(f"URL: {url} is probably broken now; wrong # of periods")
 
     if kwargs.get("https"):
         url = "https://" + url
@@ -287,6 +300,24 @@ def format_url(url, **kwargs):
         url = "http://" + url
 
     return url.rstrip()
+
+
+def find_url_tld(url, tld_list):
+    tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
+    tld =  max(find_substrings_in_string(url, tld_list)) # get the longest matching string TLD
+    return tld
+
+def get_tld_list():
+    # from https://tld-list.com/tlds-from-a-z
+    try:
+        with open("utility/TLD_list.txt") as f:
+            return [line.rstrip() for line in f]
+        # lines = tuple(open("utility/TLD_list.txt", 'r'))
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"Make sure your utility submodule folder is called utility. {e}")
+
+
+#######################################################################################################################
 
 
 # It's faster if you have a primary_key in each dict
@@ -342,3 +373,4 @@ def increment_counter(counter, *args, **kwargs):
         del counter[arg_to_del]
 
     return counter
+
