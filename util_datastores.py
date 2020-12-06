@@ -24,22 +24,39 @@ import awswrangler as wr
 
 ######################## ~ Athena Queries ~ #############################################
 
-def prepare_athena_s3_file_output(s3_result_dict, **kwargs):
-    s3_result_dict["data"] = get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True)
+# TODO implement in standardize_athena_query_result so not iterating over list twice
+def convert_athena_array_cols(data_lod, ** kwargs):
+    if not kwargs.get("convert_array_cols"):
+        return data_lod
 
-    if kwargs.get("convert_array_cols"):
-        for n, row in enumerate(s3_result_dict["data"]):
-            for k,v in row.items():
-                if k not in kwargs["convert_array_cols"]:
-                    continue
-                elif v == '[]':
-                    row[k] = []
-                else:
-                    row[k] = v.strip('][').split(', ')
+    for n, row in enumerate(data_lod): #s3_result_dict["data"])
+        for k,v in row.items():
+            if k not in kwargs["convert_array_cols"]:
+                continue
+            elif v == '[]':
+                row[k] = []
+            else:
+                row[k] = v.strip('][').split(', ')
+        data_lod[n] = row
 
-            s3_result_dict["data"][n] = row
+    return data_lod
 
-    return s3_result_dict
+# def prepare_athena_s3_file_output(s3_result_dict, **kwargs):
+#     s3_result_dict["data"] = get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True)
+#
+#     if kwargs.get("convert_array_cols"):
+#         for n, row in enumerate(s3_result_dict["data"]):
+#             for k,v in row.items():
+#                 if k not in kwargs["convert_array_cols"]:
+#                     continue
+#                 elif v == '[]':
+#                     row[k] = []
+#                 else:
+#                     row[k] = v.strip('][').split(', ')
+#
+#             s3_result_dict["data"][n] = row
+#
+#     return s3_result_dict
 
 
 # Opinion: Whoever designed the response schema hates developers
@@ -126,17 +143,21 @@ def query_athena_table(sql_query, database, **kwargs):
         else:
             sleep(kwargs.get("wait_interval", 0.1))
 
+
     if kwargs.get("time_it"): logging.info(f"{round(timeit.default_timer() - start_time, 4)} seconds - Query execution time (NOT including pagination/file-handling)")
 
     if kwargs.get("return_s3_path"):
         result = s3_result_dict
     elif kwargs.get("return_s3_file"):
-        result = prepare_athena_s3_file_output(s3_result_dict, **kwargs)
+        s3_result_dict["data"] = convert_athena_array_cols(get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True), **kwargs)
+        result = s3_result_dict # prepare_athena_s3_file_output(s3_result_dict, **kwargs)
     else:
-        result = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
+        result = convert_athena_array_cols(paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs), **kwargs)
 
     if kwargs.get("time_it"): logging.info(f"{round(timeit.default_timer() - start_time, 4)} seconds - Query execution time (all-in)")
+
     return result
+
 
 ################################### ~ Dynamo Operations ~  ############################################
 
