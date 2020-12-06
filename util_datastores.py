@@ -1,4 +1,4 @@
-from utility.util import is_none, ez_try_and_get, ez_get
+from utility.util import is_none, ez_try_and_get, ez_get, ez_split
 
 import os
 from time import sleep
@@ -24,6 +24,24 @@ import awswrangler as wr
 
 ######################## ~ Athena Queries ~ #############################################
 
+def prepare_athena_s3_file_output(s3_result_dict, **kwargs):
+    s3_result_dict["data"] = get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True)
+
+    if kwargs.get("convert_array_cols"):
+        for n, row in enumerate(s3_result_dict["data"]):
+            for k,v in row.items():
+                if k not in kwargs["convert_array_cols"]:
+                    continue
+                elif v == '[]':
+                    print('toierhcase')
+                    row[k] = []
+                else:
+                    row[k] = v.strip('][').split(', ')
+
+            s3_result_dict["data"][n] = row
+        # s3_result_dict["data"] = [{k:(v.strip('][').split(', ') if k in kwargs["convert_array_cols"] else v) for k, v in row.items()} for row in s3_result_dict["data"]] # ast.literal_eval(v) # (ez_split(v, ", ", None, fallback_value=[v]) # json.loads(v)
+
+    return s3_result_dict
 
 # Opinion: Whoever designed the response schema hates developers
 def standardize_athena_query_result(results, **kwargs):
@@ -49,7 +67,6 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
 
     EMPTY_ATHENA_RESPONSE = {'UpdateCount': 0, 'ResultSet': {'Rows': [{'Data': [{}]}]}}
     """
-
     paginator = client.get_paginator('get_query_results')
 
     response_iterator = paginator.paginate(
@@ -61,13 +78,9 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
     })
 
     results = []
-
     # Iterate through pages. The NextToken logic is handled for you.
     for n, page in enumerate(response_iterator):
-        logging.info(f"Now on page {n}, rows on this page: {len(page['ResultSet']['Rows'])}")
-
-        # if n > 0 and len(page['ResultSet']['Rows']) == 0: # probably redundant
-        #     break
+        logging.debug(f"Now on page {n}, rows on this page: {len(page['ResultSet']['Rows'])}")
 
         results += standardize_athena_query_result(page, **kwargs)
 
@@ -83,6 +96,9 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
 def query_athena_table(sql_query, database, **kwargs):
     if database not in sql_query:
         logging.warning("The provided database is not in your provided SQL query")
+
+    print(kwargs)
+    logging.info(f"Data return will be {next(x for x in kwargs.keys() if x in ['return_s3_path', 'return_s3_file', 'output_lod'])}")
 
     client = boto3.client('athena')
     query_started = client.start_query_execution(
@@ -112,18 +128,18 @@ def query_athena_table(sql_query, database, **kwargs):
         else:
             sleep(kwargs.get("wait_interval", 0.1))
 
+
     if kwargs.get("return_s3_path"):
         return s3_result_dict
-    if kwargs.get("return_s3_file"):
-        # s3_data_csv =
-        s3_result_dict["data"] = get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True)
-        if kwargs.get("convert_array_cols"):
-            s3_result_dict["data"] = [{k:(ast.literal_eval(v) if k in kwargs["convert_array_cols"] else v) for k, v in row.items()} for row in s3_result_dict["data"]]
-        # s3_result_dict["data"] = [{k:v for k, v in row.items()} for row in csv.DictReader(s3_data_csv.splitlines(True))]
-        # s3_result_dict["data"] = [{k:v for k, v in row.items()} for row in csv.DictReader(s3_data_csv, skipinitialspace=True)]
-        return s3_result_dict
+    elif kwargs.get("return_s3_file"):
+        return prepare_athena_s3_file_output(s3_result_dict, **kwargs)
 
-    return paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
+        # s3_result_dict["data"] = get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True)
+        # if kwargs.get("convert_array_cols"):
+        #     s3_result_dict["data"] = [{k:(v.strip('][').split(', ') if k in kwargs["convert_array_cols"] else v) for k, v in row.items()} for row in s3_result_dict["data"]] # ast.literal_eval(v) # (ez_split(v, ", ", None, fallback_value=[v]) # json.loads(v)
+        # return s3_result_dict
+    else:
+        return paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
 
 
