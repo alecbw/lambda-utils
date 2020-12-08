@@ -6,6 +6,7 @@ import time
 from functools import reduce
 import logging
 from collections import Counter
+import timeit
 
 try:
     import sentry_sdk
@@ -120,7 +121,7 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
     )
     return response.get("items", {})
 
-######################### ~ General str/list Formatting ~ ########################################################
+######################### ~ General  Formatting ~ ########################################################
 
 
 # This corrects for an edge case where some None values may convert to str "None" by API Gateway
@@ -180,7 +181,7 @@ def ez_join(phrase, delimiter):
 
 
 def ez_split(phrase, delimiter, return_slice, **kwargs):
-    if not (phrase and delimiter in phrase):
+    if not (phrase and delimiter and delimiter in phrase):
         return kwargs.get("fallback_value", phrase)
 
     if type(return_slice) != type(True) and isinstance(return_slice, int):
@@ -215,13 +216,89 @@ def is_none(value, **kwargs):
     return False
 
 
-def is_url(value):
-    tld_list = ['.de', '.html', '.com', '.info', '.es', '.mil', '.no', '.vc', '.au', '.se', '.io', '.tv', '.co', '.fr', '.uk', '.ai', '.ch', '.org', '.ca', '.gov', '.ly', '.net', '.ru', '.nl', '.us', '.it', '.jp', '.edu', '.biz', '.xml', '.ph', '.id', '.tw', '.hk', '.ro', '.eu', '.in', '.by', '.mx', '.cz', '.dk', '.si', '.solutions', '.fi', '.life', '.city', '.ie', '.br', '.pk', '.be', '.ae', '.pl', '.do', '.earth', '.lt', '.pt', '.cl', '.br', '.cd', '.uz', '.nu', '.cn', '.at', '.fm', '.ir', '.nz', '.trading', '.mn', '.wales']
-    if any(tld for tld in tld_list if tld.lower().strip() in value.lower().strip()):
+################################################ ~ URL string handling ~ ######################################################################
+
+"""
+Note: this will return false positives for made up TLDs that contain viable TLDs
+ex: '.ae.com' is a true positive TLD, but the made up '.aee.com' is false positive, as it contains '.com'
+This shouldn't be a problem if your data isn't extremely dirty
+"""
+def is_url(potential_url_str):
+    # tld_list = ['.de', '.html', '.com', '.info', '.es', '.mil', '.no', '.vc', '.au', '.se', '.io', '.tv', '.co', '.fr', '.uk', '.ai', '.ch', '.org', '.ca', '.gov', '.ly', '.net', '.ru', '.nl', '.us', '.it', '.jp', '.edu', '.biz', '.xml', '.ph', '.id', '.tw', '.hk', '.ro', '.eu', '.in', '.by', '.mx', '.cz', '.dk', '.si', '.solutions', '.fi', '.life', '.city', '.ie', '.br', '.pk', '.be', '.ae', '.pl', '.do', '.earth', '.lt', '.pt', '.cl', '.br', '.cd', '.uz', '.nu', '.cn', '.at', '.fm', '.ir', '.nz', '.trading', '.mn', '.wales']
+    if find_substrings_in_string(potential_url_str, get_tld_list()):
         return True
-    print(value)
+    # if any(tld for tld in tld_list if tld.lower().strip() in value.lower().strip()):
+    #     return True
+    # print(value)
 
     return False
+
+
+def is_ipv4(potential_ip_str):
+    pieces = potential_ip_str.split('.')
+    if len(pieces) != 4: is_ip = False
+    try: is_ip = all(0<=int(p)<256 for p in pieces)
+    except ValueError: is_ip = False
+    logging.debug(f"String {potential_ip_str} is_ipv4: {is_ip}")
+    return is_ip
+
+
+"""
+Keep in mind removals stack - e.g. remove_tld will remove subsite, port, and trailing slash
+for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time and pass it in to save 1ms per 
+"""
+def format_url(url, **kwargs):
+    # if kwargs.get("check_if_ipv4") and is_ipv4(url): # TODO
+    #     return url
+
+    url = ez_split(url, "://", 1)
+    url = ez_split(url, "www.", 1)
+
+    if kwargs.get("remove_subsite"):
+        url = ez_split(url, "/", 0)
+    if kwargs.get("remove_tld"):
+        url = ez_split(url, find_url_tld(url, kwargs["remove_tld"]), 0)
+    if kwargs.get("remove_port") and ":" in url:
+        pattern = re.compile("(:\d{2,})")
+        url = pattern.sub('', url)
+    if kwargs.get("remove_trailing_slash"):
+        url = url.rstrip("/")
+    if kwargs.get("remove_subdomain") and url.count(".") > 1:
+        tld = find_url_tld(url, kwargs["remove_subdomain"])
+        if not tld:
+            return url.strip()
+        subdomain = ez_split(url, tld, 0, fallback_value="")
+        domain = subdomain[subdomain.rfind(".")+1:]
+        url = domain + tld
+
+    if kwargs.get("https"):
+        url = "https://" + url
+    elif kwargs.get("http"):
+        url = "http://" + url
+
+    return url.strip()
+
+
+def find_url_tld(url, tld_list):
+    tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
+    tld = max(find_substrings_in_string(url, tld_list), default=None) # get the longest matching string TLD
+    if not tld:
+        logging.warning(f"No TLD in {url}")
+    return tld
+
+
+def get_tld_list():
+    # from https://tld-list.com/tlds-from-a-z
+    try:
+        with open("utility/TLD_list.txt") as f:
+            return [line.rstrip() for line in f]
+        # lines = tuple(open("utility/TLD_list.txt", 'r'))
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"Make sure your utility submodule folder is called utility. {e}")
+
+
+############################################# ~ Datetime/str handling ~ ##########################################################
+
 
 # TODO deprecate
 def format_timestamp(timestamp, **kwargs):
@@ -272,32 +349,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
         return kwargs.get("null_value", "")
 
 
-def format_url(url, **kwargs):
-    url = ez_split(url, "://", 1)
-    url = ez_split(url, "www.", 1)
-
-    if kwargs.get("remove_subsite"):
-        url = ez_split(url, "/", 0)
-    if kwargs.get("remove_tld"):
-        url = url[:url.rfind(".")]
-    if kwargs.get("remove_port"):
-        pattern = re.compile("(:\d{2,})")
-        url = pattern.sub('', url)
-    if kwargs.get("remove_trailing_slash"):
-        url = url.rstrip("/")
-
-    if kwargs.get("remove_subdomain") and url.count(".") < 2:
-        logging.debug(f"URL: {url} does not have enough periods; skipping")
-    elif kwargs.get("remove_subdomain"):
-        url = url[url[:url.rfind(".")].rfind(".")+1:]
-        if not is_url(url): logging.warning(f"URL: {url} is probably broken now; wrong # of periods")
-
-    if kwargs.get("https"):
-        url = "https://" + url
-    elif kwargs.get("http"):
-        url = "http://" + url
-
-    return url.rstrip()
+############################################# ~ List/dict handling ~ ##########################################################
 
 
 # It's faster if you have a primary_key in each dict
@@ -353,3 +405,4 @@ def increment_counter(counter, *args, **kwargs):
         del counter[arg_to_del]
 
     return counter
+
