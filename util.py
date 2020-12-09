@@ -326,6 +326,21 @@ def format_timestamp(timestamp, **kwargs):
     return timestamp_str, timestamp
 
 
+"""
+TODO to support
+    1.1.7
+    2020-12-08T00:31:27.133800
+    12/8/2020 4:05:34 AM
+    Tue Nov 24, 2020 
+    Mon Dec 07 2020 18:42:10 GMT+0000 (Coordinated Universal Time)
+    Monday, October 17, 2016, 2:57 pm
+    2020-12-08T03:43:33.14400Z
+    1195480486
+    2020-12-06 18:29:51 UTC
+    2020-12-06 22:28:44T+07:00
+    Tue Nov 24, 2020 
+"""
+
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
         return kwargs.get("null_value", "")
