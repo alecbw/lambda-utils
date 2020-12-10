@@ -165,10 +165,11 @@ class DynamoReadEncoder(json.JSONEncoder):
             return o.strftime("%m/%d/%Y"),
         return super(DecimalEncoder, self).default(o)
 
+
 # Both reads and writes
 def standardize_dynamo_query(input_data, **kwargs):
     if not isinstance(input_data, dict):
-        logging.error("wrong data type for dynamodb")
+        logging.error(f"Wrong data type for dynamodb - you input {type(input_data)}")
         return None
 
     if not kwargs.get("skip_updated"):
@@ -176,18 +177,14 @@ def standardize_dynamo_query(input_data, **kwargs):
     elif "updatedAt" in input_data:
         input_data['updatedAt'] = int(input_data['updatedAt'])
 
-    if 'createdAt' not in input_data and kwargs.get("add_created"):
+    if kwargs.get("add_created") and 'createdAt' not in input_data:
         input_data['createdAt'] = input_data['updatedAt']
 
-    # Drop falsey keys, they break upserts
-    # input_data = {k:v for k,v in input_data.items() if not is_none(k)}
-
-    # An AttributeValue may not contain an empty string
     for k, v in input_data.items():
-        if is_none(k): # Drop falsey keys (and their vals), they break upserts
+        if is_none(k):  # Drop falsey keys (and their vals), they break upserts
             logging.warning(f"Dropping falsey key {k}")
             del input_data[k]
-        elif is_none(v, keep_0=True) and not kwargs.get("skip_is_none"):
+        elif is_none(v, keep_0=True) and not kwargs.get("skip_is_none"):  # (An AttributeValue may not contain an empty string)
             input_data[k] = None
         elif isinstance(v, float):
             input_data[k] = Decimal(str(v))
