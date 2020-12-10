@@ -184,11 +184,14 @@ def standardize_dynamo_query(input_data, **kwargs):
         input_data['createdAt'] = input_data['updatedAt']
 
     # Drop falsey keys, they break upserts
-    input_data = {k:v for k,v in input_data.items() if not is_none(k)}
+    # input_data = {k:v for k,v in input_data.items() if not is_none(k)}
 
     # An AttributeValue may not contain an empty string
     for k, v in input_data.items():
-        if is_none(v, keep_0=True) and not kwargs.get("skip_is_none"):
+        if is_none(k): # Drop falsey keys (and their vals), they break upserts
+            logging.warning(f"Dropping falsey key {k}")
+            del input_data[k]
+        elif is_none(v, keep_0=True) and not kwargs.get("skip_is_none"):
             input_data[k] = None
         elif isinstance(v, float):
             input_data[k] = Decimal(str(v))
@@ -524,8 +527,10 @@ def get_row_count_of_s3_csv(bucket_name, path):
 
 # default encoding of ISO-8859-1? TODO
 def get_s3_file(bucket_name, filename, **kwargs):
+    if "/" in bucket_name:
+        logging.warning("~~You probably want to remove the filepath from the bucket_name. It's _just_ the bucket ~~")
     try:
-        s3_obj = boto3.client("s3").get_object(Bucket=bucket_name, Key=filename)["Body"]
+        s3_obj = boto3.client("s3").get_object(Bucket=bucket_name, Key=filename.lstrip("/"))["Body"]
         if kwargs.get("raw"):
             return s3_obj
         elif kwargs.get("convert_csv"):
