@@ -174,12 +174,8 @@ def standardize_dynamo_query(input_data, **kwargs):
     if not kwargs.get("skip_updated"):
         input_data['updatedAt'] = int(datetime.utcnow().timestamp())
     elif "updatedAt" in input_data:
-        # try:
         input_data['updatedAt'] = int(input_data['updatedAt'])
-        # except:
-        #     input_data['updatedAt'] = int(datetime.utcnow().timestamp())
 
-    # TODO implement created logic
     if 'createdAt' not in input_data and kwargs.get("add_created"):
         input_data['createdAt'] = input_data['updatedAt']
 
