@@ -549,7 +549,7 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
     file_type = kwargs.get("file_type", "json")
     if file_type == "json":
         file_to_write = bytes(json.dumps(file_data).encode("UTF-8"))
-    elif file_type == "csv":
+    elif file_type == "csv": # TODO
         with open(f"/tmp/{filename}.txt", 'w') as output_file:
             dict_writer = csv.DictWriter(output_file, file_data[0].keys())
             dict_writer.writeheader()
