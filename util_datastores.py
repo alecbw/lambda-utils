@@ -528,6 +528,8 @@ def get_s3_file(bucket_name, filename, **kwargs):
             return s3_obj
         elif kwargs.get("convert_csv"):
             return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
+        elif kwargs.get("convert_json"):
+            return json.loads(s3_obj.read().decode('utf-8'))
         else:
             return s3_obj.read().decode('utf-8')
 
@@ -567,15 +569,33 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         logging.error(e, bucket_name, filename)
 
 
+def get_s3_files_that_match_prefix(bucket_name, path, file_limit, **kwargs):
+        s3_bucket = boto3.resource("s3").Bucket(bucket_name)
 
-# http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
-# pass this a list of tuples of (filename, data)
-def parallel_write_s3_files(bucket_name, file_lot):
-    boto3.client('s3')
-    for file_tuple in file_lot:
-        t = threading.Thread(target = write_s3_file, args=(bucket_name, file_tuple[0], file_tuple[1])).start()
+        output_lod = []
+        for n, file_summary in enumerate(s3_bucket.objects.filter(Prefix=path).limit(file_limit)):
+            if kwargs.get('download_path'):
+                bucket.download_file(file_summary.key, kwargs["download_path"])
+            else:
+                file_dict = get_s3_file(bucket_name, file_summary.key, **kwargs)
+                output_lod.append({**file_dict, **{"s3_filename": file_summary.key}}) # add filename to the opened file's dict
 
-    logging.info(f"Parallel write to S3 Bucket {bucket_name} has commenced")
+        return output_lod
+
+
+def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest_path):
+    destination_bucket = boto3.resource('s3').Bucket(dest_bucket)
+    destination_bucket.copy({'Bucket': start_bucket, 'Key': start_path}, dest_path)
+
+    return logging.info("Copy appears to have been a success")
+
+
+def move_s3_file_to_glacier(bucket_name, path):
+    s3 = boto3.client('s3')
+
+    s3.copy({"Bucket": bucket_name, "Key": path}, bucket_name, path,
+        ExtraArgs={'StorageClass': 'GLACIER', 'MetadataDirective': 'COPY'})
+    return
 
 
 def delete_s3_file(bucket_name, filename, **kwargs):
@@ -589,24 +609,31 @@ def delete_s3_file(bucket_name, filename, **kwargs):
         logging.error(e)
         return e
 
+
+# http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
+# pass this a list of tuples of (filename, data)
+def parallel_write_s3_files(bucket_name, file_lot):
+    boto3.client('s3')
+    for file_tuple in file_lot:
+        t = threading.Thread(target = write_s3_file, args=(bucket_name, file_tuple[0], file_tuple[1])).start()
+
+    logging.info(f"Parallel write to S3 Bucket {bucket_name} has commenced")
+
+def parallel_delete_s3_files(bucket_name, file_lot):
+    boto3.client('s3')
+    for file_tuple in file_lot:
+        t = threading.Thread(target = delete_s3_file, args=(bucket_name, file_tuple[0], file_tuple[1])).start()
+
+    logging.info(f"Parallel write to S3 Bucket {bucket_name} has commenced")
+
+
+
 """
 Minimums for storage classes:
     Normal - None
     1Z Infrequent - 30 days
     Glacier - 90 days
 """
-def move_s3_file_to_glacier(bucket_name, path):
-    s3 = boto3.client('s3')
-
-    s3.copy({"Bucket": bucket_name, "Key": path}, bucket_name, path,
-        ExtraArgs={'StorageClass': 'GLACIER', 'MetadataDirective': 'COPY'})
-    return
-
-def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest_path):
-    destination_bucket = boto3.resource('s3').Bucket(dest_bucket)
-    destination_bucket.copy({'Bucket': start_bucket, 'Key': start_path}, dest_path)
-
-    return logging.info("Copy appears to have been a success")
 
 
 
@@ -626,8 +653,8 @@ def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest
 #             resource.meta.client.download_file(bucket, file.get('Key'), dest_pathname)
 
 
-# TODO difference between
 """
+   # TODO difference between
     s3 = boto3.resource("s3")
     s3.Object(bucket, filename)
     return obj.get()["Body"].read().decode("utf-8")
