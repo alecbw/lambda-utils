@@ -482,8 +482,10 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
 
 def get_s3_bucket_file_count(bucket_name, path):
     bucket = boto3.resource("s3").Bucket(bucket_name)
-    return sum(1 for _ in bucket.objects.all())
-
+    if not path:
+        return sum(1 for _ in bucket.objects.all())
+    else:
+        return sum(1 for _ in bucket.objects.filter(Prefix=files_path.lstrip("/")))
 
 # The path should be `folder/` NOT `/folder`
 # MaxKeys = number of results per page, NOT number of total results
@@ -574,8 +576,8 @@ def get_s3_files_that_match_prefix(bucket_name, path, file_limit, **kwargs):
 
         output_lod = []
         for n, file_summary in enumerate(s3_bucket.objects.filter(Prefix=path).limit(file_limit)):
-            if kwargs.get('download_path'):
-                bucket.download_file(file_summary.key, kwargs["download_path"])
+            if kwargs.get('download_path'): # TODO does not work
+                s3_bucket.download_file(file_summary.key, kwargs["download_path"])
             else:
                 file_dict = get_s3_file(bucket_name, file_summary.key, **kwargs)
                 output_lod.append({**file_dict, **{"s3_filename": file_summary.key}}) # add filename to the opened file's dict
@@ -785,7 +787,7 @@ def trigger_athena_table_crawl(s3_path, db, table, **kwargs):
     import pandas as pd
     import awswrangler as wr
 
-    wr.s3.store_parquet_metadata(
+    columns_types, partitions_types, partitions_values = wr.s3.store_parquet_metadata(
         path=s3_path,
         database=db,
         table=table,
@@ -794,6 +796,7 @@ def trigger_athena_table_crawl(s3_path, db, table, **kwargs):
         dtype=kwargs.get("col_dtype_dict", None) # dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {'col name': 'bigint', 'col2 name': 'int'})
     )
     logging.info(f"Metadata crawl was successful of Athena table {table}")
+    return columns_types, partitions_types, partitions_values
 
 
 # when you read a year=2020, etc delimited data lake, the resulting df will have 'day', 'month', 'year' as columns
