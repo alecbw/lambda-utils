@@ -281,9 +281,11 @@ def format_url(url, **kwargs):
 
 def find_url_tld(url, tld_list):
     tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
-    tld = max(find_substrings_in_string(url, tld_list), key=len) # get the longest matching string TLD
-    if not tld:
+    matched_tlds = find_substrings_in_string(url, tld_list)
+    if not matched_tlds:
         logging.warning(f"No TLD in {url}")
+        return None
+    tld = max(matched_tlds, key=len) # get the longest matching string TLD
     return tld
 
 
