@@ -487,7 +487,7 @@ def get_s3_bucket_file_count(bucket_name, path):
     if not path:
         return sum(1 for _ in bucket.objects.all())
     else:
-        return sum(1 for _ in bucket.objects.filter(Prefix=files_path.lstrip("/")))
+        return sum(1 for _ in bucket.objects.filter(Prefix=path.lstrip("/")))
 
 # The path should be `folder/` NOT `/folder`
 # MaxKeys = number of results per page, NOT number of total results
