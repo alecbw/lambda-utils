@@ -426,15 +426,3 @@ def increment_counter(counter, *args, **kwargs):
         del counter[arg_to_del]
 
     return counter
-
-
-
-
-
-
-
-
-
-
-
-
