@@ -246,6 +246,7 @@ def is_ipv4(potential_ip_str):
 """
 Keep in mind removals stack - e.g. remove_tld will remove subsite, port, and trailing slash
 for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time and pass it in to save 1ms per
+Known problem: strings like "lunarcovers.co.ukasdfij" will match .co.uk and return as 'lunarcovers.co.uk'
 """
 def format_url(url, **kwargs):
     # if kwargs.get("check_if_ipv4") and is_ipv4(url): # TODO
