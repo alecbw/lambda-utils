@@ -396,11 +396,13 @@ def get_dynamodb_item(primary_key_dict, table_name, **kwargs):
     return result
 
 
+
 def delete_dynamodb_item(unique_key, key_value, table_name, **kwargs):
     table = boto3.resource('dynamodb').Table(table_name)
 
     result = table.delete_item(Key={unique_key:key_value})
-    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Delete of key {key_value} from {table_name}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
+    if not kwargs.get("disable_print"): # note: it will return status code 200 even if the key wasn't in the table to begin with
+        logging.info(f"Successfully did a Dynamo Delete of key {key_value} from {table_name}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
 
 
 # TODO test. Alternate implementation: https://github.com/fernando-mc/nandolytics/blob/master/record.py
@@ -485,7 +487,7 @@ def get_s3_bucket_file_count(bucket_name, path):
     if not path:
         return sum(1 for _ in bucket.objects.all())
     else:
-        return sum(1 for _ in bucket.objects.filter(Prefix=files_path.lstrip("/")))
+        return sum(1 for _ in bucket.objects.filter(Prefix=path.lstrip("/")))
 
 # The path should be `folder/` NOT `/folder`
 # MaxKeys = number of results per page, NOT number of total results
