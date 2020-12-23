@@ -60,6 +60,8 @@ def package_response(message, status_code, **kwargs):
         logging.info(message)
     elif kwargs.get("warn"):
         logging.warning(message)
+    elif kwargs.get("error"):
+        logging.error(message)
 
     return {
         'statusCode': status_code if status_code else '200',
@@ -432,4 +434,3 @@ def increment_counter(counter, *args, **kwargs):
         del counter[arg_to_del]
 
     return counter
-
