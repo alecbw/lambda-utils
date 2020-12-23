@@ -193,6 +193,7 @@ def ez_split(phrase, delimiter, return_slice, **kwargs):
 
 
 # there's no re.find. I named this _find because _match makes more semantic sense than _search, but the .search operator is more useful than the .match operator
+# Note: keep in mind 0-indexing when using group=1, etc. group=1 is the second group.
 def ez_re_find(pattern, text, **kwargs):
     if isinstance(text, list) or isinstance(text, set):
         text = ez_join(text, " ")
