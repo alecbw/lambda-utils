@@ -258,11 +258,16 @@ def scan_dynamodb(table, **kwargs):
     elif kwargs.get("after"):
         logging.error("Check your after kwarg")
 
-    result = table.scan(**kwargs)
+    scan_kwarg_key_list = ["TableName", "IndexName", "AttributesToGet", "Limit", "Select", "ScanFilter", "ConditionalOperator", "ExclusiveStartKey", "ReturnConsumedCapacity", "TotalSegments", "Segment", "ProjectionExpression", "FilterExpression", "ExpressionAttributeNames", "ExpressionAttributeValues", "ConsistentRead"]
+    scan_kwargs = {k:v for k,v in kwargs.items() if k in scan_kwarg_key_list}
+    if scan_kwargs:
+        logging.info(f"The following kwargs will be applied to the scan {scan_kwargs}")
+
+    result = table.scan(**scan_kwargs)
 
     data_lod = result['Items']
 
-    while 'LastEvaluatedKey' in result and result['Count'] < kwargs.get("limit", 10000000): # Pagination
+    while 'LastEvaluatedKey' in result and result['Count'] < kwargs.get("Limit", 10000000): # Pagination
         kwargs["ExclusiveStartKey"] = result['LastEvaluatedKey']
         result = table.scan(**kwargs)
         data_lod.extend(result['Items'])
