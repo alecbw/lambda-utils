@@ -595,11 +595,11 @@ def get_s3_files_that_match_prefix(bucket_name, path, file_limit, **kwargs):
 
 
 def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest_path):
-    print(start_bucket, start_path, dest_bucket, dest_path)
     destination_bucket = boto3.resource('s3').Bucket(dest_bucket)
     destination_bucket.copy({'Bucket': start_bucket, 'Key': start_path}, dest_path)
 
-    return logging.info("Copy appears to have been a success")
+    if not kwargs.get("disable_print"):
+        logging.info("Copy appears to have been a success")
 
 
 def move_s3_file_to_glacier(bucket_name, path):
