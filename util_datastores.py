@@ -594,6 +594,7 @@ def get_s3_files_that_match_prefix(bucket_name, path, file_limit, **kwargs):
         return output_list
 
 
+# Only operates on one file at a time. Pair with get_s3_files_that_match_prefix and a for loop to copy a subfolder recursively
 def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest_path, **kwargs):
     destination_bucket = boto3.resource('s3').Bucket(dest_bucket)
     destination_bucket.copy({'Bucket': start_bucket, 'Key': start_path}, dest_path)
@@ -605,8 +606,12 @@ def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest
 def move_s3_file_to_glacier(bucket_name, path):
     s3 = boto3.client('s3')
 
-    s3.copy({"Bucket": bucket_name, "Key": path}, bucket_name, path,
-        ExtraArgs={'StorageClass': 'GLACIER', 'MetadataDirective': 'COPY'})
+    s3.copy(
+        {"Bucket": bucket_name, "Key": path},
+        bucket_name,
+        path,
+        ExtraArgs={'StorageClass': 'GLACIER', 'MetadataDirective': 'COPY'}
+    )
     return
 
 
