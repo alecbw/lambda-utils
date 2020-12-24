@@ -585,7 +585,7 @@ def get_s3_files_that_match_prefix(bucket_name, path, file_limit, **kwargs):
         for n, file_summary in enumerate(s3_bucket.objects.filter(Prefix=path.lstrip("/")).limit(file_limit)):
             if kwargs.get('download_path'): # TODO does not work
                 s3_bucket.download_file(file_summary.key, kwargs["download_path"])
-            elif kwargs.get('return_names'): # TODO does not work
+            elif kwargs.get('return_names'):
                 output_list.append(file_summary.key)
             else:
                 file_dict = get_s3_file(bucket_name, file_summary.key, **kwargs)
