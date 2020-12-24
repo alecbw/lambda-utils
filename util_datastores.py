@@ -581,15 +581,17 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
 def get_s3_files_that_match_prefix(bucket_name, path, file_limit, **kwargs):
         s3_bucket = boto3.resource("s3").Bucket(bucket_name)
 
-        output_lod = []
+        output_list = []
         for n, file_summary in enumerate(s3_bucket.objects.filter(Prefix=path).limit(file_limit)):
             if kwargs.get('download_path'): # TODO does not work
                 s3_bucket.download_file(file_summary.key, kwargs["download_path"])
+            elif kwargs.get('return_names'): # TODO does not work
+                output_list.append(file_summary.key)
             else:
                 file_dict = get_s3_file(bucket_name, file_summary.key, **kwargs)
-                output_lod.append({**file_dict, **{"s3_filename": file_summary.key}}) # add filename to the opened file's dict
+                output_list.append({**file_dict, **{"s3_filename": file_summary.key}}) # add filename to the opened file's dict
 
-        return output_lod
+        return output_list
 
 
 def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest_path):
