@@ -636,12 +636,12 @@ def parallel_write_s3_files(bucket_name, file_lot):
 
     logging.info(f"Parallel write to S3 Bucket {bucket_name} has commenced")
 
-def parallel_delete_s3_files(bucket_name, file_lot):
+def parallel_delete_s3_files(bucket_name, file_list):
     boto3.client('s3')
-    for file_tuple in file_lot:
-        t = threading.Thread(target = delete_s3_file, args=(bucket_name, file_tuple[0], file_tuple[1])).start()
+    for filename in file_list:
+        t = threading.Thread(target = delete_s3_file, args=(bucket_name, filename)).start()
 
-    logging.info(f"Parallel write to S3 Bucket {bucket_name} has commenced")
+    logging.info(f"Parallel delete to S3 Bucket {bucket_name} has commenced")
 
 
 
