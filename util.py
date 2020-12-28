@@ -231,13 +231,10 @@ Note: this will return false positives for made up TLDs that contain viable TLDs
 ex: '.ae.com' is a true positive TLD, but the made up '.aee.com' is false positive, as it contains '.com'
 This shouldn't be a problem if your data isn't extremely dirty
 """
-def is_url(potential_url_str):
-    # tld_list = ['.de', '.html', '.com', '.info', '.es', '.mil', '.no', '.vc', '.au', '.se', '.io', '.tv', '.co', '.fr', '.uk', '.ai', '.ch', '.org', '.ca', '.gov', '.ly', '.net', '.ru', '.nl', '.us', '.it', '.jp', '.edu', '.biz', '.xml', '.ph', '.id', '.tw', '.hk', '.ro', '.eu', '.in', '.by', '.mx', '.cz', '.dk', '.si', '.solutions', '.fi', '.life', '.city', '.ie', '.br', '.pk', '.be', '.ae', '.pl', '.do', '.earth', '.lt', '.pt', '.cl', '.br', '.cd', '.uz', '.nu', '.cn', '.at', '.fm', '.ir', '.nz', '.trading', '.mn', '.wales']
-    if find_substrings_in_string(potential_url_str, get_tld_list()):
+def is_url(potential_url_str, **kwargs):
+    tld_list = kwargs.get("tld_list", get_tld_list())
+    if find_substrings_in_string(potential_url_str, tld_list):
         return True
-    # if any(tld for tld in tld_list if tld.lower().strip() in value.lower().strip()):
-    #     return True
-    # print(value)
 
     return False
 

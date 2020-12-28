@@ -4,6 +4,7 @@ import time
 
 import gspread
 import requests
+import logging
 # import jwt
 from google.oauth2 import service_account
 
