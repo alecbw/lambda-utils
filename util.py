@@ -232,7 +232,7 @@ ex: '.ae.com' is a true positive TLD, but the made up '.aee.com' is false positi
 This shouldn't be a problem if your data isn't extremely dirty
 """
 def is_url(potential_url_str, **kwargs):
-    tld_list = tld_list if isinstance(kwargs.get("tld_list"), list) else get_tld_list()
+    tld_list = kwargs.get("tld_list", get_tld_list())
     if find_substrings_in_string(potential_url_str, tld_list):
         return True
 
