@@ -14,6 +14,7 @@ import timeit
 import ast
 from pprint import pprint
 from io import StringIO
+from typing import Callable, Iterator, Union, Optional, List
 
 import boto3
 from botocore.exceptions import ClientError
@@ -143,6 +144,26 @@ def query_athena_table(sql_query, database, **kwargs):
 
     return result
 
+
+def get_athena_named_queries() -> List[dict]:
+    client = boto3.client('athena')
+
+    query_id_resp = client.list_named_queries(
+        MaxResults=50, # max 50 per page
+    )
+    saved_queries = client.batch_get_named_query(NamedQueryIds=query_id_resp['NamedQueryIds'])['NamedQueries']
+
+    while query_id_resp.get("NextToken"):
+        query_id_resp = client.list_named_queries(
+            NextToken=query_id_resp["NextToken"],
+            MaxResults=50,
+        )
+        saved_queries += client.batch_get_named_query(NamedQueryIds=query_id_resp['NamedQueryIds'])['NamedQueries']
+
+    print(f"A total of {len(saved_queries)} saved queries were found")
+    return saved_queries
+
+    # return saved_queries['NamedQueries']
 
 ################################### ~ Dynamo Operations ~  ############################################
 
