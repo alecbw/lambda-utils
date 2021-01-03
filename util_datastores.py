@@ -14,6 +14,7 @@ import timeit
 import ast
 from pprint import pprint
 from io import StringIO
+from typing import Callable, Iterator, Union, Optional, List
 
 import boto3
 from botocore.exceptions import ClientError
@@ -143,6 +144,26 @@ def query_athena_table(sql_query, database, **kwargs):
 
     return result
 
+
+def get_athena_named_queries() -> List[dict]:
+    client = boto3.client('athena')
+
+    query_id_resp = client.list_named_queries(
+        MaxResults=50, # max 50 per page
+    )
+    saved_queries = client.batch_get_named_query(NamedQueryIds=query_id_resp['NamedQueryIds'])['NamedQueries']
+
+    while query_id_resp.get("NextToken"):
+        query_id_resp = client.list_named_queries(
+            NextToken=query_id_resp["NextToken"],
+            MaxResults=50,
+        )
+        saved_queries += client.batch_get_named_query(NamedQueryIds=query_id_resp['NamedQueryIds'])['NamedQueries']
+
+    print(f"A total of {len(saved_queries)} saved queries were found")
+    return saved_queries
+
+    # return saved_queries['NamedQueries']
 
 ################################### ~ Dynamo Operations ~  ############################################
 
@@ -636,12 +657,12 @@ def parallel_write_s3_files(bucket_name, file_lot):
 
     logging.info(f"Parallel write to S3 Bucket {bucket_name} has commenced")
 
-def parallel_delete_s3_files(bucket_name, file_lot):
+def parallel_delete_s3_files(bucket_name, file_list):
     boto3.client('s3')
-    for file_tuple in file_lot:
-        t = threading.Thread(target = delete_s3_file, args=(bucket_name, file_tuple[0], file_tuple[1])).start()
+    for filename in file_list:
+        t = threading.Thread(target = delete_s3_file, args=(bucket_name, filename)).start()
 
-    logging.info(f"Parallel write to S3 Bucket {bucket_name} has commenced")
+    logging.info(f"Parallel delete to S3 Bucket {bucket_name} has commenced")
 
 
 
