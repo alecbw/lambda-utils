@@ -198,6 +198,9 @@ def ez_re_find(pattern, text, **kwargs):
     if isinstance(text, list) or isinstance(text, set):
         text = ez_join(text, " ")
 
+    if kwargs.get("find_all"):
+        return set([x.groups() for x in re.finditer(pattern, text)])
+
     possible_match = re.search(pattern, text)
     if not possible_match:
         return ""
