@@ -285,7 +285,7 @@ def format_url(url, **kwargs):
     elif kwargs.get("http"):
         url = "http://" + url
 
-    return url.strip()
+    return url.strip().rstrip("\\")
 
 
 def find_url_tld(url, tld_list):
