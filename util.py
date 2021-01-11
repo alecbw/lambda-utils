@@ -337,31 +337,15 @@ def format_timestamp(timestamp, **kwargs):
     return timestamp_str, timestamp
 
 
-"""
-TODO to support
-    1.1.7
-    1195480486
-    Tue Nov 24, 2020
-    Mon Dec 07 2020 18:42:10 GMT+0000 (Coordinated Universal Time)
-    Monday, October 17, 2016, 2:57 pm
-    Tue Nov 24, 2020
-    12/8/2020 4:05:34 AM
-    2020-12-08T00:31:27.133800
-    2020-12-08T03:43:33.14400Z
-    2020-12-06 18:29:51 UTC
-    2016-02-19 00:05:27 +0000 UTC 
-    2020-12-06 22:28:44T+07:00
-    2020-11-20T20:52:10+00:00
-    2020-10-19T10:41:24.000Z
-    2015-12-07T15:09:29
-    
-"""
-
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
         return kwargs.get("null_value", "")
 
-    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%a, %d %b %Y %H:%M:%S %Z", "%Y-%m-%d"]
+    if datetime_str.isdigit() and len(datetime_str) in [9, 10]: # assume UTC
+        output_dt = datetime.utcfromtimestamp(int(datetime_str))
+        return datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
+    
+    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%dT%H:%M:%S%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%Y-%m-%d"]
     for dt_format in LIST_OF_DT_FORMATS:
         try:
             dt_str = datetime.strptime(datetime_str, dt_format)
@@ -374,8 +358,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
 
     try:
         output_dt = datetime.fromtimestamp(time.mktime(standard_dt_str)) # convert from time.struct_time to datetime.date
-        output_dt = datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
-        return output_dt
+        return datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
     except:
         return kwargs.get("null_value", "")
 
