@@ -805,16 +805,16 @@ def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
         path=s3_path,
         dataset=True,                               # Stores as parquet dataset instead of 'ordinary file'
         index=False,                                # don't write save the df index
-        mode=kwargs.get("write_mode", "append"),    # Could be append, overwrite or overwrite_partitions
+        mode=kwargs.get("mode", "append"),    # Could be append, overwrite or overwrite_partitions
         database=kwargs.get("database", None),      # Optional, only with you want it available on Athena/Glue Catalog
         table=kwargs.get("table", None),            # If not exists, it will create the table at the specific/s3/path you specify
         compression=kwargs.get("compression", "snappy"),
         max_rows_by_file=kwargs.get("max_rows_by_file", None), # If set = n, every n rows, split into a new file. If None, don't split
-        partition_cols=kwargs.get("partition_cols_list", None),
+        partition_cols=kwargs.get("partition_cols", None),
         schema_evolution=kwargs.get("schema_evolution", False), # if True, and you pass a different schema, it will update the table
         concurrent_partitioning=False,
-        use_threads=kwargs.get("use_threads", False),
-        dtype=kwargs.get("col_dtype_dict", None),
+        use_threads=kwargs.get("use_threads", True),
+        dtype=kwargs.get("dtype", None),
     )
 
     logging.info(f"Write was successful to path {s3_path}")
@@ -828,7 +828,7 @@ def trigger_athena_table_crawl(s3_path, db, table, **kwargs):
         database=db,
         table=table,
         dataset=True,
-        mode=kwargs.get("write_mode", "overwrite"),
+        mode=kwargs.get("mode", "overwrite"),
         dtype=kwargs.get("col_dtype_dict", None) # dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {'col name': 'bigint', 'col2 name': 'int'})
     )
     logging.info(f"Metadata crawl was successful of Athena table {table}")
