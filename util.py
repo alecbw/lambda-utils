@@ -257,6 +257,8 @@ for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time
 Known problem: strings like "lunarcovers.co.ukasdfij" will match .co.uk and return as 'lunarcovers.co.uk'
 """
 def format_url(url, **kwargs):
+    if not url:
+        return url
     # if kwargs.get("check_if_ipv4") and is_ipv4(url): # TODO
     #     return url
 
