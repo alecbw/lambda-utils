@@ -796,7 +796,7 @@ def add_yearmonthday_partition_to_lod(data_lod, partition_date):
     elif not isinstance(partition_date, datetime):
         logging.error("You must pass a datetime type value to add_yearmonthday_partition_to_lod")
 
-    data_lod = [dict(x, **{'year':partition_date.year, 'month':partition_date.month, 'day':partition_date.day}) for x in data_lod]    
+    data_lod = [dict(x, **{'year':partition_date.year, 'month':partition_date.month, 'day':partition_date.day}) for x in data_lod]
     return data_lod
 
 
@@ -812,11 +812,12 @@ def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
 
     s3_path = "s3://" + s3_path if not s3_path.startswith("s3://") else s3_path
 
-    wr.s3.to_parquet(
+    write_confirmation = wr.s3.to_parquet(
         df=data,
         path=s3_path,
         dataset=True,                               # Stores as parquet dataset instead of 'ordinary file'
         index=False,                                # don't write save the df index
+        sanitize_columns=True,                      # this happens by default
         mode=kwargs.get("mode", "append"),          # Could be append, overwrite or overwrite_partitions
         database=kwargs.get("database", None),      # Optional, only with you want it available on Athena/Glue Catalog
         table=kwargs.get("table", None),            # If not exists, it will create the table at the specific/s3/path you specify
@@ -828,8 +829,9 @@ def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
         use_threads=kwargs.get("use_threads", True),
         dtype=kwargs.get("dtype", None),
     )
+    written_files = len(write_confirmation.get("paths", []))
 
-    logging.info(f"Write was successful to path {s3_path}")
+    logging.info(f"Write was successful to path {s3_path}. There were {written_files} individual .pq files written")
 
 def trigger_athena_table_crawl(s3_path, db, table, **kwargs):
     import pandas as pd

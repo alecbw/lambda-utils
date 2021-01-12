@@ -332,9 +332,10 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
 
 """
 Supported kwargs
-null_value: any_type - the value you want returned if a null would otherwise be returned
-children: list - an ordered list of child tags you want to walk down into. ex: ["li", "a", "nextSibling"]
-get_link: bool - 
+    null_value: any_type - the value you want returned if a null would otherwise be returned
+    children: list - an ordered list of child tags you want to walk down into. ex: ["li", "a", "nextSibling"]
+    get_link: bool -
+# Note: property_type and identifier are effectively case insensitive b/c bs4 parser converts all tag and attribute names to lower case (though otherwise it would be case sensitive) 
 """
 
 def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
@@ -347,7 +348,6 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         if kwargs.pop("find_all", False):
             return safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs)
 
-        # Note: case sensitive, BUT the bs4 parser converts all  tag and attribute names to lower case so it nets out
         html_tag = parsed.find(html_type, {property_type : identifier})
 
         if not html_tag:
