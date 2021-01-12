@@ -790,10 +790,22 @@ def aurora_execute_sql(db, sql, **kwargs):
 ########################### ~ S3 Data Lake Specific ~ ###################################################
 
 
+def add_yearmonthday_partition_to_lod(data_lod, partition_date):
+    if partition_date in ["Today", "today", "utcnow", "", None]:
+        partition_date = datetime.utcnow() # kwarg for if external oneoff file calling
+    elif not isinstance(partition_date, datetime):
+        logging.error("You must pass a datetime type value to add_yearmonthday_partition_to_lod")
+
+    data_lod = [dict(x, **{'year':partition_date.year, 'month':partition_date.month, 'day':partition_date.day}) for x in data_lod]    
+    return data_lod
+
+
 def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
     import pandas as pd
     import awswrangler as wr
 
+    if kwargs.get("add_yearmonthday_partition") and isinstance(data, list):
+        data = add_yearmonthday_partition_to_lod(data, kwargs["add_yearmonthday_partition"])
 
     if isinstance(data, list) and isinstance(data[0], dict):
         data = pd.DataFrame(data) # convert_to_dataframe(df, )
@@ -805,7 +817,7 @@ def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
         path=s3_path,
         dataset=True,                               # Stores as parquet dataset instead of 'ordinary file'
         index=False,                                # don't write save the df index
-        mode=kwargs.get("mode", "append"),    # Could be append, overwrite or overwrite_partitions
+        mode=kwargs.get("mode", "append"),          # Could be append, overwrite or overwrite_partitions
         database=kwargs.get("database", None),      # Optional, only with you want it available on Athena/Glue Catalog
         table=kwargs.get("table", None),            # If not exists, it will create the table at the specific/s3/path you specify
         compression=kwargs.get("compression", "snappy"),
