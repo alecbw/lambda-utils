@@ -789,7 +789,7 @@ def aurora_execute_sql(db, sql, **kwargs):
 
 ########################### ~ S3 Data Lake Specific ~ ###################################################
 
-
+# only supports one day. If you have multiple dates in the data to be written, add it to the df/lod directly
 def add_yearmonthday_partition_to_lod(data_lod, partition_date):
     if partition_date in ["Today", "today", "utcnow", "", None]:
         partition_date = datetime.utcnow() # kwarg for if external oneoff file calling
