@@ -210,6 +210,30 @@ def ez_re_find(pattern, text, **kwargs):
         return possible_match.group() # if possible_match else ""
 
 
+# Print/log to the terminal in color!
+def colored_log(log_level, text, color):
+    color_dict = {
+        'White': '\033[39m',
+        'Red': '\033[31m',
+        'Blue': '\033[34m',
+        "Cyan": '\033[36m',
+        "Bold": '\033[1m',
+        'Green': '\033[32m',
+        'Orange': '\033[33m',
+        'Magenta': '\033[35m',
+        'Red_Background': '\033[41m',
+    }
+    # Trailing white prevents the color from staying applied
+    message = color_dict[color.title()] + text + color_dict[color.title()] + color_dict['White']
+
+    if log_level.lower() == "info":
+        logger.info(message)
+    elif log_level.lower() in ["warn", "warning"]:
+        logger.warn(message)
+    elif log_level.lower() == "error":
+        logger.error(message)
+
+
 def is_lod(possible_lod):
     return all(isinstance(el, dict) for el in possible_lod)
 
