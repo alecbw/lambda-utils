@@ -383,7 +383,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
                 return kwargs.get("null_value", "") # returns empty str by default
 
     try:
-        output_dt = datetime.fromtimestamp(time.mktime(standard_dt_str)) # convert from time.struct_time to datetime.date
+        output_dt = datetime.utcfromtimestamp(time.mktime(standard_dt_str)) # convert from time.struct_time to datetime.date
         return datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
     except:
         return kwargs.get("null_value", "")
