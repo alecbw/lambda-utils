@@ -312,7 +312,7 @@ def format_url(url, **kwargs):
     elif kwargs.get("http"):
         url = "http://" + url
 
-    return url.strip().rstrip("\\")
+    return url.strip().rstrip("\\").rstrip("/")
 
 
 def find_url_tld(url, tld_list):
