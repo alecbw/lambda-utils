@@ -2,7 +2,8 @@ import os
 import json
 import re
 from datetime import datetime, timedelta
-import time
+# import time
+import calendar
 from functools import reduce
 import logging
 from collections import Counter
@@ -363,6 +364,7 @@ def format_timestamp(timestamp, **kwargs):
     return timestamp_str, timestamp
 
 
+# Forces conversion to UTC
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
         return kwargs.get("null_value", "")
@@ -377,13 +379,13 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
             dt_str = datetime.strptime(datetime_str.strip(), dt_format)
             standard_dt_str = datetime.utctimetuple(dt_str) # convert to UTC
             break
-        except:
+        except Exception as e:
             if dt_format == LIST_OF_DT_FORMATS[-1]: # if none matched
-                logging.warning(f"The datetime_str {datetime_str} did not match any pattern")
+                logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
                 return kwargs.get("null_value", "") # returns empty str by default
 
     try:
-        output_dt = datetime.utcfromtimestamp(time.mktime(standard_dt_str)) # convert from time.struct_time to datetime.date
+        output_dt = datetime.utcfromtimestamp(calendar.timegm(standard_dt_str)) # convert from time.struct_time to datetime.date
         return datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
     except:
         return kwargs.get("null_value", "")
