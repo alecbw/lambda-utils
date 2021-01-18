@@ -379,7 +379,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
             dt_str = datetime.strptime(datetime_str.strip(), dt_format)
             standard_dt_str = datetime.utctimetuple(dt_str) # convert to UTC
             break
-        except Exception as e:
+        except:
             if dt_format == LIST_OF_DT_FORMATS[-1]: # if none matched
                 logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
                 return kwargs.get("null_value", "") # returns empty str by default
