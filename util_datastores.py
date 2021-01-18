@@ -35,7 +35,7 @@ def convert_athena_array_cols(data_lod, ** kwargs):
         for k,v in row.items():
             if k not in kwargs["convert_array_cols"]:
                 continue
-            elif v == '[]':
+            elif v == '[]' or not v:
                 row[k] = []
             else:
                 row[k] = v.strip('][').split(', ')
