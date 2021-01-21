@@ -888,6 +888,19 @@ def extract_local_file_athena_metadata():
     return columns_types, partitions_types
 
 
+########################### ~ Glue Specific ~ ###################################################
+
+# col_lod entries look like [{'Name': 'col_name', 'Type': 'array<string>'},
+def get_glue_table_columns(db, table, **kwargs):
+    response = boto3.client('glue').get_table(
+        CatalogId=os.environ['AWS_ACCOUNT_ID'],
+        DatabaseName=db,
+        Name=table
+    )
+    col_lod = ez_get(response, "Table", "StorageDescriptor", "Columns")
+    if kwargs.get("as_list"):
+        return [x['Name'] for x in col_lod]
+    return [{x["Name"]:x["Type"]} for x in col_lod]
 
 ########################### ~ CloudWatch Specific ~ ###################################################
 
