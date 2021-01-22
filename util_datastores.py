@@ -790,31 +790,31 @@ def aurora_execute_sql(db, sql, **kwargs):
 ########################### ~ S3 Data Lake Specific ~ ###################################################
 
 # only supports one day. If you have multiple dates in the data to be written, add it to the df/lod directly
-def add_yearmonthday_partition_to_lod(data_lod, partition_date):
+def add_yearmonthday_partition_to_lod(data, partition_date):
     if partition_date in ["Today", "today", "utcnow", "", None]:
         partition_date = datetime.utcnow() # kwarg for if external oneoff file calling
     elif not isinstance(partition_date, datetime):
         logging.error("You must pass a datetime type value to add_yearmonthday_partition_to_lod")
 
-    data_lod = [dict(x, **{'year':partition_date.year, 'month':partition_date.month, 'day':partition_date.day}) for x in data_lod]
-    return data_lod
+    data['year'], data['month'], data['day'] = partition_date.year, partition_date.month, partition_date.day
+    return data
 
 
 def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
     import pandas as pd
     import awswrangler as wr
 
-    if kwargs.get("add_yearmonthday_partition") and isinstance(data, list):
-        data = add_yearmonthday_partition_to_lod(data, kwargs["add_yearmonthday_partition"])
-
     if isinstance(data, list) and isinstance(data[0], dict):
-        data = pd.DataFrame(data) # convert_to_dataframe(df, )
+        data = pd.DataFrame(data)
+    if not isinstance(data, pd.DataFrame):
+        logging.error(f"Wrong type of data ({type(data)}) provided to write_data_to_parquet_in_s3")
 
-    s3_path = "s3://" + s3_path if not s3_path.startswith("s3://") else s3_path
+    if kwargs.get("add_yearmonthday_partition"):
+        data = add_yearmonthday_partition_to_lod(data, kwargs["add_yearmonthday_partition"])
 
     write_confirmation = wr.s3.to_parquet(
         df=data,
-        path=s3_path,
+        path="s3://" + s3_path if not s3_path.startswith("s3://") else s3_path,
         dataset=True,                               # Stores as parquet dataset instead of 'ordinary file'
         index=False,                                # don't write save the df index
         sanitize_columns=True,                      # this happens by default
@@ -830,8 +830,8 @@ def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
         dtype=kwargs.get("dtype", None),
     )
     written_files = len(write_confirmation.get("paths", []))
-
     logging.info(f"Write was successful to path {s3_path}. There were {written_files} individual .pq files written")
+
 
 def trigger_athena_table_crawl(s3_path, db, table, **kwargs):
     import pandas as pd
