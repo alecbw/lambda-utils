@@ -783,7 +783,6 @@ def aurora_execute_sql(db, sql, **kwargs):
         parameters=[]
     )
     if not kwargs.get("disable_print"): logging.info(f"Successful execution: {sql} / {len(result)}")
-
     return result
 
 

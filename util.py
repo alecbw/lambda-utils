@@ -170,9 +170,9 @@ def ez_try_and_get(nested_data, *keys):
     return nested_data
 
 
-def ez_join(phrase, delimiter):
+def ez_join(phrase, delimiter, **kwargs):
     if is_none(phrase):
-        return ""
+        return kwargs.get("fallback_value", "")
     elif isinstance(phrase, list) or isinstance(phrase, set):
         return delimiter.join(str(v) for v in phrase)
     elif isinstance(phrase, str):
