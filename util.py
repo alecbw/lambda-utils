@@ -145,7 +145,7 @@ def standardize_str_to_list(input_str):
 def get_list_overlap(list_1, list_2, **kwargs):
     if kwargs.get("case_insensitive"): # will keep item from 1st list
 
-        list_2 = [x.lower() if isinstance(x, str) else x for x in list_2]
+        list_2 = [x.lower().strip() if isinstance(x, str) else x for x in list_2]
         output_list = []
         for item in list_1:
             if isinstance(item, str) and item.lower().strip() in list_2:

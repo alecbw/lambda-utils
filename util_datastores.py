@@ -901,6 +901,19 @@ def get_glue_table_columns(db, table, **kwargs):
         return [x['Name'] for x in col_lod]
     return [{x["Name"]:x["Type"]} for x in col_lod]
 
+
+# the way the wrangler writes in main.py work we need to manually declare the day's partition daily
+def add_glue_date_partition(db, table, bucket, subfolder_path, write_date, **kwargs):
+    if not write_date:
+        write_date = datetime.utcnow()
+
+    update_partition_sql_query = f"""
+    ALTER TABLE {db}.{table}
+    ADD IF NOT EXISTS PARTITION (year={write_date.year}, month={write_date.month}, day={write_date.day}) 
+    LOCATION '{bucket + subfolder_path}'
+    """
+    query_athena_table(update_partition_sql_query, db)
+
 ########################### ~ CloudWatch Specific ~ ###################################################
 
 # query = "fields @timestamp, @message | parse @message \"username: * ClinicID: * nodename: *\" as username, ClinicID, nodename | filter ClinicID = 7667 and username='simran+test@abc.com'"
