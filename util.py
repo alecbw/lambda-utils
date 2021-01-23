@@ -318,6 +318,7 @@ def format_url(url, **kwargs):
 def find_url_tld(url, tld_list):
     tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
     matched_tlds = find_substrings_in_string(url, tld_list)
+
     if not matched_tlds:
         logging.warning(f"No TLD in {url}")
         return None
