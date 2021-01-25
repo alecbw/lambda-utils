@@ -28,7 +28,6 @@ def validate_params(event, required_params, **kwargs):
     event = standardize_event(event)
     commom_required_params = get_list_overlap(event, required_params)
     commom_optional_params = get_list_overlap(event, kwargs.get("optional_params", []))
-
     param_only_dict = {k:v for k, v in event.items() if k in required_params+kwargs.get("optional_params", [])}
     logging.info(f"Total param dict: {param_only_dict}")
     logging.info(f"Found optional params: {commom_optional_params}")
