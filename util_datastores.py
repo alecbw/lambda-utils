@@ -437,9 +437,9 @@ def increment_dynamodb_item_counter(primary_key_value, counter_attr, table_name,
 
     update_item_dict = {
         "Key": primary_key_value,
-        "UpdateExpression": f"SET #{counter_attr} = #{counter_attr} + :amount",
-        "ExpressionAttributeValues": {f"#{counter_attr}": "{counter_attr}"},
-        "ExpressionAttributeNames": {":amount": str(kwargs.get("increment_by", 1))},
+        "UpdateExpression": "SET #counter = #counter + :amount",
+        "ExpressionAttributeNames": {"#counter": f"{counter_attr}"},
+        "ExpressionAttributeValues": {":amount": int(kwargs.get("increment_by", 1))},
         "ReturnValues": "UPDATED_OLD",
     }
     result = table.update_item(**update_item_dict)
