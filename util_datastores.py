@@ -438,7 +438,7 @@ def increment_dynamodb_item_counter(primary_key_value, counter_attr, table_name,
     update_item_dict = {
         "Key": primary_key_value,
         "UpdateExpression": "SET #counter = #counter + :amount",
-        "ExpressionAttributeNames": {"#counter": f"{counter_attr}"},
+        "ExpressionAttributeNames": {"#counter": counter_attr},
         "ExpressionAttributeValues": {":amount": int(kwargs.get("increment_by", 1))},
         "ReturnValues": "UPDATED_OLD",
     }
@@ -937,3 +937,20 @@ def cw_query_logs(query, log_group, lookback_hours):
     return response["results"]
     # for invoke_logs in response['results']:
         # for log_row in invoke_logs
+
+
+########################### ~ API Gateway Specific ~ ###################################################
+
+
+def get_apiKey_usage(keyId, usagePlanId, **kwargs):
+    today = datetime.utcnow()
+    tomorrow = today + timedelta(days=int(kwargs.get("days_range", 1)))
+
+    client = boto3.client('apigateway')
+    response = client.get_usage(
+        usagePlanId=usagePlanId,
+        keyId=keyId,
+        startDate=today.strftime("%Y-%m-%d"),
+        endDate=tomorrow.strftime("%Y-%m-%d"),
+    )
+    return response.get("items", {})

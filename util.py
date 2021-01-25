@@ -110,19 +110,6 @@ def invoke_lambda(params, function_name, invoke_type):
     return json_body["data"], status_code
 
 
-def get_apiKey_usage(keyId, usagePlanId, **kwargs):
-    today = datetime.utcnow()
-    tomorrow = today + timedelta(days=int(kwargs.get("days_range", 1)))
-
-    client = boto3.client('apigateway')
-    response = client.get_usage(
-        usagePlanId=usagePlanId,
-        keyId=keyId,
-        startDate=today.strftime("%Y-%m-%d"),
-        endDate=tomorrow.strftime("%Y-%m-%d"),
-    )
-    return response.get("items", {})
-
 ######################### ~ General  Formatting ~ ########################################################
 
 
