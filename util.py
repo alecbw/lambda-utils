@@ -239,13 +239,13 @@ def is_lod(possible_lod):
 
 
 def is_none(value, **kwargs):
-    None_List = ['None', 'none', 'False', 'false', 'No', 'no', None, False, ["None"], ["False"]]
+    None_List = ['None', 'none', 'False', 'false', 'No', 'no', ["None"], ["False"]]
 
     if kwargs.get("keep_0") and value is 0:
         return False
     if not value:
         return True
-    elif isinstance(value, str) and value in None_List:
+    elif (isinstance(value, str) or isinstance(value, list)) and value in None_List:
         return True
 
     return False
