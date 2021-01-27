@@ -378,7 +378,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
         return kwargs.get("null_value", "")
 
 
-############################################# ~ List/dict handling ~ ##########################################################
+############################################# ~ List/Dict handling ~ ##########################################################
 
 
 # It's faster if you have a primary_key in each dict
