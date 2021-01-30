@@ -544,8 +544,7 @@ def get_row_count_of_s3_csv(bucket_name, path):
         InputSerialization = {"CSV": {"FileHeaderInfo": "Use", "AllowQuotedRecordDelimiter": True}},
         OutputSerialization = {"CSV": {}},
     )
-
-    row_count = next(int(x["Records"]["Payload"]) for x in req["Payload"])
+    row_count = next((int(x["Records"]["Payload"]) for x in req["Payload"] if x.get("Records")), 0)
     return row_count
 
 
@@ -898,9 +897,12 @@ def get_glue_table_columns(db, table, **kwargs):
         Name=table
     )
     col_lod = ez_get(response, "Table", "StorageDescriptor", "Columns")
-    if kwargs.get("as_list"):
+    if kwargs.get("return_type").lower() == "dict":
+        return {x["Name"]:x["Type"] for x in col_lod}
+    else:
         return [x['Name'] for x in col_lod]
-    return [{x["Name"]:x["Type"]} for x in col_lod]
+
+
 
 
 # the way the wrangler writes in main.py work we need to manually declare the day's partition daily
