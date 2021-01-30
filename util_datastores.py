@@ -3,7 +3,8 @@ from utility.util import is_none, ez_try_and_get, ez_get, ez_split
 import os
 from time import sleep
 import logging
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
+import time
 from decimal import *
 import json
 import concurrent.futures
@@ -918,25 +919,39 @@ def add_glue_date_partition(db, table, bucket, subfolder_path, write_date, **kwa
 
 # query = "fields @timestamp, @message | parse @message \"username: * ClinicID: * nodename: *\" as username, ClinicID, nodename | filter ClinicID = 7667 and username='simran+test@abc.com'"
 # log_group = '/aws/lambda/NAME_OF_YOUR_LAMBDA_FUNCTION'
-def cw_query_logs(query, log_group, lookback_hours):
+def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
     client = boto3.client('logs')
-    start_query_response = client.start_query(
-        logGroupName=log_group,
-        startTime=int((datetime.today() - timedelta(hours=lookback_hours)).timestamp()),
-        endTime=int(datetime.now().timestamp()),
-        queryString=query,
-    )
+    params_dict = {
+        "startTime": int((datetime.today() - timedelta(hours=lookback_hours)).timestamp()),
+        "endTime": int(datetime.now().timestamp()),
+        "queryString": query,
+        "limit": kwargs.pop("limit", 1000),
+    }
+    if isinstance(log_group, str):
+        params_dict["logGroupName"] = log_group
+    elif isinstance(log_group, list):
+        params_dict["logGroupNames"] = log_group
+
+    start_query_response = boto3.client('logs').start_query(**params_dict)
 
     response = None
     while response == None or response['status'] == 'Running':
-        time.sleep(1)
+        sleep(0.25)
         response = client.get_query_results(
             queryId=start_query_response['queryId']
         )
+    if kwargs.get("return_raw"):
+        return response["results"]
 
-    return response["results"]
-    # for invoke_logs in response['results']:
-        # for log_row in invoke_logs
+    output_log_lod = []
+    for log_row in response['results']:
+        output_log_lod.append({x['field'].replace("@", ""):x['value'] for x in log_row})
+        if not kwargs.get("keep_pointer"):
+            output_log_lod[-1].pop("ptr", None)
+        if not kwargs.get("keep_log_stream_prefix") and "message" in output_log_lod[-1]:
+            output_log_lod[-1]['message'] = ez_split(output_log_lod[-1]['message'], "\t", -1)
+
+    return output_log_lod
 
 
 ########################### ~ API Gateway Specific ~ ###################################################
