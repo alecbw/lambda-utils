@@ -2,7 +2,8 @@ import os
 import json
 import re
 from datetime import datetime, timedelta
-import time
+# import time
+import calendar
 from functools import reduce
 import logging
 from collections import Counter
@@ -27,7 +28,6 @@ def validate_params(event, required_params, **kwargs):
     event = standardize_event(event)
     commom_required_params = get_list_overlap(event, required_params)
     commom_optional_params = get_list_overlap(event, kwargs.get("optional_params", []))
-
     param_only_dict = {k:v for k, v in event.items() if k in required_params+kwargs.get("optional_params", [])}
     logging.info(f"Total param dict: {param_only_dict}")
     logging.info(f"Found optional params: {commom_optional_params}")
@@ -60,6 +60,8 @@ def package_response(message, status_code, **kwargs):
         logging.info(message)
     elif kwargs.get("warn"):
         logging.warning(message)
+    elif kwargs.get("error"):
+        logging.error(message)
 
     return {
         'statusCode': status_code if status_code else '200',
@@ -108,19 +110,6 @@ def invoke_lambda(params, function_name, invoke_type):
     return json_body["data"], status_code
 
 
-def get_apiKey_usage(keyId, usagePlanId, **kwargs):
-    today = datetime.utcnow()
-    tomorrow = today + timedelta(days=int(kwargs.get("days_range", 1)))
-
-    client = boto3.client('apigateway')
-    response = client.get_usage(
-        usagePlanId=usagePlanId,
-        keyId=keyId,
-        startDate=today.strftime("%Y-%m-%d"),
-        endDate=tomorrow.strftime("%Y-%m-%d"),
-    )
-    return response.get("items", {})
-
 ######################### ~ General  Formatting ~ ########################################################
 
 
@@ -142,7 +131,7 @@ def standardize_str_to_list(input_str):
 def get_list_overlap(list_1, list_2, **kwargs):
     if kwargs.get("case_insensitive"): # will keep item from 1st list
 
-        list_2 = [x.lower() if isinstance(x, str) else x for x in list_2]
+        list_2 = [x.lower().strip() if isinstance(x, str) else x for x in list_2]
         output_list = []
         for item in list_1:
             if isinstance(item, str) and item.lower().strip() in list_2:
@@ -167,9 +156,9 @@ def ez_try_and_get(nested_data, *keys):
     return nested_data
 
 
-def ez_join(phrase, delimiter):
+def ez_join(phrase, delimiter, **kwargs):
     if is_none(phrase):
-        return ""
+        return kwargs.get("fallback_value", "")
     elif isinstance(phrase, list) or isinstance(phrase, set):
         return delimiter.join(str(v) for v in phrase)
     elif isinstance(phrase, str):
@@ -191,12 +180,45 @@ def ez_split(phrase, delimiter, return_slice, **kwargs):
 
 
 # there's no re.find. I named this _find because _match makes more semantic sense than _search, but the .search operator is more useful than the .match operator
-def ez_re_find(pattern, text):
+# Note: keep in mind 0-indexing when using group=1, etc. group=1 is the second group.
+def ez_re_find(pattern, text, **kwargs):
     if isinstance(text, list) or isinstance(text, set):
         text = ez_join(text, " ")
 
+    if kwargs.get("find_all"):
+        return set([x.groups() for x in re.finditer(pattern, text)])
+
     possible_match = re.search(pattern, text)
-    return possible_match.group() if possible_match else ""
+    if not possible_match:
+        return ""
+    elif kwargs.get("group") and isinstance(kwargs["group"], int):
+        return possible_match.groups()[kwargs["group"]]
+    else:
+        return possible_match.group() # if possible_match else ""
+
+
+# Print/log to the terminal in color!
+def colored_log(log_level, text, color):
+    color_dict = {
+        'White': '\033[39m',
+        'Red': '\033[31m',
+        'Blue': '\033[34m',
+        "Cyan": '\033[36m',
+        "Bold": '\033[1m',
+        'Green': '\033[32m',
+        'Orange': '\033[33m',
+        'Magenta': '\033[35m',
+        'Red_Background': '\033[41m',
+    }
+    # Trailing white prevents the color from staying applied
+    message = color_dict[color.title()] + text + color_dict[color.title()] + color_dict['White']
+
+    if log_level.lower() == "info":
+        logger.info(message)
+    elif log_level.lower() in ["warn", "warning"]:
+        logger.warn(message)
+    elif log_level.lower() == "error":
+        logger.error(message)
 
 
 def is_lod(possible_lod):
@@ -204,13 +226,13 @@ def is_lod(possible_lod):
 
 
 def is_none(value, **kwargs):
-    None_List = ['None', 'none', 'False', 'false', 'No', 'no', None, False, ["None"], ["False"]]
+    None_List = ['None', 'none', 'False', 'false', 'No', 'no', ["None"], ["False"]]
 
     if kwargs.get("keep_0") and value is 0:
         return False
     if not value:
         return True
-    elif isinstance(value, str) and value in None_List:
+    elif (isinstance(value, str) or isinstance(value, list)) and value in None_List:
         return True
 
     return False
@@ -223,13 +245,10 @@ Note: this will return false positives for made up TLDs that contain viable TLDs
 ex: '.ae.com' is a true positive TLD, but the made up '.aee.com' is false positive, as it contains '.com'
 This shouldn't be a problem if your data isn't extremely dirty
 """
-def is_url(potential_url_str):
-    # tld_list = ['.de', '.html', '.com', '.info', '.es', '.mil', '.no', '.vc', '.au', '.se', '.io', '.tv', '.co', '.fr', '.uk', '.ai', '.ch', '.org', '.ca', '.gov', '.ly', '.net', '.ru', '.nl', '.us', '.it', '.jp', '.edu', '.biz', '.xml', '.ph', '.id', '.tw', '.hk', '.ro', '.eu', '.in', '.by', '.mx', '.cz', '.dk', '.si', '.solutions', '.fi', '.life', '.city', '.ie', '.br', '.pk', '.be', '.ae', '.pl', '.do', '.earth', '.lt', '.pt', '.cl', '.br', '.cd', '.uz', '.nu', '.cn', '.at', '.fm', '.ir', '.nz', '.trading', '.mn', '.wales']
-    if find_substrings_in_string(potential_url_str, get_tld_list()):
+def is_url(potential_url_str, **kwargs):
+    tld_list = kwargs.get("tld_list", get_tld_list())
+    if find_substrings_in_string(potential_url_str, tld_list):
         return True
-    # if any(tld for tld in tld_list if tld.lower().strip() in value.lower().strip()):
-    #     return True
-    # print(value)
 
     return False
 
@@ -246,8 +265,11 @@ def is_ipv4(potential_ip_str):
 """
 Keep in mind removals stack - e.g. remove_tld will remove subsite, port, and trailing slash
 for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time and pass it in to save 1ms per
+Known problem: strings like "lunarcovers.co.ukasdfij" will match .co.uk and return as 'lunarcovers.co.uk'
 """
 def format_url(url, **kwargs):
+    if not url:
+        return url
     # if kwargs.get("check_if_ipv4") and is_ipv4(url): # TODO
     #     return url
 
@@ -276,14 +298,17 @@ def format_url(url, **kwargs):
     elif kwargs.get("http"):
         url = "http://" + url
 
-    return url.strip()
+    return url.strip().rstrip("\\").rstrip("/")
 
 
 def find_url_tld(url, tld_list):
     tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
-    tld = max(find_substrings_in_string(url, tld_list), default=None) # get the longest matching string TLD
-    if not tld:
+    matched_tlds = find_substrings_in_string(url, tld_list)
+
+    if not matched_tlds:
         logging.warning(f"No TLD in {url}")
+        return None
+    tld = max(matched_tlds, key=len) # get the longest matching string TLD
     return tld
 
 
@@ -326,47 +351,34 @@ def format_timestamp(timestamp, **kwargs):
     return timestamp_str, timestamp
 
 
-"""
-TODO to support
-    1.1.7
-    1195480486
-    Tue Nov 24, 2020
-    Mon Dec 07 2020 18:42:10 GMT+0000 (Coordinated Universal Time)
-    Monday, October 17, 2016, 2:57 pm
-    Tue Nov 24, 2020
-    12/8/2020 4:05:34 AM
-    2020-12-08T00:31:27.133800
-    2020-12-08T03:43:33.14400Z
-    2020-12-06 18:29:51 UTC
-    2020-12-06 22:28:44T+07:00
-    2020-10-19T10:41:24.000Z
-    2015-12-07T15:09:29
-"""
-
+# Forces conversion to UTC
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
         return kwargs.get("null_value", "")
 
-    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%a, %d %b %Y %H:%M:%S %Z", "%Y-%m-%d"]
+    if datetime_str.isdigit() and len(datetime_str) in [9, 10]: # assume UTC
+        output_dt = datetime.utcfromtimestamp(int(datetime_str))
+        return datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
+
+    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%Y-%m-%d", "%b %d, %Y"]
     for dt_format in LIST_OF_DT_FORMATS:
         try:
-            dt_str = datetime.strptime(datetime_str, dt_format)
+            dt_str = datetime.strptime(datetime_str.strip(), dt_format)
             standard_dt_str = datetime.utctimetuple(dt_str) # convert to UTC
             break
         except:
             if dt_format == LIST_OF_DT_FORMATS[-1]: # if none matched
-                logging.warning(f"The datetime_str {datetime_str} did not match any pattern")
+                logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
                 return kwargs.get("null_value", "") # returns empty str by default
 
     try:
-        output_dt = datetime.fromtimestamp(time.mktime(standard_dt_str)) # convert from time.struct_time to datetime.date
-        output_dt = datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
-        return output_dt
+        output_dt = datetime.utcfromtimestamp(calendar.timegm(standard_dt_str)) # convert from time.struct_time to datetime.date
+        return datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
     except:
         return kwargs.get("null_value", "")
 
 
-############################################# ~ List/dict handling ~ ##########################################################
+############################################# ~ List/Dict handling ~ ##########################################################
 
 
 # It's faster if you have a primary_key in each dict
@@ -422,4 +434,3 @@ def increment_counter(counter, *args, **kwargs):
         del counter[arg_to_del]
 
     return counter
-

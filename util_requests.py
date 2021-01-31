@@ -198,6 +198,8 @@ def site_request(url, proxy, wait, **kwargs):
         'cache-control': "no-cache",
         'DNT': "1",                                              # Ask the server to not be tracked (lol)
     }
+    if kwargs.get("no_headers"):
+        headers = {}
     if not kwargs.get("http_proxy"):
         headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
 
@@ -332,9 +334,10 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
 
 """
 Supported kwargs
-null_value: any_type - the value you want returned if a null would otherwise be returned
-children: list - an ordered list of child tags you want to walk down into. ex: ["li", "a", "nextSibling"]
-get_link: bool - 
+    null_value: any_type - the value you want returned if a null would otherwise be returned
+    children: list - an ordered list of child tags you want to walk down into. ex: ["li", "a", "nextSibling"]
+    get_link: bool -
+# Note: property_type and identifier are effectively case insensitive b/c bs4 parser converts all tag and attribute names to lower case (though otherwise it would be case sensitive) 
 """
 
 def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
@@ -347,7 +350,6 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         if kwargs.pop("find_all", False):
             return safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs)
 
-        # Note: case sensitive, BUT the bs4 parser converts all  tag and attribute names to lower case so it nets out
         html_tag = parsed.find(html_type, {property_type : identifier})
 
         if not html_tag:
@@ -361,15 +363,17 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
                 html_tag = html_tag.key if html_tag else html_tag
 
         if kwargs.get("get_link") and html_tag:
-            return html_tag.get("href").strip().rstrip("/") if html_tag.get("href") else html_tag.a.get("href", null_value).strip().rstrip("/")
+            if html_tag.get("href"):
+                return html_tag.get("href").strip().rstrip("/")
+            elif html_tag.a:
+                html_tag.a.get("href").strip().rstrip("/") or null_value
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
-        # elif isinstance(html_tag, NavigableString):
-        #     return str(html_tag).replace("\n", " ").replace('\\xa0', ' ').strip() if (html_tag and str(html_tag)) else null_value
         else:
-            # return html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", " ").replace('\\xa0', ' ') if (html_tag and html_tag.get_text(separator=kwargs.get("text_sep", " "), strip=True)) else null_value
             return extract_stripped_string(html_tag, null_value=null_value)
 
     except Exception as e:
         logging.warning(e)
         return null_value
+
+    return null_value

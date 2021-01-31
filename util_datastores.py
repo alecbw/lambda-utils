@@ -3,7 +3,8 @@ from utility.util import is_none, ez_try_and_get, ez_get, ez_split
 import os
 from time import sleep
 import logging
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
+import time
 from decimal import *
 import json
 import concurrent.futures
@@ -14,6 +15,7 @@ import timeit
 import ast
 from pprint import pprint
 from io import StringIO
+from typing import Callable, Iterator, Union, Optional, List
 
 import boto3
 from botocore.exceptions import ClientError
@@ -34,7 +36,7 @@ def convert_athena_array_cols(data_lod, ** kwargs):
         for k,v in row.items():
             if k not in kwargs["convert_array_cols"]:
                 continue
-            elif v == '[]':
+            elif v == '[]' or not v:
                 row[k] = []
             else:
                 row[k] = v.strip('][').split(', ')
@@ -144,6 +146,26 @@ def query_athena_table(sql_query, database, **kwargs):
     return result
 
 
+def get_athena_named_queries() -> List[dict]:
+    client = boto3.client('athena')
+
+    query_id_resp = client.list_named_queries(
+        MaxResults=50, # max 50 per page
+    )
+    saved_queries = client.batch_get_named_query(NamedQueryIds=query_id_resp['NamedQueryIds'])['NamedQueries']
+
+    while query_id_resp.get("NextToken"):
+        query_id_resp = client.list_named_queries(
+            NextToken=query_id_resp["NextToken"],
+            MaxResults=50,
+        )
+        saved_queries += client.batch_get_named_query(NamedQueryIds=query_id_resp['NamedQueryIds'])['NamedQueries']
+
+    print(f"A total of {len(saved_queries)} saved queries were found")
+    return saved_queries
+
+    # return saved_queries['NamedQueries']
+
 ################################### ~ Dynamo Operations ~  ############################################
 
 
@@ -165,33 +187,26 @@ class DynamoReadEncoder(json.JSONEncoder):
             return o.strftime("%m/%d/%Y"),
         return super(DecimalEncoder, self).default(o)
 
+
 # Both reads and writes
 def standardize_dynamo_query(input_data, **kwargs):
     if not isinstance(input_data, dict):
-        logging.error("wrong data type for dynamodb")
+        logging.error(f"Wrong data type for dynamodb - you input {type(input_data)}")
         return None
 
     if not kwargs.get("skip_updated"):
         input_data['updatedAt'] = int(datetime.utcnow().timestamp())
     elif "updatedAt" in input_data:
-        # try:
         input_data['updatedAt'] = int(input_data['updatedAt'])
-        # except:
-        #     input_data['updatedAt'] = int(datetime.utcnow().timestamp())
 
-    # TODO implement created logic
-    if 'createdAt' not in input_data and kwargs.get("add_created"):
+    if kwargs.get("add_created") and 'createdAt' not in input_data:
         input_data['createdAt'] = input_data['updatedAt']
 
-    # Drop falsey keys, they break upserts
-    # input_data = {k:v for k,v in input_data.items() if not is_none(k)}
-
-    # An AttributeValue may not contain an empty string
     for k, v in input_data.items():
-        if is_none(k): # Drop falsey keys (and their vals), they break upserts
+        if is_none(k):  # Drop falsey keys (and their vals), they break upserts
             logging.warning(f"Dropping falsey key {k}")
             del input_data[k]
-        elif is_none(v, keep_0=True) and not kwargs.get("skip_is_none"):
+        elif is_none(v, keep_0=True) and not kwargs.get("skip_is_none"):  # (An AttributeValue may not contain an empty string)
             input_data[k] = None
         elif isinstance(v, float):
             input_data[k] = Decimal(str(v))
@@ -265,11 +280,16 @@ def scan_dynamodb(table, **kwargs):
     elif kwargs.get("after"):
         logging.error("Check your after kwarg")
 
-    result = table.scan(**kwargs)
+    scan_kwarg_key_list = ["TableName", "IndexName", "AttributesToGet", "Limit", "Select", "ScanFilter", "ConditionalOperator", "ExclusiveStartKey", "ReturnConsumedCapacity", "TotalSegments", "Segment", "ProjectionExpression", "FilterExpression", "ExpressionAttributeNames", "ExpressionAttributeValues", "ConsistentRead"]
+    scan_kwargs = {k:v for k,v in kwargs.items() if k in scan_kwarg_key_list}
+    if scan_kwargs:
+        logging.info(f"The following kwargs will be applied to the scan {scan_kwargs}")
+
+    result = table.scan(**scan_kwargs)
 
     data_lod = result['Items']
 
-    while 'LastEvaluatedKey' in result and result['Count'] < kwargs.get("limit", 10000000): # Pagination
+    while 'LastEvaluatedKey' in result and result['Count'] < kwargs.get("Limit", 10000000): # Pagination
         kwargs["ExclusiveStartKey"] = result['LastEvaluatedKey']
         result = table.scan(**kwargs)
         data_lod.extend(result['Items'])
@@ -403,11 +423,13 @@ def get_dynamodb_item(primary_key_dict, table_name, **kwargs):
     return result
 
 
+
 def delete_dynamodb_item(unique_key, key_value, table_name, **kwargs):
     table = boto3.resource('dynamodb').Table(table_name)
 
     result = table.delete_item(Key={unique_key:key_value})
-    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Delete of key {key_value} from {table_name}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
+    if not kwargs.get("disable_print"): # note: it will return status code 200 even if the key wasn't in the table to begin with
+        logging.info(f"Successfully did a Dynamo Delete of key {key_value} from {table_name}, status_code {ez_get(result, 'ResponseMetadata', 'HTTPStatusCode')}")
 
 
 # TODO test. Alternate implementation: https://github.com/fernando-mc/nandolytics/blob/master/record.py
@@ -416,9 +438,9 @@ def increment_dynamodb_item_counter(primary_key_value, counter_attr, table_name,
 
     update_item_dict = {
         "Key": primary_key_value,
-        "UpdateExpression": f"SET #{counter_attr} = #{counter_attr} + :amount",
-        "ExpressionAttributeValues": {f"#{counter_attr}": "{counter_attr}"},
-        "ExpressionAttributeNames": {":amount": str(kwargs.get("increment_by", 1))},
+        "UpdateExpression": "SET #counter = #counter + :amount",
+        "ExpressionAttributeNames": {"#counter": counter_attr},
+        "ExpressionAttributeValues": {":amount": int(kwargs.get("increment_by", 1))},
         "ReturnValues": "UPDATED_OLD",
     }
     result = table.update_item(**update_item_dict)
@@ -489,8 +511,10 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
 
 def get_s3_bucket_file_count(bucket_name, path):
     bucket = boto3.resource("s3").Bucket(bucket_name)
-    return sum(1 for _ in bucket.objects.all())
-
+    if not path:
+        return sum(1 for _ in bucket.objects.all())
+    else:
+        return sum(1 for _ in bucket.objects.filter(Prefix=path.lstrip("/")))
 
 # The path should be `folder/` NOT `/folder`
 # MaxKeys = number of results per page, NOT number of total results
@@ -520,8 +544,7 @@ def get_row_count_of_s3_csv(bucket_name, path):
         InputSerialization = {"CSV": {"FileHeaderInfo": "Use", "AllowQuotedRecordDelimiter": True}},
         OutputSerialization = {"CSV": {}},
     )
-
-    row_count = next(int(x["Records"]["Payload"]) for x in req["Payload"])
+    row_count = next((int(x["Records"]["Payload"]) for x in req["Payload"] if x.get("Records")), 0)
     return row_count
 
 
@@ -535,6 +558,8 @@ def get_s3_file(bucket_name, filename, **kwargs):
             return s3_obj
         elif kwargs.get("convert_csv"):
             return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
+        elif kwargs.get("convert_json"):
+            return json.loads(s3_obj.read().decode('utf-8'))
         else:
             return s3_obj.read().decode('utf-8')
 
@@ -554,7 +579,7 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
     file_type = kwargs.get("file_type", "json")
     if file_type == "json":
         file_to_write = bytes(json.dumps(file_data).encode("UTF-8"))
-    elif file_type == "csv":
+    elif file_type == "csv": # TODO
         with open(f"/tmp/{filename}.txt", 'w') as output_file:
             dict_writer = csv.DictWriter(output_file, file_data[0].keys())
             dict_writer.writeheader()
@@ -574,15 +599,41 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         logging.error(e, bucket_name, filename)
 
 
+def get_s3_files_that_match_prefix(bucket_name, path, file_limit, **kwargs):
+        s3_bucket = boto3.resource("s3").Bucket(bucket_name)
 
-# http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
-# pass this a list of tuples of (filename, data)
-def parallel_write_s3_files(bucket_name, file_lot):
-    boto3.client('s3')
-    for file_tuple in file_lot:
-        t = threading.Thread(target = write_s3_file, args=(bucket_name, file_tuple[0], file_tuple[1])).start()
+        output_list = []
+        for n, file_summary in enumerate(s3_bucket.objects.filter(Prefix=path.lstrip("/")).limit(file_limit)):
+            if kwargs.get('download_path'): # TODO does not work
+                s3_bucket.download_file(file_summary.key, kwargs["download_path"])
+            elif kwargs.get('return_names'):
+                output_list.append(file_summary.key)
+            else:
+                file_dict = get_s3_file(bucket_name, file_summary.key, **kwargs)
+                output_list.append({**file_dict, **{"s3_filename": file_summary.key}}) # add filename to the opened file's dict
 
-    logging.info(f"Parallel write to S3 Bucket {bucket_name} has commenced")
+        return output_list
+
+
+# Only operates on one file at a time. Pair with get_s3_files_that_match_prefix and a for loop to copy a subfolder recursively
+def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest_path, **kwargs):
+    destination_bucket = boto3.resource('s3').Bucket(dest_bucket)
+    destination_bucket.copy({'Bucket': start_bucket, 'Key': start_path}, dest_path)
+
+    if not kwargs.get("disable_print"):
+        logging.info("Copy appears to have been a success")
+
+
+def move_s3_file_to_glacier(bucket_name, path):
+    s3 = boto3.client('s3')
+
+    s3.copy(
+        {"Bucket": bucket_name, "Key": path},
+        bucket_name,
+        path,
+        ExtraArgs={'StorageClass': 'GLACIER', 'MetadataDirective': 'COPY'}
+    )
+    return
 
 
 def delete_s3_file(bucket_name, filename, **kwargs):
@@ -596,24 +647,31 @@ def delete_s3_file(bucket_name, filename, **kwargs):
         logging.error(e)
         return e
 
+
+# http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
+# pass this a list of tuples of (filename, data)
+def parallel_write_s3_files(bucket_name, file_lot):
+    boto3.client('s3')
+    for file_tuple in file_lot:
+        t = threading.Thread(target = write_s3_file, args=(bucket_name, file_tuple[0], file_tuple[1])).start()
+
+    logging.info(f"Parallel write to S3 Bucket {bucket_name} has commenced")
+
+def parallel_delete_s3_files(bucket_name, file_list):
+    boto3.client('s3')
+    for filename in file_list:
+        t = threading.Thread(target = delete_s3_file, args=(bucket_name, filename)).start()
+
+    logging.info(f"Parallel delete to S3 Bucket {bucket_name} has commenced")
+
+
+
 """
 Minimums for storage classes:
     Normal - None
     1Z Infrequent - 30 days
     Glacier - 90 days
 """
-def move_s3_file_to_glacier(bucket_name, path):
-    s3 = boto3.client('s3')
-
-    s3.copy({"Bucket": bucket_name, "Key": path}, bucket_name, path,
-        ExtraArgs={'StorageClass': 'GLACIER', 'MetadataDirective': 'COPY'})
-    return
-
-def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest_path):
-    destination_bucket = boto3.resource('s3').Bucket(dest_bucket)
-    destination_bucket.copy({'Bucket': start_bucket, 'Key': start_path}, dest_path)
-
-    return logging.info("Copy appears to have been a success")
 
 
 
@@ -633,8 +691,8 @@ def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest
 #             resource.meta.client.download_file(bucket, file.get('Key'), dest_pathname)
 
 
-# TODO difference between
 """
+   # TODO difference between
     s3 = boto3.resource("s3")
     s3.Object(bucket, filename)
     return obj.get()["Body"].read().decode("utf-8")
@@ -725,55 +783,69 @@ def aurora_execute_sql(db, sql, **kwargs):
         parameters=[]
     )
     if not kwargs.get("disable_print"): logging.info(f"Successful execution: {sql} / {len(result)}")
-
     return result
 
 
 ########################### ~ S3 Data Lake Specific ~ ###################################################
+
+# only supports one day. If you have multiple dates in the data to be written, add it to the df/lod directly
+def add_yearmonthday_partition_to_lod(data, partition_date):
+    if partition_date in ["Today", "today", "utcnow", "", None]:
+        partition_date = datetime.utcnow() # kwarg for if external oneoff file calling
+    elif not isinstance(partition_date, datetime):
+        logging.error("You must pass a datetime type value to add_yearmonthday_partition_to_lod")
+
+    data['year'], data['month'], data['day'] = partition_date.year, partition_date.month, partition_date.day
+    return data
 
 
 def write_data_to_parquet_in_s3(data, s3_path, **kwargs):
     import pandas as pd
     import awswrangler as wr
 
-
     if isinstance(data, list) and isinstance(data[0], dict):
-        data = pd.DataFrame(data) # convert_to_dataframe(df, )
+        data = pd.DataFrame(data)
+    if not isinstance(data, pd.DataFrame):
+        logging.error(f"Wrong type of data ({type(data)}) provided to write_data_to_parquet_in_s3")
 
-    s3_path = "s3://" + s3_path if not s3_path.startswith("s3://") else s3_path
+    if kwargs.get("add_yearmonthday_partition"):
+        data = add_yearmonthday_partition_to_lod(data, kwargs["add_yearmonthday_partition"])
 
-    wr.s3.to_parquet(
+    write_confirmation = wr.s3.to_parquet(
         df=data,
-        path=s3_path,
+        path="s3://" + s3_path if not s3_path.startswith("s3://") else s3_path,
         dataset=True,                               # Stores as parquet dataset instead of 'ordinary file'
         index=False,                                # don't write save the df index
-        mode=kwargs.get("write_mode", "append"),    # Could be append, overwrite or overwrite_partitions
+        sanitize_columns=True,                      # this happens by default
+        mode=kwargs.get("mode", "append"),          # Could be append, overwrite or overwrite_partitions
         database=kwargs.get("database", None),      # Optional, only with you want it available on Athena/Glue Catalog
         table=kwargs.get("table", None),            # If not exists, it will create the table at the specific/s3/path you specify
         compression=kwargs.get("compression", "snappy"),
         max_rows_by_file=kwargs.get("max_rows_by_file", None), # If set = n, every n rows, split into a new file. If None, don't split
-        partition_cols=kwargs.get("partition_cols_list", None),
+        partition_cols=kwargs.get("partition_cols", None),
         schema_evolution=kwargs.get("schema_evolution", False), # if True, and you pass a different schema, it will update the table
         concurrent_partitioning=False,
-        use_threads=kwargs.get("use_threads", False),
-        dtype=kwargs.get("col_dtype_dict", None),
+        use_threads=kwargs.get("use_threads", True),
+        dtype=kwargs.get("dtype", None),
     )
+    written_files = len(write_confirmation.get("paths", []))
+    logging.info(f"Write was successful to path {s3_path}. There were {written_files} individual .pq files written")
 
-    logging.info(f"Write was successful to path {s3_path}")
 
 def trigger_athena_table_crawl(s3_path, db, table, **kwargs):
     import pandas as pd
     import awswrangler as wr
 
-    wr.s3.store_parquet_metadata(
+    columns_types, partitions_types, partitions_values = wr.s3.store_parquet_metadata(
         path=s3_path,
         database=db,
         table=table,
         dataset=True,
-        mode=kwargs.get("write_mode", "overwrite"),
+        mode=kwargs.get("mode", "overwrite"),
         dtype=kwargs.get("col_dtype_dict", None) # dictionary of columns names and Athena/Glue types to be casted. Useful when you have columns with undetermined or mixed data types. (e.g. {'col name': 'bigint', 'col2 name': 'int'})
     )
     logging.info(f"Metadata crawl was successful of Athena table {table}")
+    return columns_types, partitions_types, partitions_values
 
 
 # when you read a year=2020, etc delimited data lake, the resulting df will have 'day', 'month', 'year' as columns
@@ -787,8 +859,9 @@ def read_s3_parquet(s3_path, **kwargs):
     df = wr.s3.read_parquet(
         path=s3_path,
         dataset=True,
-        validate_schema=kwargs.get("validate_schema", True), # raises an InvalidSchemaConvergence exception if > 1 schemas are found in the files
-        use_threads=False
+        validate_schema=kwargs.pop("validate_schema", True), # raises an InvalidSchemaConvergence exception if > 1 schemas are found in the files
+        use_threads=kwargs.pop("use_threads", True),
+        ignore_empty=True,                                   # Ignore files with 0 bytes.
         # last_modified_begin=
         # last_modified_end=
         # columns=["only", "get", "these", "columns"]
@@ -814,27 +887,87 @@ def extract_local_file_athena_metadata():
     return columns_types, partitions_types
 
 
+########################### ~ Glue Specific ~ ###################################################
+
+# col_lod entries look like [{'Name': 'col_name', 'Type': 'array<string>'},
+def get_glue_table_columns(db, table, **kwargs):
+    response = boto3.client('glue').get_table(
+        CatalogId=os.environ['AWS_ACCOUNT_ID'],
+        DatabaseName=db,
+        Name=table
+    )
+    col_lod = ez_get(response, "Table", "StorageDescriptor", "Columns")
+    if kwargs.get("return_type").lower() == "dict":
+        return {x["Name"]:x["Type"] for x in col_lod}
+    else:
+        return [x['Name'] for x in col_lod]
+
+
+
+
+# the way the wrangler writes in main.py work we need to manually declare the day's partition daily
+def add_glue_date_partition(db, table, bucket, subfolder_path, write_date, **kwargs):
+    if not write_date:
+        write_date = datetime.utcnow()
+
+    update_partition_sql_query = f"""
+    ALTER TABLE {db}.{table}
+    ADD IF NOT EXISTS PARTITION (year={write_date.year}, month={write_date.month}, day={write_date.day}) 
+    LOCATION '{bucket + subfolder_path}'
+    """
+    query_athena_table(update_partition_sql_query, db)
 
 ########################### ~ CloudWatch Specific ~ ###################################################
 
 # query = "fields @timestamp, @message | parse @message \"username: * ClinicID: * nodename: *\" as username, ClinicID, nodename | filter ClinicID = 7667 and username='simran+test@abc.com'"
 # log_group = '/aws/lambda/NAME_OF_YOUR_LAMBDA_FUNCTION'
-def cw_query_logs(query, log_group, lookback_hours):
+def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
     client = boto3.client('logs')
-    start_query_response = client.start_query(
-        logGroupName=log_group,
-        startTime=int((datetime.today() - timedelta(hours=lookback_hours)).timestamp()),
-        endTime=int(datetime.now().timestamp()),
-        queryString=query,
-    )
+    params_dict = {
+        "startTime": int((datetime.today() - timedelta(hours=lookback_hours)).timestamp()),
+        "endTime": int(datetime.now().timestamp()),
+        "queryString": query,
+        "limit": kwargs.pop("limit", 1000),
+    }
+    if isinstance(log_group, str):
+        params_dict["logGroupName"] = log_group
+    elif isinstance(log_group, list):
+        params_dict["logGroupNames"] = log_group
+
+    start_query_response = boto3.client('logs').start_query(**params_dict)
 
     response = None
     while response == None or response['status'] == 'Running':
-        time.sleep(1)
+        sleep(0.25)
         response = client.get_query_results(
             queryId=start_query_response['queryId']
         )
+    if kwargs.get("return_raw"):
+        return response["results"]
 
-    return response["results"]
-    # for invoke_logs in response['results']:
-        # for log_row in invoke_logs
+    output_log_lod = []
+    for log_row in response['results']:
+        output_log_lod.append({x['field'].replace("@", ""):x['value'] for x in log_row})
+        if not kwargs.get("keep_pointer"):
+            output_log_lod[-1].pop("ptr", None)
+        if not kwargs.get("keep_log_stream_prefix") and "message" in output_log_lod[-1]:
+            output_log_lod[-1]['message'] = ez_split(output_log_lod[-1]['message'], "\t", -1)
+
+    return output_log_lod
+
+
+########################### ~ API Gateway Specific ~ ###################################################
+
+
+def get_apiKey_usage(keyId, usagePlanId, **kwargs):
+    today = datetime.utcnow()
+    tomorrow = today + timedelta(days=int(kwargs.get("days_range", 1)))
+
+    client = boto3.client('apigateway')
+    response = client.get_usage(
+        usagePlanId=usagePlanId,
+        keyId=keyId,
+        startDate=today.strftime("%Y-%m-%d"),
+        endDate=tomorrow.strftime("%Y-%m-%d"),
+    )
+    return response.get("items", {})
