@@ -1,5 +1,5 @@
 from utility.util import invoke_lambda, is_url, format_url
-from utility.util_gspread import open_gsheet
+# from utility.util_gspread import open_gsheet # imported below
 
 import json
 import csv
@@ -49,6 +49,8 @@ def write_to_gsheet(output_lod, sheet, tab, primary_key, **kwargs):
 
 # Use if you're hitting the 2MB Lambda limit
 def naive_append_gsheet_tab(sheet, tab, output_lod, headers):
+    from utility.util_gspread import open_gsheet
+
     data_lol = []
     for row in output_lod:
         data_lol.append([row.get(x) for x in headers])
