@@ -559,7 +559,8 @@ def get_s3_file(bucket_name, filename, **kwargs):
             return s3_obj
         elif kwargs.get("convert_csv"):
             csv.field_size_limit(sys.maxsize) # circumvents `field larger than field limit (131072)` Error
-            return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
+            return list(csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True))
+            # return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
         elif kwargs.get("convert_json"):
             return json.loads(s3_obj.read().decode('utf-8'))
         else:
