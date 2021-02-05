@@ -283,8 +283,8 @@ def format_url(url, **kwargs):
     if kwargs.get("remove_port") and ":" in url:
         pattern = re.compile("(:\d{2,})")
         url = pattern.sub('', url)
-    if kwargs.get("remove_trailing_slash"):
-        url = url.rstrip("/")
+    if kwargs.get("remove_querystrings"):
+        url = ez_split(url, "?", 0)
     if kwargs.get("remove_subdomain") and url.count(".") > 1:
         tld = find_url_tld(url, kwargs["remove_subdomain"])
         if not tld:
@@ -396,6 +396,13 @@ def deduplicate_lod(input_lod, primary_key):
             output_dict[d[primary_key]] = d
 
     return list(output_dict.values())
+
+
+# from here: https://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-whilst-preserving-order
+def deduplicate_ordered_list(seq):
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]
 
 
 # e.g. checking if any tld exists in a string
