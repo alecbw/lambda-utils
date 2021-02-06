@@ -1,5 +1,6 @@
 from utility.util import is_none, ez_try_and_get, ez_get, ez_split
 
+import sys
 import os
 from time import sleep
 import logging
@@ -130,7 +131,7 @@ def query_athena_table(sql_query, database, **kwargs):
             sleep(kwargs.get("wait_interval", 0.1))
 
 
-    if kwargs.get("time_it"): logging.info(f"{round(timeit.default_timer() - start_time, 4)} seconds - Query execution time (NOT including pagination/file-handling)")
+    if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling) - {round(timeit.default_timer() - start_time, 4)} seconds")
 
     if kwargs.get("return_s3_path"):
         s3_result_dict["entry_count"] = get_row_count_of_s3_csv(s3_result_dict['bucket'], s3_result_dict['filename'])
@@ -141,7 +142,7 @@ def query_athena_table(sql_query, database, **kwargs):
     else:
         result = convert_athena_array_cols(paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs), **kwargs)
 
-    if kwargs.get("time_it"): logging.info(f"{round(timeit.default_timer() - start_time, 4)} seconds - Query execution time (all-in)")
+    if kwargs.get("time_it"): logging.info(f"Query execution time (all-in) - {round(timeit.default_timer() - start_time, 4)} seconds")
 
     return result
 
@@ -557,7 +558,9 @@ def get_s3_file(bucket_name, filename, **kwargs):
         if kwargs.get("raw"):
             return s3_obj
         elif kwargs.get("convert_csv"):
-            return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
+            csv.field_size_limit(sys.maxsize) # circumvents `field larger than field limit (131072)` Error
+            return list(csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True))
+            # return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
         elif kwargs.get("convert_json"):
             return json.loads(s3_obj.read().decode('utf-8'))
         else:
