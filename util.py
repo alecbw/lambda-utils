@@ -63,10 +63,15 @@ def package_response(message, status_code, **kwargs):
     elif kwargs.get("error"):
         logging.error(message)
 
+    if kwargs.get("cors"):
+        headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': "*"}
+    else:
+        headers = {'Content-Type': 'application/json'}
+
     return {
         'statusCode': status_code if status_code else '200',
         'body': json.dumps({'data': message}) if not kwargs.get("message_as_key") else json.dumps({'message': message}),
-        'headers': {'Content-Type': 'application/json'}
+        'headers': headers
     }
 
 class ComplexEncoder(json.JSONEncoder):
