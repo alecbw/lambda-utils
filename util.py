@@ -202,11 +202,11 @@ def ez_re_find(pattern, text, **kwargs):
         return possible_match.group() # if possible_match else ""
 
 
+# Case sensitive!
+# only replaces last instance of to_replace. e.g. ("foobarbar", "bar", "qux") -> "foobarqux"
 def endswith_replace(text, to_replace, replace_with, **kwargs):
-    # if kwargs.get('case_insensitive') and text and isinstance(text, str) and text.lower().endswith(to_replace.lower()):
-    #     return text.replace(to_replace, replace_with)
     if text and isinstance(text, str) and text.endswith(to_replace):
-        return text.replace(to_replace, replace_with)
+        return  text[:text.rfind(to_replace)] + replace_with
 
     return text
 
