@@ -50,7 +50,6 @@ def standardize_event(event):
     if event.get("Records"):  # triggered directly by SQS queue TODO only first record?
         event.update(json.loads(ez_try_and_get(event, "Records", 0, "body")))
 
-
     return standardize_dict(event)
 
 
@@ -64,7 +63,7 @@ def package_response(message, status_code, **kwargs):
         logging.error(message)
 
     if kwargs.get("cors"):
-        headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': "*"}
+        headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': kwargs['cors']} #, 'Access-Control-Allow-Credentials': True
     else:
         headers = {'Content-Type': 'application/json'}
 
@@ -194,6 +193,7 @@ def ez_re_find(pattern, text, **kwargs):
         return set([x.groups() for x in re.finditer(pattern, text)])
 
     possible_match = re.search(pattern, text)
+
     if not possible_match:
         return ""
     elif kwargs.get("group") and isinstance(kwargs["group"], int):
@@ -201,6 +201,14 @@ def ez_re_find(pattern, text, **kwargs):
     else:
         return possible_match.group() # if possible_match else ""
 
+
+def endswith_replace(text, to_replace, replace_with, **kwargs):
+    # if kwargs.get('case_insensitive') and text and isinstance(text, str) and text.lower().endswith(to_replace.lower()):
+    #     return text.replace(to_replace, replace_with)
+    if text and isinstance(text, str) and text.endswith(to_replace):
+        return text.replace(to_replace, replace_with)
+
+    return text
 
 # Print/log to the terminal in color!
 def colored_log(log_level, text, color):
