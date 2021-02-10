@@ -202,6 +202,15 @@ def ez_re_find(pattern, text, **kwargs):
         return possible_match.group() # if possible_match else ""
 
 
+def ordered_dict_first(ordered_dict):
+    '''Return the first element from an ordered collection
+       or an arbitrary element from an unordered collection.
+       Raise StopIteration if the collection is empty.
+    '''
+    if not ordered_dict:
+        return None
+    return next(iter(ordered_dict))
+
 # Case sensitive!
 # only replaces last instance of to_replace. e.g. ("foobarbar", "bar", "qux") -> "foobarqux"
 def endswith_replace(text, to_replace, replace_with, **kwargs):
@@ -324,13 +333,11 @@ def find_url_tld(url, tld_list):
     tld = max(matched_tlds, key=len) # get the longest matching string TLD
     return tld
 
-
+# from https://tld-list.com/tlds-from-a-z
 def get_tld_list():
-    # from https://tld-list.com/tlds-from-a-z
     try:
         with open("utility/TLD_list.txt") as f:
             return [line.rstrip() for line in f]
-        # lines = tuple(open("utility/TLD_list.txt", 'r'))
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Make sure your utility submodule folder is called utility. {e}")
 
