@@ -307,6 +307,8 @@ def format_url(url, **kwargs):
         url = pattern.sub('', url)
     if kwargs.get("remove_querystrings"):
         url = ez_split(url, "?", 0)
+    if kwargs.get("remove_anchor"):
+        url = ez_split(url, "#", 0)
     if kwargs.get("remove_subdomain") and url.count(".") > 1:
         tld = find_url_tld(url, kwargs["remove_subdomain"])
         if not tld:
