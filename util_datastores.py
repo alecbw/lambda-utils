@@ -294,8 +294,9 @@ def scan_dynamodb(table, **kwargs):
         kwargs["ExclusiveStartKey"] = result['LastEvaluatedKey']
         result = table.scan(**kwargs)
         data_lod.extend(result['Items'])
+        print('extending')
 
-    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo List from {table}, found {result['Count']} results")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Scan from {table}, found {result['Count']} results")
 
     for n, row in enumerate(data_lod):
         data_lod[n] = standardize_dynamo_output(row)
@@ -906,6 +907,27 @@ def get_glue_table_columns(db, table, **kwargs):
         return [x['Name'] for x in col_lod]
 
 
+def update_glue_table(db, old_table_name, new_table_name, **kwargs):
+    table_input_dict = {
+        'TargetTable': {
+            'CatalogId': os.environ['AWS_ACCOUNT_ID'],
+            'DatabaseName': db,
+            'Name': old_table_name
+        }
+    }
+    if kwargs.get("new_table_name"):
+        table_input_dict['Name'] =  kwargs['new_table_name']
+    if kwargs.get("new_table_location"):
+        table_input_dict['StorageDescriptor']['Location'] =  kwargs['new_table_location']
+
+
+    response = boto3.client('glue').get_table(
+        CatalogId=os.environ['AWS_ACCOUNT_ID'],
+        DatabaseName=db,
+        TableInput=table_input_dict
+    )
+    print(response)
+    return response
 
 
 # the way the wrangler writes in main.py work we need to manually declare the day's partition daily
