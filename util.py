@@ -146,11 +146,11 @@ def get_list_overlap(list_1, list_2, **kwargs):
 
     return list(set(list_1).intersection(list_2))
 
-
+# Just dict keys
 def ez_get(nested_data, *keys):
     return reduce(lambda d, key: d.get(key) if d else None, keys, nested_data)
 
-
+# dict keys and/or list indexes
 def ez_try_and_get(nested_data, *keys):
     for key in keys:
         try:
@@ -158,6 +158,19 @@ def ez_try_and_get(nested_data, *keys):
         except (KeyError, TypeError, AttributeError, IndexError):
             return None
     return nested_data
+
+
+# Search through nested JSON of mixed dicts/lists for a given key and return value if found. From https://stackoverflow.com/questions/21028979/recursive-iteration-through-nested-json-for-specific-key-in-python
+def ez_recursive_get(json_input, lookup_key):
+    if isinstance(json_input, dict) and json_input:
+        for k, v in json_input.items():
+            if k == lookup_key:
+                yield v
+            else:
+                yield from item_generator(v, lookup_key)
+    elif isinstance(json_input, list) and json_input:
+        for item in json_input:
+            yield from item_generator(item, lookup_key)
 
 
 def ez_join(phrase, delimiter, **kwargs):
@@ -307,6 +320,8 @@ def format_url(url, **kwargs):
         url = pattern.sub('', url)
     if kwargs.get("remove_querystrings"):
         url = ez_split(url, "?", 0)
+    if kwargs.get("remove_anchor"):
+        url = ez_split(url, "#", 0)
     if kwargs.get("remove_subdomain") and url.count(".") > 1:
         tld = find_url_tld(url, kwargs["remove_subdomain"])
         if not tld:
