@@ -907,21 +907,37 @@ def get_glue_table_columns(db, table, **kwargs):
         return [x['Name'] for x in col_lod]
 
 
-def update_glue_table(db, old_table_name, new_table_name, **kwargs):
+
+def change_glue_table_s3_location(db, table, full_bucket_folder_path, **kwargs):
+    change_location_sql_query = f"ALTER TABLE {db}.{table} "
+
+    if kwargs.get("partition"):
+        change_location_sql_query += kwargs['partition']  #  eg PARTITION (zip='98040', state='WA')
+    if not full_bucket_folder_path.startswith("s3://"):
+        full_bucket_folder_path = "s3://" + full_bucket_folder_path
+
+    change_location_sql_query += f"SET LOCATION '{full_bucket_folder_path}';"
+    query_athena_table(change_location_sql_query, db)
+    logger.info(f"The {table} location change SQL query appears to have been successful")
+
+
+def update_glue_table(db, table, **kwargs):
     table_input_dict = {
         'TargetTable': {
             'CatalogId': os.environ['AWS_ACCOUNT_ID'],
             'DatabaseName': db,
-            'Name': old_table_name
+            'Name': table
         }
     }
+
+    if not kwargs:
+        raise ValueError("You must pass at least one kwarg")
     if kwargs.get("new_table_name"):
         table_input_dict['Name'] =  kwargs['new_table_name']
     if kwargs.get("new_table_location"):
         table_input_dict['StorageDescriptor']['Location'] =  kwargs['new_table_location']
 
-
-    response = boto3.client('glue').get_table(
+    response = boto3.client('glue').update_table(
         CatalogId=os.environ['AWS_ACCOUNT_ID'],
         DatabaseName=db,
         TableInput=table_input_dict
