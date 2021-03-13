@@ -75,7 +75,10 @@ def standardize_athena_query_result(results, **kwargs):
         result_lod = []
         for n, result_row in enumerate(result_lol):
             result_row_dict = {headers[i]:result_row[i] for i in range(0, len(result_row))}
-            result_lod.append(convert_athena_row_types(result_row_dict, **kwargs))
+            if not kwargs.get("skip_type_conversion"):
+                result_row_dict = convert_athena_row_types(result_row_dict, **kwargs)
+            result_lod.append(result_row_dict)
+
         return result_lod
 
 
