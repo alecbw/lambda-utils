@@ -26,7 +26,9 @@ import pandas as pd
 import awswrangler as wr
 """
 
+
 ######################## ~ Athena Queries ~ #############################################
+
 
 def is_float(maybe_float):
     try:
