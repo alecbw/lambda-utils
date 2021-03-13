@@ -31,30 +31,45 @@ import awswrangler as wr
 def is_float(maybe_float):
     try:
         return float(maybe_float)
-    except ValueError:
-        print("You must enter a number")
+    except Exception as e:
+        pass
 
-# TODO implement in standardize_athena_query_result so not iterating over list twice
+
 def convert_athena_array_cols(data_lod, **kwargs):
-    if not kwargs.get("convert_array_cols"):
-        return data_lod
+    # if not kwargs.get("convert_array_cols"):
+    #     return data_lod
 
     for n, row in enumerate(data_lod):
-        for k,v in row.items():
-            print(k, type(v))
-            if k not in kwargs["convert_array_cols"] and v.isdigit():
-                row[k] = int(v)
-            elif k not in kwargs["convert_array_cols"] and is_float(v):
-                row[k] = float(v)
-            elif k not in kwargs["convert_array_cols"]:
-                continue
-            elif v == '[]' or not v:
-                row[k] = []
-            else:
-                row[k] = v.strip('][').split(', ')
-        data_lod[n] = row
+        # for k,v in row.items():
+        #     if k not in kwargs.get("convert_array_cols", []) and v.isdigit():
+        #         row[k] = int(v)
+        #     elif k not in kwargs.get("convert_array_cols", []) and is_float(v):
+        #         row[k] = float(v)
+        #     elif k not in kwargs.get("convert_array_cols", []):
+        #         continue
+        #     elif v == '[]' or not v:
+        #         row[k] = []
+        #     else:
+        #         row[k] = v.strip('][').split(', ')
+        data_lod[n] = convert_athena_row_types(row, **kwargs)
 
     return data_lod
+
+
+def convert_athena_row_types(row, **kwargs):
+    for k,v in row.items():
+        if k not in kwargs.get("convert_array_cols", []) and v and v.isdigit():
+            row[k] = int(v)
+        elif k not in kwargs.get("convert_array_cols", []) and is_float(v):
+            row[k] = float(v)
+        elif k not in kwargs.get("convert_array_cols", []):
+            continue
+        elif v == '[]' or not v:
+            row[k] = []
+        else:
+            row[k] = v.strip('][').split(', ')
+
+    return row
 
 
 # Opinion: Whoever designed the response schema hates developers
@@ -62,15 +77,18 @@ def standardize_athena_query_result(results, **kwargs):
     result_lol = [x["Data"] for x in results['ResultSet']['Rows']]
     for n, row in enumerate(result_lol):
         result_lol[n] = [x.get('VarCharValue', None) for x in row] # NOTE: the .get(fallback=None) WILL cause problems if you have nulls in non-string cols
-    if kwargs.get("output_lod"):
+
+    if not kwargs.get("output_lod"):
+        return result_lol
+    elif kwargs.get("output_lod"):
         headers = kwargs.get("headers") or result_lol.pop(0)
 
         result_lod = []
         for n, result_row in enumerate(result_lol):
-            result_lod.append({headers[i]:result_row[i] for i in range(0, len(result_row))})
+            result_row_dict = {headers[i]:result_row[i] for i in range(0, len(result_row))}
+            result_lod.append(convert_athena_row_types(result_row_dict, **kwargs))
         return result_lod
 
-    return result_lol
 
 
 # about 4s per 10k rows, with a floor of ~0.33s if only one page
@@ -151,7 +169,7 @@ def query_athena_table(sql_query, database, **kwargs):
         s3_result_dict["data"] = convert_athena_array_cols(get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True), **kwargs)
         result = s3_result_dict
     else:
-        result = convert_athena_array_cols(paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs), **kwargs)
+        result = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
     if kwargs.get("time_it"): logging.info(f"Query execution time (all-in) - {round(timeit.default_timer() - start_time, 4)} seconds")
 
