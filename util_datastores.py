@@ -40,17 +40,6 @@ def convert_athena_array_cols(data_lod, **kwargs):
     #     return data_lod
 
     for n, row in enumerate(data_lod):
-        # for k,v in row.items():
-        #     if k not in kwargs.get("convert_array_cols", []) and v.isdigit():
-        #         row[k] = int(v)
-        #     elif k not in kwargs.get("convert_array_cols", []) and is_float(v):
-        #         row[k] = float(v)
-        #     elif k not in kwargs.get("convert_array_cols", []):
-        #         continue
-        #     elif v == '[]' or not v:
-        #         row[k] = []
-        #     else:
-        #         row[k] = v.strip('][').split(', ')
         data_lod[n] = convert_athena_row_types(row, **kwargs)
 
     return data_lod
