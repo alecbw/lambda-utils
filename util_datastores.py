@@ -28,14 +28,25 @@ import awswrangler as wr
 
 ######################## ~ Athena Queries ~ #############################################
 
+def is_float(maybe_float):
+    try:
+        return float(maybe_float)
+    except ValueError:
+        print("You must enter a number")
+
 # TODO implement in standardize_athena_query_result so not iterating over list twice
-def convert_athena_array_cols(data_lod, ** kwargs):
+def convert_athena_array_cols(data_lod, **kwargs):
     if not kwargs.get("convert_array_cols"):
         return data_lod
 
     for n, row in enumerate(data_lod):
         for k,v in row.items():
-            if k not in kwargs["convert_array_cols"]:
+            print(k, type(v))
+            if k not in kwargs["convert_array_cols"] and v.isdigit():
+                row[k] = int(v)
+            elif k not in kwargs["convert_array_cols"] and is_float(v):
+                row[k] = float(v)
+            elif k not in kwargs["convert_array_cols"]:
                 continue
             elif v == '[]' or not v:
                 row[k] = []
@@ -48,18 +59,18 @@ def convert_athena_array_cols(data_lod, ** kwargs):
 
 # Opinion: Whoever designed the response schema hates developers
 def standardize_athena_query_result(results, **kwargs):
-    results = [x["Data"] for x in results['ResultSet']['Rows']]
-    for n, row in enumerate(results):
-        results[n] = [x.get('VarCharValue', None) for x in row] # NOTE: the .get(fallback=None) WILL cause problems if you have nulls in non-string cols
+    result_lol = [x["Data"] for x in results['ResultSet']['Rows']]
+    for n, row in enumerate(result_lol):
+        result_lol[n] = [x.get('VarCharValue', None) for x in row] # NOTE: the .get(fallback=None) WILL cause problems if you have nulls in non-string cols
     if kwargs.get("output_lod"):
-        headers = kwargs.get("headers") or results.pop(0)
+        headers = kwargs.get("headers") or result_lol.pop(0)
 
-        output_lod = []
-        for n, result_row in enumerate(results):
-            output_lod.append({headers[i]:result_row[i] for i in range(0, len(result_row))})
-        return output_lod
+        result_lod = []
+        for n, result_row in enumerate(result_lol):
+            result_lod.append({headers[i]:result_row[i] for i in range(0, len(result_row))})
+        return result_lod
 
-    return results
+    return result_lol
 
 
 # about 4s per 10k rows, with a floor of ~0.33s if only one page
