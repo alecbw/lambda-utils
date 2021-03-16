@@ -930,14 +930,14 @@ def get_glue_table_columns(db, table, **kwargs):
         return [x['Name'] for x in col_lod]
 
 
-def get_glue_table_location(db, table, **kwargs):
-    response = boto3.client('glue', region_name="us-west-1").get_table(
+def get_glue_table_location(db, table):
+    response = boto3.client('glue').get_table(
         CatalogId=os.environ['AWS_ACCOUNT_ID'],
         DatabaseName=db,
         Name=table
     )
     table_location = response.get("Table", {}).get("StorageDescriptor", {}).get("Location", None)
-    print(table_location)
+    return table_location
 
 
 def change_glue_table_s3_location(db, table, full_bucket_folder_path, **kwargs):
