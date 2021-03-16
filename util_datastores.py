@@ -924,11 +924,20 @@ def get_glue_table_columns(db, table, **kwargs):
         Name=table
     )
     col_lod = ez_get(response, "Table", "StorageDescriptor", "Columns")
-    if kwargs.get("return_type").lower() == "dict":
+    if kwargs.get("return_type", "").lower() == "dict":
         return {x["Name"]:x["Type"] for x in col_lod}
     else:
         return [x['Name'] for x in col_lod]
 
+
+def get_glue_table_location(db, table, **kwargs):
+    response = boto3.client('glue', region_name="us-west-1").get_table(
+        CatalogId=os.environ['AWS_ACCOUNT_ID'],
+        DatabaseName=db,
+        Name=table
+    )
+    table_location = response.get("Table", {}).get("StorageDescriptor", {}).get("Location", None)
+    print(table_location)
 
 
 def change_glue_table_s3_location(db, table, full_bucket_folder_path, **kwargs):
@@ -952,6 +961,7 @@ def drop_glue_table(db, table):
     logging.info(f"The {table} drop appears to have been successful")
 
 
+# NOT WORKING
 def update_glue_table(db, table, **kwargs):
     table_input_dict = {
         'TargetTable': {
