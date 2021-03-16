@@ -1053,3 +1053,11 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
         endDate=tomorrow.strftime("%Y-%m-%d"),
     )
     return response.get("items", {})
+
+
+########################### ~ STS Specific ~ ###################################################
+
+
+def get_aws_account_id():
+    response = boto3.client('sts').get_caller_identity()
+    return response.get("Account")
