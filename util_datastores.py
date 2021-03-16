@@ -26,40 +26,63 @@ import pandas as pd
 import awswrangler as wr
 """
 
+
 ######################## ~ Athena Queries ~ #############################################
 
-# TODO implement in standardize_athena_query_result so not iterating over list twice
-def convert_athena_array_cols(data_lod, ** kwargs):
-    if not kwargs.get("convert_array_cols"):
-        return data_lod
+
+def is_float(maybe_float):
+    try:
+        return float(maybe_float)
+    except Exception as e:
+        pass
+
+
+def convert_athena_array_cols(data_lod, **kwargs):
+    # if not kwargs.get("convert_array_cols"):
+    #     return data_lod
 
     for n, row in enumerate(data_lod):
-        for k,v in row.items():
-            if k not in kwargs["convert_array_cols"]:
-                continue
-            elif v == '[]' or not v:
-                row[k] = []
-            else:
-                row[k] = v.strip('][').split(', ')
-        data_lod[n] = row
+        data_lod[n] = convert_athena_row_types(row, **kwargs)
 
     return data_lod
 
 
+def convert_athena_row_types(row, **kwargs):
+    for k,v in row.items():
+        if k not in kwargs.get("convert_array_cols", []) and v and v.isdigit():
+            row[k] = int(v)
+        elif k not in kwargs.get("convert_array_cols", []) and is_float(v):
+            row[k] = float(v)
+        elif k not in kwargs.get("convert_array_cols", []):
+            continue
+        elif v == '[]' or not v:
+            row[k] = []
+        else:
+            row[k] = v.strip('][').split(', ')
+
+    return row
+
+
 # Opinion: Whoever designed the response schema hates developers
 def standardize_athena_query_result(results, **kwargs):
-    results = [x["Data"] for x in results['ResultSet']['Rows']]
-    for n, row in enumerate(results):
-        results[n] = [x.get('VarCharValue', None) for x in row] # NOTE: the .get(fallback=None) WILL cause problems if you have nulls in non-string cols
-    if kwargs.get("output_lod"):
-        headers = kwargs.get("headers") or results.pop(0)
+    result_lol = [x["Data"] for x in results['ResultSet']['Rows']]
+    for n, row in enumerate(result_lol):
+        result_lol[n] = [x.get('VarCharValue', None) for x in row] # NOTE: the .get(fallback=None) WILL cause problems if you have nulls in non-string cols
 
-        output_lod = []
-        for n, result_row in enumerate(results):
-            output_lod.append({headers[i]:result_row[i] for i in range(0, len(result_row))})
-        return output_lod
+    if not kwargs.get("output_lod"):
+        return result_lol
+    elif kwargs.get("output_lod"):
+        headers = kwargs.get("headers") or result_lol.pop(0)
 
-    return results
+        result_lod = []
+        for n, result_row in enumerate(result_lol):
+            result_row_dict = {headers[i]:result_row[i] for i in range(0, len(result_row))}
+            if not kwargs.get("skip_type_conversion"):
+                result_row_dict = convert_athena_row_types(result_row_dict, **kwargs)
+            result_lod.append(result_row_dict)
+
+        return result_lod
+
 
 
 # about 4s per 10k rows, with a floor of ~0.33s if only one page
@@ -140,7 +163,7 @@ def query_athena_table(sql_query, database, **kwargs):
         s3_result_dict["data"] = convert_athena_array_cols(get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True), **kwargs)
         result = s3_result_dict
     else:
-        result = convert_athena_array_cols(paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs), **kwargs)
+        result = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
     if kwargs.get("time_it"): logging.info(f"Query execution time (all-in) - {round(timeit.default_timer() - start_time, 4)} seconds")
 
@@ -294,8 +317,9 @@ def scan_dynamodb(table, **kwargs):
         kwargs["ExclusiveStartKey"] = result['LastEvaluatedKey']
         result = table.scan(**kwargs)
         data_lod.extend(result['Items'])
+        print('extending')
 
-    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo List from {table}, found {result['Count']} results")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Scan from {table}, found {result['Count']} results")
 
     for n, row in enumerate(data_lod):
         data_lod[n] = standardize_dynamo_output(row)
@@ -906,6 +930,51 @@ def get_glue_table_columns(db, table, **kwargs):
         return [x['Name'] for x in col_lod]
 
 
+
+def change_glue_table_s3_location(db, table, full_bucket_folder_path, **kwargs):
+    change_location_sql_query = f"ALTER TABLE {db}.{table} "
+
+    if kwargs.get("partition"):
+        change_location_sql_query += kwargs['partition']  #  eg PARTITION (zip='98040', state='WA')
+    if not full_bucket_folder_path.startswith("s3://"):
+        full_bucket_folder_path = "s3://" + full_bucket_folder_path
+
+    change_location_sql_query += f"SET LOCATION '{full_bucket_folder_path}';"
+    query_athena_table(change_location_sql_query, db)
+    logging.info(f"The {table} location change SQL query appears to have been successful")
+
+
+# Dropping a glue table DOES NOT DELETE the underlying data; you have to do so separately
+def drop_glue_table(db, table):
+
+    drop_table_sql_query = f"DROP TABLE IF EXISTS `{db}.{table}`"
+    query_athena_table(drop_table_sql_query, db)
+    logging.info(f"The {table} drop appears to have been successful")
+
+
+def update_glue_table(db, table, **kwargs):
+    table_input_dict = {
+        'TargetTable': {
+            'CatalogId': os.environ['AWS_ACCOUNT_ID'],
+            'DatabaseName': db,
+            'Name': table
+        }
+    }
+
+    if not kwargs:
+        raise ValueError("You must pass at least one kwarg")
+    if kwargs.get("new_table_name"):
+        table_input_dict['Name'] =  kwargs['new_table_name']
+    if kwargs.get("new_table_location"):
+        table_input_dict['StorageDescriptor']['Location'] =  kwargs['new_table_location']
+
+    response = boto3.client('glue').update_table(
+        CatalogId=os.environ['AWS_ACCOUNT_ID'],
+        DatabaseName=db,
+        TableInput=table_input_dict
+    )
+    print(response)
+    return response
 
 
 # the way the wrangler writes in main.py work we need to manually declare the day's partition daily

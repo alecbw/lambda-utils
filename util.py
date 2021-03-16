@@ -397,7 +397,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
         return kwargs.get("null_value", "")
 
-    if datetime_str.isdigit() and len(datetime_str) in [9, 10]: # assume UTC
+    if str(datetime_str).isdigit() and len(str(datetime_str)) in [9, 10]: # assume UTC
         output_dt = datetime.utcfromtimestamp(int(datetime_str))
         return datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
 
