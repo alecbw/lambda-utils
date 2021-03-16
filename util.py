@@ -215,6 +215,12 @@ def ez_re_find(pattern, text, **kwargs):
         return possible_match.group() # if possible_match else ""
 
 
+def ez_remove(iterable, to_remove):
+    if (isinstance(iterable, set) or isinstance(iterable, list)) and to_remove in iterable:
+        iterable.remove(to_remove)
+
+    return iterable
+
 def ordered_dict_first(ordered_dict):
     '''Return the first element from an ordered collection
        or an arbitrary element from an unordered collection.
