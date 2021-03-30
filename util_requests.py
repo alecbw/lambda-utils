@@ -160,9 +160,13 @@ def handle_request_exception(e, disable_error_messages):
     elif "Caused by NewConnectionError" in str(e) and "ProxyError" not in str(e):
         warning = f'-----> ERROR. ROTATE YOUR PROXY. Effective 404 - Request Threw NewConnectionError: {e} <-----'
         status_code = 404
+    elif "Connection refused" in str(e): # or "Remote end closed connection" in str(e):
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy refusing traffic {e} <-----'
+        status_code = 602
     elif any(x for x in ["HTTPConnectionPool", "MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
         warning = f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----'
         status_code = 601
+        print(str(e))
     else:
         warning = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----'
         status_code = 609
