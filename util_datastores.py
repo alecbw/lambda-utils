@@ -924,11 +924,20 @@ def get_glue_table_columns(db, table, **kwargs):
         Name=table
     )
     col_lod = ez_get(response, "Table", "StorageDescriptor", "Columns")
-    if kwargs.get("return_type").lower() == "dict":
+    if kwargs.get("return_type", "").lower() == "dict":
         return {x["Name"]:x["Type"] for x in col_lod}
     else:
         return [x['Name'] for x in col_lod]
 
+
+def get_glue_table_location(db, table):
+    response = boto3.client('glue').get_table(
+        CatalogId=os.environ['AWS_ACCOUNT_ID'],
+        DatabaseName=db,
+        Name=table
+    )
+    table_location = response.get("Table", {}).get("StorageDescriptor", {}).get("Location", None)
+    return table_location
 
 
 def change_glue_table_s3_location(db, table, full_bucket_folder_path, **kwargs):
@@ -952,6 +961,7 @@ def drop_glue_table(db, table):
     logging.info(f"The {table} drop appears to have been successful")
 
 
+# NOT WORKING
 def update_glue_table(db, table, **kwargs):
     table_input_dict = {
         'TargetTable': {
@@ -1043,3 +1053,11 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
         endDate=tomorrow.strftime("%Y-%m-%d"),
     )
     return response.get("items", {})
+
+
+########################### ~ STS Specific ~ ###################################################
+
+
+def get_aws_account_id():
+    response = boto3.client('sts').get_caller_identity()
+    return response.get("Account")
