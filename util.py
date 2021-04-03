@@ -146,6 +146,16 @@ def get_list_overlap(list_1, list_2, **kwargs):
 
     return list(set(list_1).intersection(list_2))
 
+
+# NOTE: this only works if the value is unique
+def get_dict_key_by_value(input_dict, value):
+    keys = [k for k,v in input_dict.items() if v == value]
+    if len(keys) == 1:
+        return keys[0]
+    elif keys:
+        logging.warning(f"More than one key has the value {value}")
+
+
 # Just dict keys
 def ez_get(nested_data, *keys):
     return reduce(lambda d, key: d.get(key) if d else None, keys, nested_data)

@@ -166,7 +166,6 @@ def handle_request_exception(e, disable_error_messages):
     elif any(x for x in ["HTTPConnectionPool", "MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
         warning = f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----'
         status_code = 601
-        print(str(e))
     else:
         warning = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----'
         status_code = 609
