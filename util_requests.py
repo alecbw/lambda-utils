@@ -154,7 +154,7 @@ def handle_request_exception(e, disable_error_messages):
     elif "Exceeded 30 redirects" in str(e):
         warning = f'-----> ERROR. Request Threw: Too Many Redirects Error. {e}<-----'
         status_code = 399
-    elif "TimeoutError" in str(e):
+    elif "TimeoutError" in str(e) or " Read timed out." in str(e):
         warning = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----'
         status_code = 408
     elif "Caused by NewConnectionError" in str(e) and "ProxyError" not in str(e):
@@ -168,6 +168,7 @@ def handle_request_exception(e, disable_error_messages):
         status_code = 601
     else:
         warning = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----'
+        logging.warning(warning)
         status_code = 609
 
     if not disable_error_messages:
