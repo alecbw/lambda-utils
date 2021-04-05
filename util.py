@@ -231,6 +231,15 @@ def ez_remove(iterable, to_remove):
 
     return iterable
 
+def ez_remove_substrings(string, substring_list):
+    if not string:
+        return string
+
+    for substring in substring_list:
+        string = string.replace(substring, "")
+
+    return string
+
 def ordered_dict_first(ordered_dict):
     '''Return the first element from an ordered collection
        or an arbitrary element from an unordered collection.
