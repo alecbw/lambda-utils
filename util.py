@@ -240,6 +240,32 @@ def ez_remove_substrings(string, substring_list):
 
     return string
 
+
+def ez_rename_dict_keys(input_dict, renaming_lot):
+    if not renaming_lot or not isinstance(renaming_lot, list) or not isinstance(renaming_lot[0], tuple) or not len(renaming_lot[0]) == 2:
+        raise ValueError("Wrong renaming_lot passed to ez_rename_dict_keys")
+
+    for rename_tuple in renaming_lot:
+        if rename_tuple[0] in input_dict:
+            input_dict[rename_tuple[1]] = input_dict.pop(rename_tuple[0])
+
+    return input_dict
+
+
+def ez_convert_dict_values(input_dict, converting_lot):
+    if not converting_lot or not isinstance(converting_lot, list) or not isinstance(converting_lot[0], tuple) or not len(converting_lot[0]) == 2:
+        raise ValueError("Wrong converting_lot passed to ez_convert_dict_values")
+
+    for convert_tuple in converting_lot:
+        if convert_tuple[0] in input_dict and convert_tuple[1] == "set" and type(input_dict[convert_tuple[0]]) in ["int", "float", "str", "bool"]:
+            input_dict[convert_tuple[0]] = set(list(input_dict[convert_tuple[0]]))
+        if convert_tuple[0] in input_dict and convert_tuple[1] == "set" and isinstance(input_dict[convert_tuple[0]], list):
+            input_dict[convert_tuple[0]] = set(input_dict[convert_tuple[0]])
+        if convert_tuple[0] in input_dict and convert_tuple[1] == "list" and type(input_dict[convert_tuple[0]]) in ["int", "float", "str", "bool"]:
+            input_dict[convert_tuple[0]] = [input_dict[convert_tuple[0]]]
+
+    return input_dict
+
 def ordered_dict_first(ordered_dict):
     '''Return the first element from an ordered collection
        or an arbitrary element from an unordered collection.
