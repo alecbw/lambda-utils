@@ -20,7 +20,7 @@ def read_from_gsheet(sheet, tab):
         print(f"Finished reading from Google Sheet {sheet}. Status code {status_code}")
     else:
         print(f"Error reading from Google Sheet {sheet}. Status code {status_code}; message: {data}")
-    return data
+    return data # is list of dicts
 
 
 def write_to_gsheet(output_lod, sheet, tab, primary_key, **kwargs):
