@@ -258,7 +258,7 @@ def ez_convert_dict_values(input_dict, converting_lot):
 
     for convert_tuple in converting_lot:
         if convert_tuple[0] in input_dict and convert_tuple[1] == "set" and type(input_dict[convert_tuple[0]]) in ["int", "float", "str", "bool"]:
-            input_dict[convert_tuple[0]] = set(list(input_dict[convert_tuple[0]]))
+            input_dict[convert_tuple[0]] = set([input_dict[convert_tuple[0]]])
         if convert_tuple[0] in input_dict and convert_tuple[1] == "set" and isinstance(input_dict[convert_tuple[0]], list):
             input_dict[convert_tuple[0]] = set(input_dict[convert_tuple[0]])
         if convert_tuple[0] in input_dict and convert_tuple[1] == "list" and type(input_dict[convert_tuple[0]]) in ["int", "float", "str", "bool"]:
