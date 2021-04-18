@@ -6,6 +6,7 @@ import logging
 import os
 from time import sleep
 import warnings
+import json
 import re
 
 from bs4 import BeautifulSoup, element, NavigableString
@@ -263,7 +264,7 @@ def ez_strip_str(input_str):
     if not isinstance(input_str, str):
         logging.warning(f"non str fed to ez_strip_str {input_str}")
         return input_str
-    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&amp;", "&").strip()
+    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&amp;", "&").replace("&#039;", "'").strip()
 
 
 # TODO replace dumbass implementation of replacing newline chars
@@ -281,6 +282,17 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
         return ez_strip_str(html_tag_or_str.get_text(separator=kwargs.get("text_sep", " "), strip=True))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
 
     return kwargs.get("null_value", html_tag_or_str)
+
+
+def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
+    for script in parsed.find_all('script', **kwargs):
+        if script and script.string and phrase_str in script.string:
+            try:
+                return json.loads(script.string.strip().rstrip(","), strict=False)
+            except Exception as e:
+                logging.warning(e)
+
+    return {}
 
 
 # Will extract the text from, and concatenate together, all elements of a given selector
