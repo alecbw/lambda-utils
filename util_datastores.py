@@ -499,38 +499,6 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
     return result.get('Attributes')
 
 
-# # TODO implement
-# def query_dynamodb_table(operation_parameters_dict, table, **kwargs):
-#     table = boto3.resource('dynamodb').Table(table)
-#     dict_of_attributes = standardize_dynamo_query(dict_of_attributes, **kwargs)
-#
-#     operation_parameters_dict["TableName"] = table
-#     result = table.query(**operation_parameters_dict)
-#     # client = boto3.client('dynamodb')
-#     paginator = client.get_paginator('query')
-#     operation_parameters = {
-#       'TableName': table,
-#       'FilterExpression': 'bar > :x AND bar < :y',
-#       'ExpressionAttributeValues': {
-#         ':x': {'S': '2017-01-31T01:35'},
-#         ':y': {'S': '2017-01-31T02:08'},
-#       }
-#     }
-#
-#     page_iterator = paginator.paginate(**operation_parameters_dict)
-#     for page in page_iterator:
-#         # do something
-#         print(page)
-#     # result = table.query(
-#         KeyConditionExpression=boto3.dynamodb.conditions.Key(primary_key).eq(primary_key_value)
-#     )
-#     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Query on {table}")
-#     return data
-# TODO decimal encoding? https://github.com/serverless/examples/blob/master/aws-python-rest-api-with-dynamodb/todos/decimalencoder.py
-# TODO Upsert https://github.com/serverless/examples/blob/master/aws-python-rest-api-with-dynamodb/todos/update.py
-
-
-
 #################### ~ S3 Specific ~ ##########################################
 
 
