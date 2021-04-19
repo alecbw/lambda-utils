@@ -212,8 +212,10 @@ def ez_re_find(pattern, text, **kwargs):
     if isinstance(text, list) or isinstance(text, set):
         text = ez_join(text, " ")
 
-    if kwargs.get("find_all"):
-        return set([x.groups() for x in re.finditer(pattern, text)])
+    if kwargs.get("find_all_captured"):
+        return set([x.groups() for x in re.finditer(pattern, text)]) # groups() only returns any explicitly-captured groups in your regex (denoted by ( round brackets ) in your regex), whereas group(0) returns the entire substring that's matched by your regex regardless of whether your expression has any capture groups.
+    elif kwargs.get("find_all"):
+        return set([x.group() for x in re.finditer(pattern, text)])
 
     possible_match = re.search(pattern, text)
 
@@ -438,6 +440,12 @@ def format_timestamp(timestamp, **kwargs):
 
 
 # Forces conversion to UTC
+"""
+TODO
+ [] 2021-04-16T23:31:04 UTC
+ [] Mon, 01/25/2021 - 14:39
+ [] 2016-07-14 16:32:45 -0400 -0400
+"""
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
         return kwargs.get("null_value", "")
