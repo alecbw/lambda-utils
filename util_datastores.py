@@ -218,7 +218,7 @@ def standardize_dynamo_query(input_data, **kwargs):
         logging.error(f"Wrong data type for dynamodb - you input {type(input_data)}")
         return None
 
-    if input_data["created_at"]:
+    if input_data.get("created_at"):
         input_data['updated_at'], input_data['created_at'] = int(input_data['created_at']), int(input_data['created_at'])
     else:
         if not kwargs.get("skip_updated"):
