@@ -218,7 +218,7 @@ def standardize_dynamo_query(input_data, **kwargs):
         logging.error(f"Wrong data type for dynamodb - you input {type(input_data)}")
         return None
 
-    if "created_at" in input_data:
+    if input_data["created_at"]:
         input_data['updated_at'], input_data['created_at'] = int(input_data['created_at']), int(input_data['created_at'])
     else:
         if not kwargs.get("skip_updated"):
@@ -246,7 +246,7 @@ def standardize_dynamo_output(output_data, **kwargs):
     if not output_data:
         return output_data
 
-    datetime_keys = [key for key in output_data.keys() if key in ["updatedAt", "createdAt", 'ttl']]
+    datetime_keys = [key for key in output_data.keys() if key in ["updatedAt", "createdAt", "updated_at", "created_at", 'ttl']]
     for key in datetime_keys:
         output_data[key] = datetime.fromtimestamp(output_data[key])#.replace(tzinfo=timezone.utc)
 
