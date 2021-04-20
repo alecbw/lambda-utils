@@ -177,10 +177,10 @@ def ez_recursive_get(json_input, lookup_key):
             if k == lookup_key:
                 yield v
             else:
-                yield from item_generator(v, lookup_key)
+                yield from ez_recursive_get(v, lookup_key)
     elif isinstance(json_input, list) and json_input:
         for item in json_input:
-            yield from item_generator(item, lookup_key)
+            yield from ez_recursive_get(item, lookup_key)
 
 
 def ez_join(phrase, delimiter, **kwargs):
