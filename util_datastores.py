@@ -218,13 +218,16 @@ def standardize_dynamo_query(input_data, **kwargs):
         logging.error(f"Wrong data type for dynamodb - you input {type(input_data)}")
         return None
 
-    if not kwargs.get("skip_updated"):
-        input_data['updatedAt'] = int(datetime.utcnow().timestamp())
-    elif "updatedAt" in input_data:
-        input_data['updatedAt'] = int(input_data['updatedAt'])
+    if "created_at" in input_data:
+        input_data['updated_at'], input_data['created_at'] = int(input_data['created_at']), int(input_data['created_at'])
+    else:
+        if not kwargs.get("skip_updated"):
+            input_data['updatedAt'] = int(datetime.utcnow().timestamp())
+        elif "updatedAt" in input_data:
+            input_data['updatedAt'] = int(input_data['updatedAt'])
 
-    if kwargs.get("add_created") and 'createdAt' not in input_data:
-        input_data['createdAt'] = input_data['updatedAt']
+        if kwargs.get("add_created") and 'createdAt' not in input_data:
+            input_data['createdAt'] = input_data['updatedAt']
 
     for k, v in input_data.items():
         if is_none(k):  # Drop falsey keys (and their vals), they break upserts
@@ -270,7 +273,10 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
     return True
 
 
-# Note this will overwrite items with the same primary key (upsert)
+"""
+Note this will overwrite items with the same primary key (upsert)
+If you pass a lod of len > 100, it will quietly split it to mini-batches of 100 each
+"""
 def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
 
