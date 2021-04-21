@@ -287,8 +287,14 @@ def zip_lods(lod_1, lod_2, primary_key, **kwargs):
     d = defaultdict(dict)
     for l in (lod_1, lod_2):
         for elem in l:
-            if kwargs.get("keys_subset") and primary_key in kwargs['keys_subset']:
-               elem =  {k:v for k,v in elem.items() if k in kwargs['keys_subset']}
+            if kwargs.get("rename_key_tuple") and kwargs["rename_key_tuple"][0] in elem:
+                elem[kwargs["rename_key_tuple"][1]] = elem.pop(kwargs["rename_key_tuple"][0])
+
+            if kwargs.get("keys_subset_list") and primary_key in kwargs['keys_subset_list']:
+               elem =  {k:v for k,v in elem.items() if k in kwargs['keys_subset_list']}
+            elif kwargs.get("keys_subset_list"):
+                raise ValueEror("Check your keys_subset - it needs to have the primary_key and be a list")
+
             d[elem[primary_key]].update(elem)
 
     output_lod = list(d.values())
