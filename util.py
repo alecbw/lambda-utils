@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 import calendar
 from functools import reduce
 import logging
-from collections import Counter
-import timeit
+from collections import Counter, defaultdict
+# import timeit
 
 try:
     import sentry_sdk
@@ -277,13 +277,32 @@ def ordered_dict_first(ordered_dict):
         return None
     return next(iter(ordered_dict))
 
+""" 
+    Zip is at the dict level - if only some of the dicts in a lod have a key, 
+        only resultant dicts with one of their primary_keys will have that given k:v pair
+    When both lods have a given (non-primary) key, the lod_2 value is prioritized.
+"""
+def zip_lods(lod_1, lod_2, primary_key, **kwargs):
+
+    d = defaultdict(dict)
+    for l in (lod_1, lod_2):
+        for elem in l:
+            if kwargs.get("keys_subset") and primary_key in kwargs['keys_subset']:
+               elem =  {k:v for k,v in elem.items() if k in kwargs['keys_subset']}
+            d[elem[primary_key]].update(elem)
+
+    output_lod = list(d.values())
+    return output_lod
+
+
 # Case sensitive!
 # only replaces last instance of to_replace. e.g. ("foobarbar", "bar", "qux") -> "foobarqux"
 def endswith_replace(text, to_replace, replace_with, **kwargs):
     if text and isinstance(text, str) and text.endswith(to_replace):
-        return  text[:text.rfind(to_replace)] + replace_with
+        return text[:text.rfind(to_replace)] + replace_with
 
     return text
+
 
 # Print/log to the terminal in color!
 def colored_log(log_level, text, color):
@@ -446,6 +465,7 @@ TODO
  [] Mon, 01/25/2021 - 14:39
  [] 2016-07-14 16:32:45 -0400 -0400
  [] 2020-11-11 00:45:58.000000
+ [] March, 2016 # maybe
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
