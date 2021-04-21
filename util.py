@@ -268,6 +268,19 @@ def ez_convert_dict_values(input_dict, converting_lot):
 
     return input_dict
 
+
+def ez_flatten_mixed_strs_and_lists(*args):
+    output_set = set()
+    for item in args:
+        if isinstance(item, str) or isinstance(item, float) or isinstance(item, int) or isinstance(item, bool):
+            output_set.add(item)
+        elif isinstance(item, list) or isinstance(item, tuple) or isinstance(item, set):
+            for sub_item in item:
+                output_set.add(sub_item)
+
+    return output_set
+
+
 def ordered_dict_first(ordered_dict):
     '''Return the first element from an ordered collection
        or an arbitrary element from an unordered collection.
