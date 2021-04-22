@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 import calendar
 from functools import reduce
 import logging
-from collections import Counter
-import timeit
+from collections import Counter, defaultdict
+# import timeit
 
 try:
     import sentry_sdk
@@ -268,6 +268,19 @@ def ez_convert_dict_values(input_dict, converting_lot):
 
     return input_dict
 
+
+def ez_flatten_mixed_strs_and_lists(*args):
+    output_set = set()
+    for item in args:
+        if isinstance(item, str) or isinstance(item, float) or isinstance(item, int) or isinstance(item, bool):
+            output_set.add(item)
+        elif isinstance(item, list) or isinstance(item, tuple) or isinstance(item, set):
+            for sub_item in item:
+                output_set.add(sub_item)
+
+    return output_set
+
+
 def ordered_dict_first(ordered_dict):
     '''Return the first element from an ordered collection
        or an arbitrary element from an unordered collection.
@@ -277,13 +290,38 @@ def ordered_dict_first(ordered_dict):
         return None
     return next(iter(ordered_dict))
 
+""" 
+    Zip is at the dict level - if only some of the dicts in a lod have a key, 
+        only resultant dicts with one of their primary_keys will have that given k:v pair
+    When both lods have a given (non-primary) key, the lod_2 value is prioritized.
+"""
+def zip_lods(lod_1, lod_2, primary_key, **kwargs):
+
+    d = defaultdict(dict)
+    for l in (lod_1, lod_2):
+        for elem in l:
+            if kwargs.get("rename_key_tuple") and kwargs["rename_key_tuple"][0] in elem:
+                elem[kwargs["rename_key_tuple"][1]] = elem.pop(kwargs["rename_key_tuple"][0])
+
+            if kwargs.get("keys_subset_list") and primary_key in kwargs['keys_subset_list']:
+               elem =  {k:v for k,v in elem.items() if k in kwargs['keys_subset_list']}
+            elif kwargs.get("keys_subset_list"):
+                raise ValueEror("Check your keys_subset - it needs to have the primary_key and be a list")
+
+            d[elem[primary_key]].update(elem)
+
+    output_lod = list(d.values())
+    return output_lod
+
+
 # Case sensitive!
 # only replaces last instance of to_replace. e.g. ("foobarbar", "bar", "qux") -> "foobarqux"
 def endswith_replace(text, to_replace, replace_with, **kwargs):
     if text and isinstance(text, str) and text.endswith(to_replace):
-        return  text[:text.rfind(to_replace)] + replace_with
+        return text[:text.rfind(to_replace)] + replace_with
 
     return text
+
 
 # Print/log to the terminal in color!
 def colored_log(log_level, text, color):
@@ -446,6 +484,7 @@ TODO
  [] Mon, 01/25/2021 - 14:39
  [] 2016-07-14 16:32:45 -0400 -0400
  [] 2020-11-11 00:45:58.000000
+ [] March, 2016 # maybe
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
