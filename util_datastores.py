@@ -213,13 +213,16 @@ class DynamoReadEncoder(json.JSONEncoder):
 
 
 # Both reads and writes
+# TODO refactor for readability
 def standardize_dynamo_query(input_data, **kwargs):
     if not isinstance(input_data, dict):
         logging.error(f"Wrong data type for dynamodb - you input {type(input_data)}")
         return None
 
-    if input_data.get("created_at"):
-        input_data['updated_at'], input_data['created_at'] = int(input_data['created_at']), int(input_data['created_at'])
+    if input_data.get("created_at") or input_data.get("updated_at"):
+        if input_data.get("created_at"):
+            input_data['created_at'] = int(input_data['created_at'])
+        input_data['updated_at'] = int(input_data.get("updated_at", input_data.get('created_at')))
     else:
         if not kwargs.get("skip_updated"):
             input_data['updatedAt'] = int(datetime.utcnow().timestamp())
