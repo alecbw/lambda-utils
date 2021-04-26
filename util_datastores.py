@@ -633,6 +633,18 @@ def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest
         logging.info("Copy appears to have been a success")
 
 
+# Only operates on one file at a time. Pair with get_s3_files_that_match_prefix and a for loop to copy a subfolder recursively
+def move_s3_file(start_bucket, start_path, dest_bucket, dest_path, **kwargs):
+    destination_bucket = boto3.resource('s3').Bucket(dest_bucket)
+    destination_bucket.copy({'Bucket': start_bucket, 'Key': start_path}, dest_path)
+
+    # Delete original after copying over
+    delete_s3_file(start_bucket, start_path, disable_print=True)
+
+    if not kwargs.get("disable_print"):
+        logging.info("Copy appears to have been a success")
+
+
 def move_s3_file_to_glacier(bucket_name, path):
     s3 = boto3.client('s3')
 
