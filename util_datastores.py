@@ -867,7 +867,7 @@ def read_s3_parquet(s3_path, **kwargs):
 
     df = wr.s3.read_parquet(
         path=s3_path,
-        dataset=True,
+        dataset=kwargs.pop("dataset", True),
         validate_schema=kwargs.pop("validate_schema", True), # raises an InvalidSchemaConvergence exception if > 1 schemas are found in the files
         use_threads=kwargs.pop("use_threads", True),
         ignore_empty=True,                                   # Ignore files with 0 bytes.
