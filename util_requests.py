@@ -264,7 +264,7 @@ def ez_strip_str(input_str):
     if not isinstance(input_str, str):
         logging.warning(f"non str fed to ez_strip_str {input_str}")
         return input_str
-    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&amp;", "&").replace("&#039;", "'").replace("&#8211;", "-").replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").strip()
+    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&amp;", "&").replace("&#039;", "'").replace("&#8211;", "-").replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace(" &ndash;", " -").strip()
 
 # TODO replace dumbass implementation of replacing newline chars
 def extract_stripped_string(html_tag_or_str, **kwargs):
