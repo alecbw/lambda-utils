@@ -518,8 +518,11 @@ def get_s3_bucket_file_count(bucket_name, path):
     else:
         return sum(1 for _ in bucket.objects.filter(Prefix=path.lstrip("/")))
 
-# The path should be `folder/` NOT `/folder`
-# MaxKeys = number of results per page, NOT number of total results
+"""
+    The path should be `folder/` NOT `/folder`
+    MaxKeys = number of results per page, NOT number of total results
+    It would appear the list is ordered (ie if you use limit=1 it will always be the same)
+"""
 def list_s3_bucket_contents(bucket_name, path, **kwargs):
     storage_classes = ["STANDARD"] if kwargs.get("ignore_glacier") else ["STANDARD", "STANDARD_IA", "GLACIER"]
 
@@ -532,7 +535,9 @@ def list_s3_bucket_contents(bucket_name, path, **kwargs):
         filter_args["MaxKeys"] = kwargs["limit"]
 
     response = client.list_objects_v2(**filter_args)
-    return [x.get("Key") for x in response["Contents"]]
+    if response.get("Contents"):
+        return [x.get("Key") for x in response["Contents"]]
+    return []
 
 
 # Via S3 Select. Note: intra-AWS data transfer (e.g. Lambda <> S3) is much faster than egress, so this optimization is less impactful to intra-AWS use cases
