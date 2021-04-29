@@ -479,13 +479,7 @@ def format_timestamp(timestamp, **kwargs):
 
 # Forces conversion to UTC
 """
-[x] 2021-04-16T23:31:04 UTC
-[x] Mon, 01/25/2021 - 14:39
-[] 2016-07-14 16:32:45 -0400 -0400
-[x] 2016-07-14 16:32:45 -0400
-[x] 2020-11-11 00:45:58.000000
-[x] March, 2016 # maybe
-[x] 2016 10 16 
+
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
