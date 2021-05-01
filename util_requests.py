@@ -265,7 +265,7 @@ def ez_strip_str(input_str, **kwargs):
         logging.warning(f"non str fed to ez_strip_str {input_str}")
         return input_str
     elif not ez_strip_str:
-        return ez_strip_str
+        return input_str
 
     if kwargs.get("reduce_interior_whitespace"):
         input_str = re.sub(r"\s{2,}", " ", input_str)
