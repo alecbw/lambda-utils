@@ -264,6 +264,9 @@ def ez_strip_str(input_str, **kwargs):
     if not isinstance(input_str, str):
         logging.warning(f"non str fed to ez_strip_str {input_str}")
         return input_str
+    elif not ez_strip_str:
+        return ez_strip_str
+
     if kwargs.get("reduce_interior_whitespace"):
         input_str = re.sub(r"\s{2,}", " ", input_str)
     return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&amp;", "&").replace("&#039;", "'").replace("&#8211;", "-").replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace(" &ndash;", " -").strip()
@@ -273,7 +276,7 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
     if not html_tag_or_str:
         return kwargs.get("null_value", html_tag_or_str)
 
-    elif isinstance(html_tag_or_str, NavigableString) and  str(html_tag_or_str):
+    elif isinstance(html_tag_or_str, NavigableString) and str(html_tag_or_str):
         return ez_strip_str(str(html_tag_or_str))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').strip()
 
     elif isinstance(html_tag_or_str, str):
@@ -286,10 +289,16 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
 
 
 def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
-    for script in parsed.find_all('script', **kwargs):
+    find_all_kwargs = {k:v for k,v in kwargs.items() if k in ["id", "href", "attrs", "type", "name", "property"]}
+    for script in parsed.find_all('script', **find_all_kwargs):
         if script and script.string and phrase_str in script.string:
             try:
-                return json.loads(script.string.strip().rstrip(","), strict=False)
+                if kwargs.get("lstrip"):
+                    script.string = script.string.lstrip(kwargs['lstrip'])
+                if kwargs.get("return_string"):
+                    return script.string.strip().rstrip(",")
+                else:
+                    return json.loads(script.string.strip().rstrip(","), strict=False)
             except Exception as e:
                 logging.warning(e)
 
@@ -382,7 +391,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         if kwargs.get("get_link") and html_tag:
             if html_tag.get("href"):
                 return html_tag.get("href").strip().rstrip("/")
-            elif html_tag.a:
+            elif html_tag.a and html_tag.a.get("href"):
                 html_tag.a.get("href").strip().rstrip("/") or null_value
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")

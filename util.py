@@ -479,7 +479,7 @@ def format_timestamp(timestamp, **kwargs):
 
 # Forces conversion to UTC
 """
-
+    [ ] Mon, 26 Apr 2021 09:56:06
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
