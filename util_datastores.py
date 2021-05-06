@@ -1049,6 +1049,33 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
     return response.get("items", {})
 
 
+
+########################### ~ SSM Parameter Store Specific ~ ###################################################
+
+
+def get_ssm_param(param_name):
+    ssm = boto3.client('ssm')
+    result = ssm.get_parameter(Name=param_name, WithDecryption=True)
+    return ez_try_and_get(result, 'Parameter', 'Value')
+
+"""
+Accepted kwargs: 
+* Description
+* Type='String'|'StringList'|'SecureString',
+* KeyId
+* Overwrite
+* AllowedPattern
+* Tags=[{'Key': 'string', 'Value': 'string'}]
+* Tier='Standard'|'Advanced'|'Intelligent-Tiering',
+* Policies='string',
+* DataType='string'
+"""
+def put_ssm_param(param_name, param_value, **kwargs):
+    ssm = boto3.client('ssm')
+    result = ssm.get_parameter(Name=param_name, Value=param_value, **kwargs)
+    return ez_try_and_get(result, 'Parameter', 'Value')
+
+
 ########################### ~ STS Specific ~ ###################################################
 
 
