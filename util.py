@@ -216,6 +216,8 @@ def ez_re_find(pattern, text, **kwargs):
         return set([x.groups() for x in re.finditer(pattern, text)]) # groups() only returns any explicitly-captured groups in your regex (denoted by ( round brackets ) in your regex), whereas group(0) returns the entire substring that's matched by your regex regardless of whether your expression has any capture groups.
     elif kwargs.get("find_all"):
         return set([x.group() for x in re.finditer(pattern, text)])
+    elif isinstance(kwargs.get("find_all_str_delim"), str):
+        return ez_join([x.group() for x in re.finditer(pattern, text)], kwargs['find_all_str_delim'])
 
     possible_match = re.search(pattern, text)
 
@@ -479,7 +481,7 @@ def format_timestamp(timestamp, **kwargs):
 
 # Forces conversion to UTC
 """
-
+    [ ] Mon, 26 Apr 2021 09:56:06
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
