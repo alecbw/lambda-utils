@@ -165,6 +165,15 @@ def create_gsheet_sheet(gc, sheet_name, **kwargs):
 
 
 # better version in util_local TODO
-def simple_tab_append(sheet, tab, data_lol):
+def simple_tab_append(sheet, tab, data):
     sh, worksheet_list = open_gsheet(sheet)
-    sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
+
+    if isinstance(data, list) and isinstance(data[0], dict):
+        data = []
+        for row in output_lod:
+            data.append([row.get(x) for x in headers])
+    elif not (isinstance(data, list) and isinstance(data[0], list)):
+        raise ValueError("You must provide a list of lists or a list of dictionaries to simple_tab_append")
+
+    resp = sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data})
+    # print(resp)
