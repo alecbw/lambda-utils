@@ -1055,8 +1055,11 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
 
 def get_ssm_param(param_name):
     ssm = boto3.client('ssm')
-    result = ssm.get_parameter(Name=param_name, WithDecryption=True)
-    return ez_try_and_get(result, 'Parameter', 'Value')
+    try:
+        result = ssm.get_parameter(Name=param_name, WithDecryption=True)
+        return ez_try_and_get(result, 'Parameter', 'Value')
+    except Exception as e: # ParameterNotFound
+        logging.error(e)
 
 """
 Accepted kwargs: 
@@ -1075,7 +1078,7 @@ def put_ssm_param(param_name, param_value, param_type, **kwargs):
         raise ValueError("param_type must be one of ['String', 'StringList', 'SecureString']")
 
     ssm = boto3.client('ssm')
-    result = ssm.put_parameter(Name=param_name, Value=param_value, **kwargs)
+    result = ssm.put_parameter(Name=param_name, Value=param_value, Type=param_type, **kwargs)
     return ez_try_and_get(result, 'Parameter', 'Value')
 
 
