@@ -1070,7 +1070,10 @@ Accepted kwargs:
 * Policies='string',
 * DataType='string'
 """
-def put_ssm_param(param_name, param_value, **kwargs):
+def put_ssm_param(param_name, param_value, param_type, **kwargs):
+    if param_type not in ['String', 'StringList', 'SecureString']:
+        raise ValueError("param_type must be one of ['String', 'StringList', 'SecureString']")
+
     ssm = boto3.client('ssm')
     result = ssm.put_parameter(Name=param_name, Value=param_value, **kwargs)
     return ez_try_and_get(result, 'Parameter', 'Value')
