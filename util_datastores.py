@@ -1072,7 +1072,7 @@ Accepted kwargs:
 """
 def put_ssm_param(param_name, param_value, **kwargs):
     ssm = boto3.client('ssm')
-    result = ssm.get_parameter(Name=param_name, Value=param_value, **kwargs)
+    result = ssm.put_parameter(Name=param_name, Value=param_value, **kwargs)
     return ez_try_and_get(result, 'Parameter', 'Value')
 
 
