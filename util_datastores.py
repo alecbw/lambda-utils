@@ -159,7 +159,7 @@ def query_athena_table(sql_query, database, **kwargs):
     if kwargs.get("return_s3_path"):
         s3_result_dict["entry_count"] = get_row_count_of_s3_csv(s3_result_dict['bucket'], s3_result_dict['filename'])
         result = s3_result_dict
-    elif kwargs.get("return_s3_file"):
+    elif kwargs.get("return_s3_file"): # as lod
         s3_result_dict["data"] = convert_athena_array_cols(get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True), **kwargs)
         result = s3_result_dict
     else:
@@ -1055,8 +1055,11 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
 
 def get_ssm_param(param_name):
     ssm = boto3.client('ssm')
-    result = ssm.get_parameter(Name=param_name, WithDecryption=True)
-    return ez_try_and_get(result, 'Parameter', 'Value')
+    try:
+        result = ssm.get_parameter(Name=param_name, WithDecryption=True)
+        return ez_try_and_get(result, 'Parameter', 'Value')
+    except Exception as e: # ParameterNotFound
+        logging.error(e)
 
 """
 Accepted kwargs: 
@@ -1070,9 +1073,12 @@ Accepted kwargs:
 * Policies='string',
 * DataType='string'
 """
-def put_ssm_param(param_name, param_value, **kwargs):
+def put_ssm_param(param_name, param_value, param_type, **kwargs):
+    if param_type not in ['String', 'StringList', 'SecureString']:
+        raise ValueError("param_type must be one of ['String', 'StringList', 'SecureString']")
+
     ssm = boto3.client('ssm')
-    result = ssm.get_parameter(Name=param_name, Value=param_value, **kwargs)
+    result = ssm.put_parameter(Name=param_name, Value=param_value, Type=param_type, **kwargs)
     return ez_try_and_get(result, 'Parameter', 'Value')
 
 
