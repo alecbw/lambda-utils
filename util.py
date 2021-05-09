@@ -2,12 +2,10 @@ import os
 import json
 import re
 from datetime import datetime, timedelta
-# import time
 import calendar
 from functools import reduce
 import logging
 from collections import Counter, defaultdict
-# import timeit
 
 try:
     import sentry_sdk
@@ -22,6 +20,7 @@ import boto3
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+TLD_list = None # setting up a global for caching IO of get_tld_list()
 
 # Allows enforcing of querystrings' presence
 def validate_params(event, required_params, **kwargs):
@@ -195,7 +194,7 @@ def ez_join(phrase, delimiter, **kwargs):
     else:
         return phrase
 
-
+# TODO separate fallback value for 'phrase is null' and 'delim not in phrase'
 def ez_split(phrase, delimiter, return_slice, **kwargs):
     if not (phrase and delimiter and delimiter in phrase):
         return kwargs.get("fallback_value", phrase)
@@ -396,6 +395,7 @@ for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time
 Known problem: strings like "lunarcovers.co.ukasdfij" will match .co.uk and return as 'lunarcovers.co.uk'
 """
 def format_url(url, **kwargs):
+
     if not url:
         return url
     # if kwargs.get("check_if_ipv4") and is_ipv4(url): # TODO
@@ -431,6 +431,7 @@ def format_url(url, **kwargs):
     return url.strip().rstrip("\\").rstrip("/")
 
 
+# feeding in tld_list is a little dated eventually will deprecate TODO
 def find_url_tld(url, tld_list):
     tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
     matched_tlds = find_substrings_in_string(url, tld_list)
@@ -441,11 +442,17 @@ def find_url_tld(url, tld_list):
     tld = max(matched_tlds, key=len) # get the longest matching string TLD
     return tld
 
+
 # from https://tld-list.com/tlds-from-a-z
 def get_tld_list():
+    global TLD_list # prevent duplicate IO by making the list into a global variable
+
+    if TLD_list:
+        return TLD_list
     try:
         with open("utility/TLD_list.txt") as f:
-            return [line.rstrip() for line in f]
+            TLD_list = [line.rstrip() for line in f]
+            return TLD_list
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Make sure your utility submodule folder is called utility. {e}")
 
