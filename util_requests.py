@@ -269,7 +269,7 @@ def ez_strip_str(input_str, **kwargs):
 
     if kwargs.get("reduce_interior_whitespace"):
         input_str = re.sub(r"\s{2,}", " ", input_str)
-    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&amp;", "&").replace("&#039;", "'").replace("&#8211;", "-").replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace(" &ndash;", " -").strip()
+    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&amp;", "&").replace("&#039;", "'").replace("&#8211;", "-").replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace(" &ndash;", " -").replace("u0022", '"').strip()
 
 # TODO replace dumbass implementation of replacing newline chars
 def extract_stripped_string(html_tag_or_str, **kwargs):
