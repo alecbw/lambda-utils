@@ -292,18 +292,18 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
     find_all_kwargs = {k:v for k,v in kwargs.items() if k in ["id", "href", "attrs", "type", "name", "property"]}
     for script in parsed.find_all('script', **find_all_kwargs):
         if script and script.string and phrase_str in script.string:
-            try:
-                if kwargs.get("lstrip"):
-                    script.string = script.string.lstrip(kwargs['lstrip'])
-                if kwargs.get("return_string"):
-                    return script.string.strip().rstrip(",")
-                else:
-                    return fix_JSON(script.string.strip().rstrip(",")) or {}
-                    # return json.loads(script.string.strip().rstrip(","), strict=False)
-            except Exception as e:
+            if kwargs.get("lstrip"):
+                script.string = script.string.lstrip(kwargs['lstrip'])
+            if kwargs.get("return_string"):
+                return script.string.strip().rstrip(",")
+
+            json_dict = fix_JSON(script.string.strip().rstrip(",")) or {}
+            # return json.loads(script.string.strip().rstrip(","), strict=False)
+            if not json_dict:
                 logging.info(kwargs)
                 logging.info(script.string)
-                logging.warning(e)
+
+            return json_dict
 
     return {}
 
