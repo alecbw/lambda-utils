@@ -489,6 +489,14 @@ def format_timestamp(timestamp, **kwargs):
 # Forces conversion to UTC
 """
     [ ] Mon, 26 Apr 2021 09:56:06
+    [ ] Tue, 11 May 2021 13:15:01 +0100
+    [ ] July 06, 2020
+    [ ] Tue, 11 May 2021 16:00:00 YEKT
+    [ ] August 2002
+    [ ] 2004-03
+    [ ] 1.1.7
+    [ ] 2021-05-11 16:16:44Z
+    [ ] 2021-05-11T23:29:57T+07:00
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
@@ -546,6 +554,14 @@ def deduplicate_ordered_list(seq):
     return [x for x in seq if not (x in seen or seen_add(x))]
 
 
+def combine_lists_unique_values(*args):
+    output_set = set()
+    for input_list in args:
+        for item in input_list:
+            output_set.add(item)
+    return list(output_set)
+
+
 # e.g. checking if any tld exists in a string
 def find_substrings_in_string(value, list_of_substrings, **kwargs):
     if not value or not list_of_substrings:
@@ -562,14 +578,6 @@ def split_list_to_fixed_length_lol(full_list, subsection_size):
     if not len(full_list) > subsection_size:
         return [full_list] # Return list as LoL
     return [full_list[i:i+subsection_size] for i in range(0, len(full_list), subsection_size)]
-
-
-def combine_lists_unique_values(*args):
-    output_set = set()
-    for input_list in args:
-        for item in input_list:
-            output_set.add(item)
-    return list(output_set)
 
 
 def increment_counter(counter, *args, **kwargs):
