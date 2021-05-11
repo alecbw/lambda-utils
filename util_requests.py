@@ -1,4 +1,4 @@
-from utility.util import package_response, standardize_event, validate_params, format_url
+from utility.util import package_response, standardize_event, validate_params, format_url, fix_JSON
 from utility.util_datastores import scan_dynamodb
 
 import random
@@ -298,7 +298,8 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                 if kwargs.get("return_string"):
                     return script.string.strip().rstrip(",")
                 else:
-                    return json.loads(script.string.strip().rstrip(","), strict=False)
+                    return fix_JSON(script.string.strip().rstrip(",")) or {}
+                    # return json.loads(script.string.strip().rstrip(","), strict=False)
             except Exception as e:
                 logging.info(kwargs)
                 logging.info(script.string)
