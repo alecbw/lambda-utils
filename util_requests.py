@@ -301,6 +301,7 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                     return json.loads(script.string.strip().rstrip(","), strict=False)
             except Exception as e:
                 logging.info(kwargs)
+                logging.info(script.string)
                 logging.warning(e)
 
     return {}
