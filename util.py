@@ -488,15 +488,19 @@ def format_timestamp(timestamp, **kwargs):
 
 # Forces conversion to UTC
 """
-    [ ] Mon, 26 Apr 2021 09:56:06
-    [ ] Tue, 11 May 2021 13:15:01 +0100
-    [ ] July 06, 2020
-    [ ] Tue, 11 May 2021 16:00:00 YEKT
-    [ ] August 2002
-    [ ] 2004-03
-    [ ] 1.1.7
-    [ ] 2021-05-11 16:16:44Z
-    [ ] 2021-05-11T23:29:57T+07:00
+    [x] "Mon, 26 Apr 2021 09:56:06"
+    [x] "Tue, 11 May 2021 13:15:01 +0100"
+    [x] "July 06, 2020"
+    [ ] "Tue, 11 May 2021 16:00:00 YEKT" # tried "%a, %d %B %Y %H:%M:%S %Z", didnt work
+    [x] "August 2002" 
+    [x] "2004-03"
+    [ ] "1.1.7" # unclear if month or day first, waiting for another example
+    [x] "2021-05-11 16:16:44Z"
+    [x] "2021-05-11T23:29:57T+07:00"
+    [x] "July 9, 2012"
+    [ ] "Avril 2016" # not English, gonna be hard to support
+    [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)" # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
+    [x] Tuesday, 11-May-2021 23:25:36 GMT"
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
