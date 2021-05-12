@@ -301,13 +301,15 @@ def zip_lods(lod_1, lod_2, primary_key, **kwargs):
     d = defaultdict(dict)
     for l in (lod_1, lod_2):
         for elem in l:
-            if kwargs.get("rename_key_tuple") and kwargs["rename_key_tuple"][0] in elem:
-                elem[kwargs["rename_key_tuple"][1]] = elem.pop(kwargs["rename_key_tuple"][0])
+            if kwargs.get("rename_key_tuple"):
+                for rename_tuple in kwargs["rename_key_tuple"]:
+                    if rename_tuple[0] in elem:
+                        elem[rename_tuple[1]] = elem.pop(rename_tuple[0])
 
             if kwargs.get("keys_subset_list") and primary_key in kwargs['keys_subset_list']:
                elem =  {k:v for k,v in elem.items() if k in kwargs['keys_subset_list']}
             elif kwargs.get("keys_subset_list"):
-                raise ValueEror("Check your keys_subset - it needs to have the primary_key and be a list")
+                raise ValueError("Check your keys_subset - it needs to have the primary_key and be a list")
 
             d[elem[primary_key]].update(elem)
 
@@ -492,6 +494,8 @@ def format_timestamp(timestamp, **kwargs):
     [ ] "1.1.7"   # unclear if month or day first, waiting for another example
     [ ] "Avril 2016"   # not English, gonna be hard to support
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
+    [ ] 2015-06-23T14:32+02:00
+    [ ] 2021-02-26 @ 16:07:35 UTC
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
