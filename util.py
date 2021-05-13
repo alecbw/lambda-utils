@@ -282,6 +282,19 @@ def ez_flatten_mixed_strs_and_lists(*args):
     return output_set
 
 
+def ez_convert_lod_to_lol(lod):
+    output_lol = []
+    for n, row in enumerate(lod):
+        if n == 0:
+            headers = list(row.keys())
+            output_lol.append(headers)
+        else:
+            output_lol.append([row.get(x) for x in headers])
+
+    return output_lol
+
+
+
 def ordered_dict_first(ordered_dict):
     '''Return the first element from an ordered collection
        or an arbitrary element from an unordered collection.
@@ -301,13 +314,15 @@ def zip_lods(lod_1, lod_2, primary_key, **kwargs):
     d = defaultdict(dict)
     for l in (lod_1, lod_2):
         for elem in l:
-            if kwargs.get("rename_key_tuple") and kwargs["rename_key_tuple"][0] in elem:
-                elem[kwargs["rename_key_tuple"][1]] = elem.pop(kwargs["rename_key_tuple"][0])
+            if kwargs.get("rename_key_tuple"):
+                for rename_tuple in kwargs["rename_key_tuple"]:
+                    if rename_tuple[0] in elem:
+                        elem[rename_tuple[1]] = elem.pop(rename_tuple[0])
 
             if kwargs.get("keys_subset_list") and primary_key in kwargs['keys_subset_list']:
                elem =  {k:v for k,v in elem.items() if k in kwargs['keys_subset_list']}
             elif kwargs.get("keys_subset_list"):
-                raise ValueEror("Check your keys_subset - it needs to have the primary_key and be a list")
+                raise ValueError("Check your keys_subset - it needs to have the primary_key and be a list")
 
             d[elem[primary_key]].update(elem)
 
@@ -492,6 +507,8 @@ def format_timestamp(timestamp, **kwargs):
     [ ] "1.1.7"   # unclear if month or day first, waiting for another example
     [ ] "Avril 2016"   # not English, gonna be hard to support
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
+    [ ] 2015-06-23T14:32+02:00
+    [ ] 2021-02-26 @ 16:07:35 UTC
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
@@ -595,6 +612,9 @@ def fix_JSON(json_str):
         logging.warning(f"Replacing broken character - {e}")
         idx_to_replace = int(str(e).split(' ')[-1].replace(')', ''))  # Find the offending character index
         json_str = list(json_str)  # Remove the offending character
+        if idx_to_replace > len(json_str):
+            logging.warning(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
+            return None
         json_str[idx_to_replace] = ' '
         new_message = ''.join(json_str)
         return fix_JSON(new_message) # continue recursively

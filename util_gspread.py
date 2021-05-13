@@ -1,3 +1,5 @@
+from utility.util import ez_convert_lod_to_lol
+
 import os
 import json
 import time
@@ -137,7 +139,7 @@ def get_gsheet_tab(sh, tab_name, **kwargs):
     return tab, tab_lod
 
 
-# Create a worksheet.
+# Create a tab (aka a worksheet).
 def create_gsheet_tab(sh, tab_name, **kwargs):
     return sh.add_worksheet(
         title=tab_name,
@@ -164,14 +166,13 @@ def create_gsheet_sheet(gc, sheet_name, **kwargs):
     return sh
 
 
-# better version in util_local TODO
-def simple_tab_append(sheet, tab, data):
-    sh, worksheet_list = open_gsheet(sheet)
+
+def simple_tab_append(sh, tab, data):
+    if isinstance(sh, str):
+        sh, worksheet_list = open_gsheet(sh)
 
     if isinstance(data, list) and isinstance(data[0], dict):
-        data = []
-        for row in output_lod:
-            data.append([row.get(x) for x in headers])
+        data = ez_convert_lod_to_lol(data)
     elif not (isinstance(data, list) and isinstance(data[0], list)):
         raise ValueError("You must provide a list of lists or a list of dictionaries to simple_tab_append")
 
