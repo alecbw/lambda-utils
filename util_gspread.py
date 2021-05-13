@@ -166,7 +166,7 @@ def create_gsheet_sheet(gc, sheet_name, **kwargs):
 
 
 def simple_tab_append(sh, tab, data):
-    if isinstance(sheet, str):
+    if isinstance(sh, str):
         sh, worksheet_list = open_gsheet(sh)
 
     if isinstance(data, list) and isinstance(data[0], dict):
