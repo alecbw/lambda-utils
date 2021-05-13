@@ -100,6 +100,7 @@ def generate_service_account_access_token(SA_PRIVATE_KEY_JSON):
 ####################################################################################
 
 
+if isinstance(sheet, str)
 def open_gsheet(sheet_name):
     gc = auth_gspread()
 
@@ -164,8 +165,10 @@ def create_gsheet_sheet(gc, sheet_name, **kwargs):
     return sh
 
 
-def simple_tab_append(sheet, tab, data):
-    sh, worksheet_list = open_gsheet(sheet)
+
+def simple_tab_append(sh, tab, data):
+    if isinstance(sheet, str):
+        sh, worksheet_list = open_gsheet(sh)
 
     if isinstance(data, list) and isinstance(data[0], dict):
         data = []
