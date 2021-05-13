@@ -100,7 +100,6 @@ def generate_service_account_access_token(SA_PRIVATE_KEY_JSON):
 ####################################################################################
 
 
-if isinstance(sheet, str)
 def open_gsheet(sheet_name):
     gc = auth_gspread()
 
