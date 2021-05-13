@@ -130,7 +130,7 @@ def query_athena_table(sql_query, database, **kwargs):
     query_started = client.start_query_execution(
         QueryString=sql_query,
         QueryExecutionContext={'Database': database},
-        ResultConfiguration={"OutputLocation": f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/"}
+        ResultConfiguration={"OutputLocation": kwargs.get("result_bucket", f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/")}
     )
 
     timeout_value = kwargs.get("timeout", 15) * 1000 # bc its in milliseconds
@@ -215,6 +215,7 @@ class DynamoReadEncoder(json.JSONEncoder):
 # Both reads and writes
 # TODO refactor for readability
 def standardize_dynamo_query(input_data, **kwargs):
+
     if not isinstance(input_data, dict):
         logging.error(f"Wrong data type for dynamodb - you input {type(input_data)}")
         return None
