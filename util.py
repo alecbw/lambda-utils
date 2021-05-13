@@ -282,6 +282,19 @@ def ez_flatten_mixed_strs_and_lists(*args):
     return output_set
 
 
+def ez_convert_lod_to_lol(lod):
+    output_lol = []
+    for n, row in enumerate(lod):
+        if n == 0:
+            headers = list(row.keys())
+            output_lol.append(headers)
+        else:
+            output_lol.append([row.get(x) for x in headers])
+
+    return output_lol
+
+
+
 def ordered_dict_first(ordered_dict):
     '''Return the first element from an ordered collection
        or an arbitrary element from an unordered collection.

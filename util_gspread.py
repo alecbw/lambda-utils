@@ -170,7 +170,7 @@ def simple_tab_append(sh, tab, data):
         sh, worksheet_list = open_gsheet(sh)
 
     if isinstance(data, list) and isinstance(data[0], dict):
-        data = [row.get(x) for row in data for x in row] # LoD -> LoL
+        data = ez_convert_lod_to_lol(data)
     elif not (isinstance(data, list) and isinstance(data[0], list)):
         raise ValueError("You must provide a list of lists or a list of dictionaries to simple_tab_append")
 
