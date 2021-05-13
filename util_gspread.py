@@ -137,7 +137,7 @@ def get_gsheet_tab(sh, tab_name, **kwargs):
     return tab, tab_lod
 
 
-# Create a worksheet.
+# Create a tab (aka a worksheet).
 def create_gsheet_tab(sh, tab_name, **kwargs):
     return sh.add_worksheet(
         title=tab_name,
@@ -164,7 +164,6 @@ def create_gsheet_sheet(gc, sheet_name, **kwargs):
     return sh
 
 
-# better version in util_local TODO
 def simple_tab_append(sheet, tab, data):
     sh, worksheet_list = open_gsheet(sheet)
 
