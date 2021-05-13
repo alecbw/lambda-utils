@@ -607,17 +607,20 @@ def increment_counter(counter, *args, **kwargs):
 # From https://stackoverflow.com/questions/1505454/python-json-loads-chokes-on-escapes
 def fix_JSON(json_str):
     try:
-        return json.loads(json_str)
+        return json.loads(json_str, strict=False)
     except ValueError as e:
         logging.warning(f"Replacing broken character - {e}")
         idx_to_replace = int(str(e).split(' ')[-1].replace(')', ''))  # Find the offending character index
         json_str = list(json_str)  # Remove the offending character
-        if idx_to_replace > len(json_str):
+        if idx_to_replace > len(json_str)-1:
             logging.warning(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
             return None
         json_str[idx_to_replace] = ' '
         new_message = ''.join(json_str)
         return fix_JSON(new_message) # continue recursively
+
     except Exception as e:
         logging.warning(e)
+
     return None
+
