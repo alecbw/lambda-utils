@@ -1055,7 +1055,7 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
 
 def get_ecr_repo_image_digests(repo_name, **kwargs):
     kwargs = {k.replace("limit", "maxResults"):v for k,v in kwargs.items() if k in ["nextToken", "maxResults", "filter", "limit"]}
-    response = client.list_images(
+    response = boto3.client('ecr').list_images(
         registryId=os.environ['AWS_ACCOUNT_ID'],
         repositoryName=repo_name,
         **kwargs
@@ -1068,8 +1068,7 @@ def get_ecr_repo_image_digests(repo_name, **kwargs):
 # You can optionally pass a list of dictionaries of imageDigests imageIds=[{'imageDigest': 'string', 'imageTag': 'string'}]
 def describe_ecr_repo_images(repo_name, **kwargs):
     kwargs = {k.replace("limit", "maxResults").replace("image_digest_lod", "imageIds"):v for k,v in kwargs.items() if k in ["image_digest_lod", "imageIds", "nextToken", "maxResults", "limit"]}
-
-    response = client.describe_images(
+    response = boto3.client('ecr').describe_images(
         registryId=os.environ['AWS_ACCOUNT_ID'],
         repositoryName=repo_name,
         **kwargs
