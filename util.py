@@ -620,7 +620,7 @@ def fix_JSON(json_str):
         return fix_JSON(new_message) # continue recursively
 
     except Exception as e:
-        logging.warning(e)
+        logging.debug(e)
 
     return None
 
