@@ -154,6 +154,8 @@ def get_dict_key_by_value(input_dict, value):
     elif keys:
         logging.warning(f"More than one key has the value {value}")
 
+def get_dict_key_by_longest_value(input_dict):
+     return max(input_dict.keys(), key=lambda k: len(input_dict[k]))
 
 # Just dict keys
 def ez_get(nested_data, *keys):
