@@ -154,12 +154,16 @@ def get_dict_key_by_value(input_dict, value):
     elif keys:
         logging.warning(f"More than one key has the value {value}")
 
+
 def get_dict_key_by_longest_value(input_dict):
-     return max(input_dict.keys(), key=lambda k: len(input_dict[k]))
+    if input_dict:
+        return max(input_dict.keys(), key=lambda k: len(input_dict[k]))
+
 
 # Just dict keys
 def ez_get(nested_data, *keys):
     return reduce(lambda d, key: d.get(key) if d else None, keys, nested_data)
+
 
 # dict keys and/or list indexes
 def ez_try_and_get(nested_data, *keys):
@@ -295,6 +299,14 @@ def ez_convert_lod_to_lol(lod):
 
     return output_lol
 
+
+def append_or_create_list(input_potential_list, item):
+    if isinstance(input_potential_list, list):
+        input_potential_list.append(item)
+    elif not input_potential_list:
+        input_potential_list = [item]
+
+    return input_potential_list
 
 
 def ordered_dict_first(ordered_dict):
