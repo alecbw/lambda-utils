@@ -492,13 +492,16 @@ def format_url(url, **kwargs):
 
 
 # feeding in tld_list is a little dated eventually will deprecate TODO
-def find_url_tld(url, tld_list):
+def find_url_tld(url, tld_list, **kwargs):
     tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
     matched_tlds = find_substrings_in_string(url, tld_list)
 
     if not matched_tlds:
+        if kwargs.get("check_if_ip_address"):
+            return get_ip_address_type(potential_ip_str)
         logging.warning(f"No TLD in {url}")
         return None
+
     tld = max(matched_tlds, key=len) # get the longest matching string TLD
     return tld
 
