@@ -498,7 +498,7 @@ def find_url_tld(url, tld_list, **kwargs):
 
     if not matched_tlds:
         if kwargs.get("check_if_ip_address"):
-            return get_ip_address_type(potential_ip_str)
+            return get_ip_address_type(url)
         logging.warning(f"No TLD in {url}")
         return None
 
