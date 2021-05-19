@@ -6,6 +6,7 @@ import calendar
 from functools import reduce
 import logging
 from collections import Counter, defaultdict
+from string import hexdigits
 
 try:
     import sentry_sdk
@@ -396,6 +397,46 @@ def is_none(value, **kwargs):
 
 ################################################ ~ URL string handling ~ ######################################################################
 
+
+# ex: 2001:0db8:85a3:0000:0000:8a2e:0370:7334
+def is_ipv6(potential_ip_str):
+    pieces = potential_ip_str.split(':')
+    if len(pieces) != 8:
+        return is_ip = False
+    else:
+        for i in range(len(pieces)):
+            if not (1 <= len(pieces[i]) <= 4) or not all(c in hexdigits for c in pieces[i]):
+                is_ip = False
+            else:
+                is_ip = True
+
+    logging.debug(f"String {potential_ip_str} is_ipv6: {is_ip}")
+    return True
+
+
+# ex: 192.254.237.102
+def is_ipv4(potential_ip_str):
+    pieces = potential_ip_str.split('.')
+    if len(pieces) != 4:
+        is_ip = False
+    else:
+        try:
+            is_ip = all(0<=int(p)<256 for p in pieces)
+        except ValueError:
+            is_ip = False
+
+    logging.debug(f"String {potential_ip_str} is_ipv4: {is_ip}")
+    return is_ip
+
+
+def get_ip_address_type(potential_ip_str):
+    if is_ipv4(potential_ip_str):
+        return "IPv4"
+    elif is_ipv6(potential_ip_str):
+        return "IPv6"
+    return None
+
+
 """
 Note: this will return false positives for made up TLDs that contain viable TLDs
 ex: '.ae.com' is a true positive TLD, but the made up '.aee.com' is false positive, as it contains '.com'
@@ -407,16 +448,6 @@ def is_url(potential_url_str, **kwargs):
         return True
 
     return False
-
-
-def is_ipv4(potential_ip_str):
-    pieces = potential_ip_str.split('.')
-    if len(pieces) != 4: is_ip = False
-    try: is_ip = all(0<=int(p)<256 for p in pieces)
-    except ValueError: is_ip = False
-    logging.debug(f"String {potential_ip_str} is_ipv4: {is_ip}")
-    return is_ip
-
 
 """
 Keep in mind removals stack - e.g. remove_tld will remove subsite, port, and trailing slash
