@@ -411,7 +411,7 @@ def is_ipv6(potential_ip_str):
                 is_ip = True
 
     logging.debug(f"String {potential_ip_str} is_ipv6: {is_ip}")
-    return True
+    return is_ip
 
 
 # ex: 192.254.237.102
@@ -430,9 +430,12 @@ def is_ipv4(potential_ip_str):
 
 
 def get_ip_address_type(potential_ip_str):
-    if is_ipv4(potential_ip_str):
+    if not potential_ip_str:
+        return None
+
+    if is_ipv4(potential_ip_str.strip()):
         return "IPv4"
-    elif is_ipv6(potential_ip_str):
+    elif is_ipv6(potential_ip_str.strip()):
         return "IPv6"
     return None
 
