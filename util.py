@@ -402,7 +402,7 @@ def is_none(value, **kwargs):
 def is_ipv6(potential_ip_str):
     pieces = potential_ip_str.split(':')
     if len(pieces) != 8:
-        return is_ip = False
+        is_ip = False
     else:
         for i in range(len(pieces)):
             if not (1 <= len(pieces[i]) <= 4) or not all(c in hexdigits for c in pieces[i]):
