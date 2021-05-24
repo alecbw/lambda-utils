@@ -20,6 +20,7 @@ from typing import Callable, Iterator, Union, Optional, List
 
 import boto3
 from botocore.exceptions import ClientError
+from botocore.client import Config
 
 """ Note: imported below
 import pandas as pd
@@ -724,6 +725,23 @@ and
 """
 
 
+# DO NOTE: this will generate a url even if the file_name is not actually in the bucket
+def generate_s3_presigned_url(bucket_name, file_name, **kwargs):
+    client = boto3.client(
+        's3',
+        config=Config(
+            signature_version='s3v4',
+            s3 = {'use_accelerate_endpoint': kwargs.get("accelerate_endpoint", False)}
+        )
+    )
+
+    url = client.generate_presigned_url(
+        ClientMethod='get_object',
+        Params={'Bucket': bucket_name, 'Key': file_name},
+        ExpiresIn=kwargs.get("TTL", 3600) # one hour
+    )
+    return url
+
 
 ###################### ~ SQS Specific ~ ###################################################
 
@@ -1074,7 +1092,7 @@ def describe_ecr_repo_images(repo_name, **kwargs):
         **kwargs
     )
 
-    logging.info(f"Details were found successfully for {len(response.get('imageDetails', []))} images. Status code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
+    logging.info(f"Details were found for {len(response.get('imageDetails', []))} image(s). Status code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
     return response.get("imageDetails", [])
 
 
