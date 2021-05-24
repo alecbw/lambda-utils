@@ -558,6 +558,7 @@ def format_timestamp(timestamp, **kwargs):
     [ ] "1.1.7"   # unclear if month or day first, waiting for another example
     [ ] "Avril 2016"   # not English, gonna be hard to support
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
+    [ ] "2021-05-20 12:57:00 &#43;0000 UTC"  # likely never
     [ ] 2015-06-23T14:32+02:00
     [ ] 2021-02-26 @ 16:07:35 UTC
 """
