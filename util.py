@@ -564,6 +564,8 @@ def format_timestamp(timestamp, **kwargs):
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
         return kwargs.get("null_value", "")
+    elif isinstance(datetime_str, int):
+        datetime_str = str(datetime_str)
 
     if str(datetime_str).isdigit() and len(str(datetime_str)) in [9, 10]: # assume UTC
         output_dt = datetime.utcfromtimestamp(int(datetime_str))
