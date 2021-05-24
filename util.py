@@ -63,7 +63,7 @@ def package_response(message, status_code, **kwargs):
         logging.error(message)
 
     if kwargs.get("cors"):
-        headers = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': kwargs['cors']} #, 'Access-Control-Allow-Credentials': True
+        headers = {'Content-Type': 'application/json', **kwargs['cors']}
     else:
         headers = {'Content-Type': 'application/json'}
 
