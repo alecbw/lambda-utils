@@ -161,6 +161,7 @@ def query_athena_table(sql_query, database, **kwargs):
         s3_result_dict["entry_count"] = get_row_count_of_s3_csv(s3_result_dict['bucket'], s3_result_dict['filename'])
         result = s3_result_dict
     elif kwargs.get("return_s3_file"): # as lod
+        print(s3_result_dict)
         s3_result_dict["data"] = convert_athena_array_cols(get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True), **kwargs)
         result = s3_result_dict
     else:

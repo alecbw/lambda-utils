@@ -41,14 +41,14 @@ def validate_params(event, required_params, **kwargs):
 
 # unpack the k:v pairs into the top level dict. Standard across invoke types.
 def standardize_event(event):
-    # if event.get("body"):  # POST, synchronous API Gateway TODO
-    #     event.update(event["body"])
-    if event.get("queryStringParameters"):  # GET, synchronous API Gateway
+    if event.get("httpMethod") == "POST" and event.get("body"):  # POST, synchronous API Gateway
+        event.update(event["body"])
+    elif event.get("queryStringParameters"):  # GET, synchronous API Gateway
         event.update(event["queryStringParameters"])
-    if event.get("query"):  # GET, async API Gateway
+    elif event.get("query"):  # GET, async API Gateway
         event.update(event["query"])
-    if event.get("Records"):  # triggered directly by SQS queue TODO only first record?
-        event.update(json.loads(ez_try_and_get(event, "Records", 0, "body")))
+    elif event.get("Records"):  # triggered directly by SQS queue TODO only first record?
+        event.update(json.loads(ez_try_and_get(event, "Records"))) #, 0, "body")))
 
     return standardize_dict(event)
 
