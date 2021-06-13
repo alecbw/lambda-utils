@@ -172,6 +172,13 @@ def ez_get(nested_data, *keys):
     return reduce(lambda d, key: d.get(key) if d else None, keys, nested_data)
 
 
+def ez_insensitive_get(nested_data, *keys):
+    for key in keys:
+        for k in nested_data.keys():
+            if k.lower().strip() == key.lower().strip():
+                nested_data = nested_data[k]
+    return nested_data
+
 # dict keys and/or list indexes
 def ez_try_and_get(nested_data, *keys):
     for key in keys:
@@ -180,6 +187,7 @@ def ez_try_and_get(nested_data, *keys):
         except (KeyError, TypeError, AttributeError, IndexError):
             return None
     return nested_data
+
 
 
 # Search through nested JSON of mixed dicts/lists for a given key and return value if found. From https://stackoverflow.com/questions/21028979/recursive-iteration-through-nested-json-for-specific-key-in-python
