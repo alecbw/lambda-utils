@@ -41,7 +41,7 @@ def validate_params(event, required_params, **kwargs):
 
 # unpack the k:v pairs into the top level dict. Standard across invoke types.
 def standardize_event(event):
-    if event.get("httpMethod") == "POST" and ez_get(event, "headers", "Content-Type").lower() == "application/json" and event.get("body"):  # POST, synchronous API Gateway
+    if event.get("httpMethod") == "POST" and event.get("body") and event.get("headers", {}).get("Content-Type", "").lower() == "application/json":  # POST, synchronous API Gateway
         event.update(json.loads(event["body"]))
     elif event.get("httpMethod") == "POST" and event.get("body"):  # POST, synchronous API Gateway
         event.update(event["body"])
