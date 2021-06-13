@@ -7,6 +7,7 @@ from functools import reduce
 import logging
 from collections import Counter, defaultdict
 from string import hexdigits
+from urllib.parse import parse_qs
 
 try:
     import sentry_sdk
@@ -41,15 +42,18 @@ def validate_params(event, required_params, **kwargs):
 
 # unpack the k:v pairs into the top level dict. Standard across invoke types.
 def standardize_event(event):
-    if event.get("httpMethod") == "POST" and event.get("body") and event.get("headers", {}).get("Content-Type", "").lower() == "application/json":  # POST, synchronous API Gateway
+    if event.get("httpMethod") == "POST" and event.get("body") and event.get("headers", {}).get("Content-Type", "").lower() == "application/json":  # POST -> synchronous API Gateway
         event.update(json.loads(event["body"]))
+    elif event.get("httpMethod") == "POST" and event.get("body") and event.get("headers", {}).get("Content-Type", "").lower() == "application/x-www-form-urlencoded" and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
+        body_as_dict = {k:(v[0] if len(v)==1 else v) for k,v in parse_qs(event["body"]).items()} # v by default will be a list, but we extract the item if its a one-item list
+        event.update(body_as_dict)
     elif event.get("httpMethod") == "POST" and event.get("body"):  # POST, synchronous API Gateway
         event.update(event["body"])
     elif event.get("queryStringParameters"):  # GET, synchronous API Gateway
         event.update(event["queryStringParameters"])
     elif event.get("query"):  # GET, async API Gateway
         event.update(event["query"])
-    elif event.get("Records"):  # triggered directly by SQS queue TODO only first record?
+    elif event.get("Records"):  # triggered directly by SQS queue
         event.update(json.loads(ez_try_and_get(event, "Records"))) #, 0, "body")))
 
     return standardize_dict(event)
