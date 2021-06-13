@@ -42,9 +42,9 @@ def validate_params(event, required_params, **kwargs):
 
 # unpack the k:v pairs into the top level dict. Standard across invoke types.
 def standardize_event(event):
-    if event.get("httpMethod") == "POST" and event.get("body") and event.get("headers", {}).get("Content-Type", "").lower() == "application/json":  # POST -> synchronous API Gateway
+    if event.get("httpMethod") == "POST" and event.get("body") and ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower().strip() == "application/json":  # POST -> synchronous API Gateway
         event.update(json.loads(event["body"]))
-    elif event.get("httpMethod") == "POST" and event.get("body") and event.get("headers", {}).get("Content-Type", "").lower() == "application/x-www-form-urlencoded" and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
+    elif event.get("httpMethod") == "POST" and event.get("body") and ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower().strip() == "application/x-www-form-urlencoded" and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
         body_as_dict = {k:(v[0] if len(v)==1 else v) for k,v in parse_qs(event["body"]).items()} # v by default will be a list, but we extract the item if its a one-item list
         event.update(body_as_dict)
     elif event.get("httpMethod") == "POST" and event.get("body"):  # POST, synchronous API Gateway
@@ -172,11 +172,19 @@ def ez_get(nested_data, *keys):
     return reduce(lambda d, key: d.get(key) if d else None, keys, nested_data)
 
 
-def ez_insensitive_get(nested_data, *keys):
-    for key in keys:
+def ez_insensitive_get(nested_data, *keys, **kwargs):
+    def inner(nested_data, key):
         for k in nested_data.keys():
             if k.lower().strip() == key.lower().strip():
-                nested_data = nested_data[k]
+                return nested_data[k], True
+        return nested_data, False
+
+    for key in keys:
+        nested_data, key_found = inner(nested_data, key)
+        if not key_found:
+            logging.warning(f"The key {key} was not found in the nested_data by ez_insensitive_get")
+            return kwargs.get("fallback_value", None)
+
     return nested_data
 
 # dict keys and/or list indexes
