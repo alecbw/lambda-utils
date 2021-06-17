@@ -391,8 +391,13 @@ def zip_lods(lod_1, lod_2, primary_key, **kwargs):
 # Case sensitive!
 # only replaces last instance of to_replace. e.g. ("foobarbar", "bar", "qux") -> "foobarqux"
 def endswith_replace(text, to_replace, replace_with, **kwargs):
-    if text and isinstance(text, str) and text.endswith(to_replace):
+    if text and isinstance(text, str) and isinstance(to_replace, str) and text.endswith(to_replace):
         return text[:text.rfind(to_replace)] + replace_with
+
+    if text and isinstance(text, str) and isinstance(to_replace, list):
+        for substr_to_replace in to_replace:
+            if text.endswith(substr_to_replace):
+                text = text[:text.rfind(substr_to_replace)] + replace_with
 
     return text
 
