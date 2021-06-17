@@ -323,6 +323,27 @@ def ez_convert_lod_to_lol(lod):
     return output_lol
 
 
+# be careful with 1 item tuples. Does not work with lists of dictionaries.
+def ez_flatten_nested_list(possible_nested_list, **kwargs):
+    if type(item) in [list, tuple, set]:
+        logging.warning(f"Wrong top-level type provided to ez_flatten_nested_list - {type(ez_flatten_nested_list)}")
+        return [possible_nested_list] if type(ez_flatten_nested_list) in [str, int, float, bool] else []
+
+    output_list = []
+    for item in possible_nested_list:
+        if type(item) in [list, tuple, set]:
+            for subitem in item:
+                output_list.append(subitem)
+        elif type(item) in [str, int, float, bool]: # Nonetypes dropped
+            if kwargs.get("drop_falsy") and not item:
+                continue
+            output_list.append(subitem)
+        elif isinstance(item, dict):
+            logging.warning(f"Dict found in ez_flatten_nested_list - {item}")
+
+    return output_list
+
+
 def append_or_create_list(input_potential_list, item):
     if isinstance(input_potential_list, list):
         input_potential_list.append(item)
