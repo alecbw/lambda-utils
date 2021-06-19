@@ -319,8 +319,8 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             if kwargs.get("return_string"):
                 return script.string.strip().rstrip(",")
 
-            json_dict = fix_JSON(script.string.strip().rstrip(",")) or {}
-            # return json.loads(script.string.strip().rstrip(","), strict=False)
+            json_dict = fix_JSON(script.string.strip().rstrip(",").replace('&#91;', '[').replace('&#93;', ']')) or {}
+
             if not json_dict:
                 logging.info(kwargs)
                 logging.info(script.string)
