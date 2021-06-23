@@ -433,7 +433,7 @@ def is_lod(possible_lod):
 def is_none(value, **kwargs):
     None_List = ['None', 'none', 'False', 'false', 'No', 'no', ["None"], ["False"]]
 
-    if kwargs.get("keep_0") and value is 0:
+    if kwargs.get("keep_0") and value == 0:
         return False
     if not value:
         return True
