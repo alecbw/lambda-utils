@@ -7,6 +7,7 @@ from functools import reduce
 import logging
 from collections import Counter, defaultdict
 from string import hexdigits
+from urllib.parse import parse_qs
 
 try:
     import sentry_sdk
@@ -41,15 +42,18 @@ def validate_params(event, required_params, **kwargs):
 
 # unpack the k:v pairs into the top level dict. Standard across invoke types.
 def standardize_event(event):
-    if event.get("httpMethod") == "POST" and ez_get(event, "headers", "Content-Type").lower() == "application/json" and event.get("body"):  # POST, synchronous API Gateway
+    if event.get("httpMethod") == "POST" and event.get("body") and ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower().strip() == "application/json":  # POST -> synchronous API Gateway
         event.update(json.loads(event["body"]))
+    elif event.get("httpMethod") == "POST" and event.get("body") and ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower().strip() == "application/x-www-form-urlencoded" and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
+        body_as_dict = {k:(v[0] if len(v)==1 else v) for k,v in parse_qs(event["body"]).items()} # v by default will be a list, but we extract the item if its a one-item list
+        event.update(body_as_dict)
     elif event.get("httpMethod") == "POST" and event.get("body"):  # POST, synchronous API Gateway
         event.update(event["body"])
     elif event.get("queryStringParameters"):  # GET, synchronous API Gateway
         event.update(event["queryStringParameters"])
     elif event.get("query"):  # GET, async API Gateway
         event.update(event["query"])
-    elif event.get("Records"):  # triggered directly by SQS queue TODO only first record?
+    elif event.get("Records"):  # triggered directly by SQS queue
         event.update(json.loads(ez_try_and_get(event, "Records"))) #, 0, "body")))
 
     return standardize_dict(event)
@@ -168,6 +172,21 @@ def ez_get(nested_data, *keys):
     return reduce(lambda d, key: d.get(key) if d else None, keys, nested_data)
 
 
+def ez_insensitive_get(nested_data, *keys, **kwargs):
+    def inner(nested_data, key):
+        for k in nested_data.keys():
+            if k.lower().strip() == key.lower().strip():
+                return nested_data[k], True
+        return nested_data, False
+
+    for key in keys:
+        nested_data, key_found = inner(nested_data, key)
+        if not key_found:
+            logging.warning(f"The key {key} was not found in the nested_data by ez_insensitive_get")
+            return kwargs.get("fallback_value", None)
+
+    return nested_data
+
 # dict keys and/or list indexes
 def ez_try_and_get(nested_data, *keys):
     for key in keys:
@@ -176,6 +195,7 @@ def ez_try_and_get(nested_data, *keys):
         except (KeyError, TypeError, AttributeError, IndexError):
             return None
     return nested_data
+
 
 
 # Search through nested JSON of mixed dicts/lists for a given key and return value if found. From https://stackoverflow.com/questions/21028979/recursive-iteration-through-nested-json-for-specific-key-in-python
@@ -303,6 +323,27 @@ def ez_convert_lod_to_lol(lod):
     return output_lol
 
 
+# be careful with 1 item tuples. Does not work with lists of dictionaries.
+def ez_flatten_nested_list(possible_nested_list, **kwargs):
+    if type(possible_nested_list) not in [list, tuple, set]:
+        logging.warning(f"Wrong top-level type provided to ez_flatten_nested_list - {type(possible_nested_list)}")
+        return [possible_nested_list] if type(ez_flatten_nested_list) in [str, int, float, bool] else []
+
+    output_list = []
+    for item in possible_nested_list:
+        if type(item) in [list, tuple, set]:
+            for subitem in item:
+                output_list.append(subitem)
+        elif type(item) in [str, int, float, bool]: # Nonetypes dropped
+            if kwargs.get("drop_falsy") and not item:
+                continue
+            output_list.append(item)
+        elif isinstance(item, dict):
+            logging.warning(f"Dict found in ez_flatten_nested_list - {item}")
+
+    return output_list
+
+
 def append_or_create_list(input_potential_list, item):
     if isinstance(input_potential_list, list):
         input_potential_list.append(item)
@@ -350,8 +391,13 @@ def zip_lods(lod_1, lod_2, primary_key, **kwargs):
 # Case sensitive!
 # only replaces last instance of to_replace. e.g. ("foobarbar", "bar", "qux") -> "foobarqux"
 def endswith_replace(text, to_replace, replace_with, **kwargs):
-    if text and isinstance(text, str) and text.endswith(to_replace):
+    if text and isinstance(text, str) and isinstance(to_replace, str) and text.endswith(to_replace):
         return text[:text.rfind(to_replace)] + replace_with
+
+    if text and isinstance(text, str) and isinstance(to_replace, list):
+        for substr_to_replace in to_replace:
+            if text.endswith(substr_to_replace):
+                text = text[:text.rfind(substr_to_replace)] + replace_with
 
     return text
 
@@ -387,7 +433,7 @@ def is_lod(possible_lod):
 def is_none(value, **kwargs):
     None_List = ['None', 'none', 'False', 'false', 'No', 'no', ["None"], ["False"]]
 
-    if kwargs.get("keep_0") and value is 0:
+    if kwargs.get("keep_0") and value == 0:
         return False
     if not value:
         return True

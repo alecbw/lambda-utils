@@ -1012,6 +1012,33 @@ def add_glue_date_partition(db, table, bucket, subfolder_path, write_date, **kwa
     """
     query_athena_table(update_partition_sql_query, db)
 
+
+"""
+The docs for this are just terrible - boto3.amazonaws.com/v1/documentation/api/latest/reference/services/glue.html#Glue.Client.delete_partition
+
+To delete a partition like: 'account_id=abc123/year=2021/month=5/day=28', 
+pass the following as partition_values_as_a_list: ["abc123", "2021", "5", 28"]
+
+There is also batch_delete_partition, which TODO I'll implement here eventually
+"""
+def delete_glue_partition(db, table, partition_values_as_a_list):
+    if not isinstance(partition_values_as_a_list, list) or not all(x for x in partition_values_as_a_list if isinstance(x, str)):
+        logging.error(f"Double check your value for partition_values_as_a_list - {partition_values_as_a_list}")
+
+    try:
+        _ = boto3.client('glue').delete_partition(
+            DatabaseName=db,
+            TableName=table,
+            PartitionValues=partition_values_as_a_list,
+        )
+    except Exception as e:
+        if "EntityNotFoundException" in str(e):
+            logging.warning(f"Specified glue partition not found - {e}")
+        return False
+
+    return True
+
+
 ########################### ~ CloudWatch Specific ~ ###################################################
 
 # query = "fields @timestamp, @message | parse @message \"username: * ClinicID: * nodename: *\" as username, ClinicID, nodename | filter ClinicID = 7667 and username='simran+test@abc.com'"
