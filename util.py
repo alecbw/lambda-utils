@@ -42,9 +42,9 @@ def validate_params(event, required_params, **kwargs):
 
 # unpack the k:v pairs into the top level dict. Standard across invoke types.
 def standardize_event(event):
-    if event.get("httpMethod") == "POST" and event.get("body") and ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower().strip() == "application/json":  # POST -> synchronous API Gateway
+    if event.get("httpMethod") == "POST" and event.get("body") and "application/json" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower():  # POST -> synchronous API Gateway
         event.update(json.loads(event["body"]))
-    elif event.get("httpMethod") == "POST" and event.get("body") and ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower().strip() == "application/x-www-form-urlencoded" and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
+    elif event.get("httpMethod") == "POST" and event.get("body") and "application/x-www-form-urlencoded" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower() and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
         body_as_dict = {k:(v[0] if len(v)==1 else v) for k,v in parse_qs(event["body"]).items()} # v by default will be a list, but we extract the item if its a one-item list
         event.update(body_as_dict)
     elif event.get("httpMethod") == "POST" and event.get("body"):  # POST, synchronous API Gateway
