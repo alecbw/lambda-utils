@@ -480,8 +480,7 @@ def is_ipv4(potential_ip_str):
 def get_ip_address_type(potential_ip_str):
     if not potential_ip_str:
         return None
-
-    if is_ipv4(potential_ip_str.strip()):
+    elif is_ipv4(potential_ip_str.strip()):
         return "IPv4"
     elif is_ipv6(potential_ip_str.strip()):
         return "IPv6"
