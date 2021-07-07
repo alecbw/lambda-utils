@@ -46,12 +46,7 @@ queryStringParameters is on a separate if loop, as you can have a POST with a bo
 """
 def standardize_event(event):
     if event.get("httpMethod") == "POST" and event.get("body") and "application/json" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower():  # POST -> synchronous API Gateway
-        if isinstance(event['body'], dict):
-            event.update(event["body"])
-        elif isinstance(event['body'], str):
-            event.update(json.loads(event["body"]))
-        else:
-            logging.error(f"Unsupported event body type fed to standardize_event: {type(event['body'])}")
+        event.update(json.loads(event["body"]))
 
     elif event.get("httpMethod") == "POST" and event.get("body") and "application/x-www-form-urlencoded" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower() and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
         body_as_dict = {k:(v[0] if len(v)==1 else v) for k,v in parse_qs(event["body"]).items()} # v by default will be a list, but we extract the item if its a one-item list
