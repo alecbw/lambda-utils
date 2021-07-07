@@ -46,18 +46,28 @@ queryStringParameters is on a separate if loop, as you can have a POST with a bo
 """
 def standardize_event(event):
     if event.get("httpMethod") == "POST" and event.get("body") and "application/json" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower():  # POST -> synchronous API Gateway
-        event.update(json.loads(event["body"]))
+        if isinstance(event['body'], dict):
+            event.update(event["body"])
+        elif isinstance(event['body'], str):
+            event.update(json.loads(event["body"]))
+        else:
+            logging.error(f"Unsupported event body type fed to standardize_event: {type(event['body'])}")
+
     elif event.get("httpMethod") == "POST" and event.get("body") and "application/x-www-form-urlencoded" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower() and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
         body_as_dict = {k:(v[0] if len(v)==1 else v) for k,v in parse_qs(event["body"]).items()} # v by default will be a list, but we extract the item if its a one-item list
         event.update(body_as_dict)
+
     elif event.get("httpMethod") == "POST" and event.get("body"):  # POST, synchronous API Gateway
         event.update(event["body"])
+
     elif event.get("query"):  # GET, async API Gateway
         event.update(event["query"])
+
     elif event.get("Records"):  # triggered directly by SQS queue
         event.update(json.loads(ez_try_and_get(event, "Records"))) #, 0, "body")))
 
-    if event.get("queryStringParameters"):  # Any of the above can include this. GET, synchronous API Gateway will be just this.
+    # Any of the above can also include this. GET, synchronous API Gateway will be just this.
+    if event.get("queryStringParameters"):
         if any(x for x in list(event["queryStringParameters"].keys()) if x in event): # check to prevent key collision
             logging.error(f"Key collision in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
         event.update(event["queryStringParameters"])
