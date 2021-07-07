@@ -193,7 +193,7 @@ def ez_insensitive_get(nested_data, *keys, **kwargs):
     for key in keys:
         nested_data, key_found = inner(nested_data, key)
         if not key_found:
-            logging.warning(f"The key {key} was not found in the nested_data by ez_insensitive_get")
+            logging.debug(f"The key {key} was not found in the nested_data by ez_insensitive_get")
             return kwargs.get("fallback_value", None)
 
     return nested_data
