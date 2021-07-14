@@ -325,8 +325,6 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                     script.string = replace_string_char_by_index(script.string, char_index, '"')
                 else:
                     script.string = replace_string_char_by_index(script.string, char_index, r'\"')
-                # script.string =  script.string.replace(':“', ':"').replace(':”', ':"').replace(': “', ': "').replace(': ”', ': "').replace('“,', '",').replace('”,', '",') # beginning or end of
-                # script.string =  script.string.replace('“', r'\"').replace('”', r'\"') # interior quotation marks
 
             json_dict = fix_JSON(script.string.strip().rstrip(",").replace("\u003c", "<").replace("\u003e", ">").replace("\u0026", "&").replace('&#91;', '[').replace('&#93;', ']').replace("&nbsp", " ")) or {}
 

@@ -718,7 +718,6 @@ def fix_JSON(json_str):
         return json.loads(json_str, strict=False)
     except ValueError as e:
         idx_to_replace = int(str(e).split(' ')[-1].replace(')', ''))  # Find the offending character index
-        # json_str = list(json_str)  # Remove the offending character
 
         if idx_to_replace > len(json_str)-1:
             logging.warning(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
@@ -727,8 +726,7 @@ def fix_JSON(json_str):
         logging.warning(f"Replacing broken character - {json_str[idx_to_replace]} - {e}")
 
         json_str = replace_string_char_by_index(json_str, idx_to_replace, ' ')
-        # json_str[idx_to_replace] = ' '
-        # new_message = ''.join(json_str)
+
         return fix_JSON(json_str) # continue recursively
 
     except Exception as e:
