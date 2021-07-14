@@ -1,4 +1,4 @@
-from utility.util import package_response, standardize_event, validate_params, format_url, fix_JSON
+from utility.util import package_response, standardize_event, validate_params, format_url, fix_JSON, replace_string_char_by_index
 from utility.util_datastores import scan_dynamodb
 
 import random
@@ -320,11 +320,12 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                 return script.string.strip().rstrip(",")
 
             while '“' in script.string or '”' in script.string:
-                char_index = script.string.find('”') if script.string.find('”') != -1 else script.string.find('”')
+                char_index = script.string.find('”') if script.string.find('”') != -1 else script.string.find('“')
+                print(char_index)
                 if ":" in script.string[char_index-2:char_index+3] or "," in script.string[char_index-2:char_index+3]:
-                    script.string = replace_string_char_by_index(script.string, char_index, '"')
+                    script.string = replace_string_char_by_index(script.string, char_index, '"') # leading or trailing quote of key or value
                 else:
-                    script.string = replace_string_char_by_index(script.string, char_index, r'\"')
+                    script.string = replace_string_char_by_index(script.string, char_index, r'\"') # internal quotation mark, must be escaped
 
             json_dict = fix_JSON(script.string.strip().rstrip(",").replace("\u003c", "<").replace("\u003e", ">").replace("\u0026", "&").replace('&#91;', '[').replace('&#93;', ']').replace("&nbsp", " ")) or {}
 
