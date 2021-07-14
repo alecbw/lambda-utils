@@ -401,6 +401,12 @@ def endswith_replace(text, to_replace, replace_with, **kwargs):
 
     return text
 
+# util function bc 'str' object does not support item assignment
+def replace_string_char_by_index(text, index, char):
+    text = list(text)
+    text[index] = char
+    text = ''.join(text)
+    return text
 
 # Print/log to the terminal in color!
 def colored_log(log_level, text, color):
@@ -711,15 +717,19 @@ def fix_JSON(json_str):
     try:
         return json.loads(json_str, strict=False)
     except ValueError as e:
-        logging.warning(f"Replacing broken character - {e}")
         idx_to_replace = int(str(e).split(' ')[-1].replace(')', ''))  # Find the offending character index
-        json_str = list(json_str)  # Remove the offending character
+        # json_str = list(json_str)  # Remove the offending character
+
         if idx_to_replace > len(json_str)-1:
             logging.warning(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
             return None
-        json_str[idx_to_replace] = ' '
-        new_message = ''.join(json_str)
-        return fix_JSON(new_message) # continue recursively
+
+        logging.warning(f"Replacing broken character - {json_str[idx_to_replace]} - {e}")
+
+        json_str = replace_string_char_by_index(json_str, idx_to_replace, ' ')
+        # json_str[idx_to_replace] = ' '
+        # new_message = ''.join(json_str)
+        return fix_JSON(json_str) # continue recursively
 
     except Exception as e:
         logging.debug(e)

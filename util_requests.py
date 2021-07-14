@@ -319,7 +319,16 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             if kwargs.get("return_string"):
                 return script.string.strip().rstrip(",")
 
-            json_dict = fix_JSON(script.string.strip().rstrip(",").replace('&#91;', '[').replace('&#93;', ']').replace('“', '"').replace('”', '"')) or {}
+            while '“' in script.string or '”' in script.string:
+                char_index = script.string.find('”') if script.string.find('”') != -1 else script.string.find('”')
+                if ":" in script.string[char_index-2:char_index+3] or "," in script.string[char_index-2:char_index+3]:
+                    script.string = replace_string_char_by_index(script.string, char_index, '"')
+                else:
+                    script.string = replace_string_char_by_index(script.string, char_index, r'\"')
+                # script.string =  script.string.replace(':“', ':"').replace(':”', ':"').replace(': “', ': "').replace(': ”', ': "').replace('“,', '",').replace('”,', '",') # beginning or end of
+                # script.string =  script.string.replace('“', r'\"').replace('”', r'\"') # interior quotation marks
+
+            json_dict = fix_JSON(script.string.strip().rstrip(",").replace("\u003c", "<").replace("\u003e", ">").replace("\u0026", "&").replace('&#91;', '[').replace('&#93;', ']').replace("&nbsp", " ")) or {}
 
             if not json_dict:
                 logging.info(kwargs)
