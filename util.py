@@ -40,21 +40,27 @@ def validate_params(event, required_params, **kwargs):
     return param_only_dict, False
 
 
-# unpack the k:v pairs into the top level dict. Standard across invoke types.
+"""
+Unpack the k:v pairs into the top level dict to enforce standardization across invoke types.
+queryStringParameters is on a separate if loop, as you can have a POST with a body and separate url querystrings
+"""
 def standardize_event(event):
-    if event.get("httpMethod") == "POST" and event.get("body") and ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower().strip() == "application/json":  # POST -> synchronous API Gateway
+    if event.get("httpMethod") == "POST" and event.get("body") and "application/json" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower():  # POST -> synchronous API Gateway
         event.update(json.loads(event["body"]))
-    elif event.get("httpMethod") == "POST" and event.get("body") and ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower().strip() == "application/x-www-form-urlencoded" and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
+    elif event.get("httpMethod") == "POST" and event.get("body") and "application/x-www-form-urlencoded" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower() and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
         body_as_dict = {k:(v[0] if len(v)==1 else v) for k,v in parse_qs(event["body"]).items()} # v by default will be a list, but we extract the item if its a one-item list
         event.update(body_as_dict)
     elif event.get("httpMethod") == "POST" and event.get("body"):  # POST, synchronous API Gateway
         event.update(event["body"])
-    elif event.get("queryStringParameters"):  # GET, synchronous API Gateway
-        event.update(event["queryStringParameters"])
     elif event.get("query"):  # GET, async API Gateway
         event.update(event["query"])
     elif event.get("Records"):  # triggered directly by SQS queue
         event.update(json.loads(ez_try_and_get(event, "Records"))) #, 0, "body")))
+
+    if event.get("queryStringParameters"):  # Any of the above can include this. GET, synchronous API Gateway will be just this.
+        if any(x for x in list(event["queryStringParameters"].keys()) if x in event): # check to prevent key collision
+            logging.error(f"Key collision in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
+        event.update(event["queryStringParameters"])
 
     return standardize_dict(event)
 
@@ -439,7 +445,7 @@ def is_lod(possible_lod):
 def is_none(value, **kwargs):
     None_List = ['None', 'none', 'False', 'false', 'No', 'no', ["None"], ["False"]]
 
-    if kwargs.get("keep_0") and value is 0:
+    if kwargs.get("keep_0") and value == 0:
         return False
     if not value:
         return True
@@ -486,8 +492,7 @@ def is_ipv4(potential_ip_str):
 def get_ip_address_type(potential_ip_str):
     if not potential_ip_str:
         return None
-
-    if is_ipv4(potential_ip_str.strip()):
+    elif is_ipv4(potential_ip_str.strip()):
         return "IPv4"
     elif is_ipv6(potential_ip_str.strip()):
         return "IPv6"
