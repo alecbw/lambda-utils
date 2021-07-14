@@ -407,12 +407,14 @@ def endswith_replace(text, to_replace, replace_with, **kwargs):
 
     return text
 
+
 # util function bc 'str' object does not support item assignment
 def replace_string_char_by_index(text, index, char):
     text = list(text)
     text[index] = char
     text = ''.join(text)
     return text
+
 
 # Print/log to the terminal in color!
 def colored_log(log_level, text, color):
