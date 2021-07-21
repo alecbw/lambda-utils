@@ -147,7 +147,7 @@ def get_ds_proxy_list(**kwargs):
 
 
 def rotate_proxy(proxies, **kwargs):
-    if not proxies:
+    if not proxies or kwargs.get("force_scan"):
         proxies =  prioritize_proxy(scan_dynamodb('proxyTable'), "US")
 
     if kwargs.get("return_proxy_dict"):
