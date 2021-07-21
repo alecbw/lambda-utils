@@ -439,11 +439,12 @@ def lookback_check_string_for_substrings(string, substring_list, **kwargs):
     while start_index:
         if string[start_index-1] in substring_list:
             return True
-        elif string[start_index-1] not in kwargs.get("skip_char_list", [' ']):
+        elif not string[start_index-1].isspace() and string[start_index-1] not in kwargs.get("skip_char_list", []):
             return False
+
         start_index -= 1
 
-
+    return False
 
 # Print/log to the terminal in color!
 def colored_log(log_level, text, color):
@@ -763,12 +764,10 @@ def fix_JSON(json_str, **kwargs):
             logging.warning(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
             return None
 
-        logging.warning(f"Replacing broken character - {kwargs['log_on_error']} - {json_str[idx_to_replace]} - {e}")
-        print(json_str[idx_to_replace-1])
-        print(json_str[idx_to_replace-2])
-        if "Expecting ',' delimiter:" in str(e) and json_str[idx_to_replace] == '"' and json_str[idx_to_replace-1] in ['}', ']', '"']:
+        logging.warning(f"Replacing broken character - {kwargs.get('log_on_error')} - {json_str[idx_to_replace]} - {e}")
+
+        if "Expecting ',' delimiter:" in str(e) and json_str[idx_to_replace] == '"' and lookback_check_string_for_substrings(json_str, ['}', ']', '"'], start_index=idx_to_replace):
             json_str = replace_string_char_by_index(json_str, idx_to_replace, '",') # input was missing a comma
-            print('trgi')
         else:
             json_str = replace_string_char_by_index(json_str, idx_to_replace, ' ')
 
