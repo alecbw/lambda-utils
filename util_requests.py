@@ -321,7 +321,6 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
 
             while '“' in script.string or '”' in script.string:
                 char_index = script.string.find('”') if script.string.find('”') != -1 else script.string.find('“')
-
                 if not kwargs.get("always_escape_quote") and (":" in script.string[char_index-2:char_index+3] or "," in script.string[char_index-2:char_index+3]):
                     script.string = replace_string_char_by_index(script.string, char_index, '"') # leading or trailing quote of key or value
                 else:
