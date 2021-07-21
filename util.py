@@ -413,6 +413,18 @@ def endswith_replace(text, to_replace, replace_with, **kwargs):
     return text
 
 
+def startswith_replace(text, to_replace, replace_with, **kwargs):
+    if text and isinstance(text, str) and isinstance(to_replace, str) and text.startswith(to_replace):
+        return replace_with + text[len(to_replace):]
+
+    if text and isinstance(text, str) and isinstance(to_replace, list):
+        for substr_to_replace in to_replace:
+            if text.startswith(substr_to_replace):
+                text = replace_with + text[len(substr_to_replace):]
+
+    return text
+
+
 # util function bc 'str' object does not support item assignment
 def replace_string_char_by_index(text, index, char):
     text = list(text)
@@ -725,6 +737,7 @@ def increment_counter(counter, *args, **kwargs):
 
 
 # From https://stackoverflow.com/questions/1505454/python-json-loads-chokes-on-escapes
+# Python will by default Abort trap: 6 at depth around 1000
 def fix_JSON(json_str, **kwargs):
     if kwargs.get("recursion_depth", 0) > kwargs.get("recursion_limit", 500):
         logging.warning(f"Exceeded recursion depth trap in fix_JSON - {kwargs.get('recursion_limit', 500)}")
@@ -748,4 +761,3 @@ def fix_JSON(json_str, **kwargs):
         logging.debug(e)
 
     return None
-

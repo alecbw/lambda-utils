@@ -1,4 +1,4 @@
-from utility.util import package_response, standardize_event, validate_params, format_url, fix_JSON, replace_string_char_by_index
+from utility.util import package_response, standardize_event, validate_params, format_url, fix_JSON, replace_string_char_by_index, startswith_replace, endswith_replace
 from utility.util_datastores import scan_dynamodb
 
 import random
@@ -314,23 +314,27 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
     find_all_kwargs = {k:v for k,v in kwargs.items() if k in ["id", "href", "attrs", "type", "name", "property"]}
     for script in parsed.find_all('script', **find_all_kwargs):
         if script and script.string and phrase_str in script.string:
+            script_string = script.string
             if kwargs.get("lstrip"):
-                script.string = script.string.lstrip(kwargs['lstrip'])
+                script_string = script_string.lstrip(kwargs['lstrip'])
             if kwargs.get("return_string"):
-                return script.string.strip().rstrip(",")
+                return script_string.strip().rstrip(",")
 
-            while '“' in script.string or '”' in script.string:
-                char_index = script.string.find('”') if script.string.find('”') != -1 else script.string.find('“')
-                if not kwargs.get("always_escape_quote") and (":" in script.string[char_index-2:char_index+3] or "," in script.string[char_index-2:char_index+3]):
-                    script.string = replace_string_char_by_index(script.string, char_index, '"') # leading or trailing quote of key or value
+            while '“' in script_string or '”' in script_string:
+                char_index = script_string.find('”') if script_string.find('”') != -1 else script_string.find('“')
+                if not kwargs.get("always_escape_quote") and (":" in script_string[char_index-2:char_index+3] or "," in script_string[char_index-2:char_index+3]):
+                    script_string = replace_string_char_by_index(script_string, char_index, '"') # leading or trailing quote of key or value
                 else:
-                    script.string = replace_string_char_by_index(script.string, char_index, r'\"') # internal quotation mark, must be escaped
+                    script_string = replace_string_char_by_index(script_string, char_index, r'\"') # internal quotation mark, must be escaped
 
-            json_dict = fix_JSON(script.string.strip().rstrip(",").replace("\u003c", "<").replace("\u003e", ">").replace("\u0026", "&").replace('&#91;', '[').replace('&#93;', ']').replace("&nbsp", " "), recursion_limit=100) or {}
+            script_string = startswith_replace(script_string, ["// <![CDATA["], "") # some sites include comments that break json.load, so we remove them before trying to load
+            script_string = endswith_replace(script_string, ["// ]]>"], "")
+
+            json_dict = fix_JSON(script_string.strip().rstrip(",").replace("\u003c", "<").replace("\u003e", ">").replace("\u0026", "&").replace('&#91;', '[').replace('&#93;', ']').replace("&nbsp", " "), recursion_limit=100) or {}
 
             if not json_dict:
                 logging.info(kwargs)
-                logging.info(script.string)
+                logging.info(script_string)
 
             return json_dict
 
