@@ -725,7 +725,10 @@ def increment_counter(counter, *args, **kwargs):
 
 
 # From https://stackoverflow.com/questions/1505454/python-json-loads-chokes-on-escapes
-def fix_JSON(json_str):
+def fix_JSON(json_str, **kwargs):
+    if kwargs.get("recursion_depth", 0) > kwargs.get("recursion_limit", 500):
+        logging.warning(f"Exceeded recursion depth trap in fix_JSON - {kwargs.get('recursion_limit', 500)}")
+        return None
     try:
         return json.loads(json_str, strict=False)
     except ValueError as e:
@@ -739,7 +742,7 @@ def fix_JSON(json_str):
 
         json_str = replace_string_char_by_index(json_str, idx_to_replace, ' ')
 
-        return fix_JSON(json_str) # continue recursively
+        return fix_JSON(json_str, recursion_depth=kwargs.get('recursion_depth', 0)+1) # continue recursively
 
     except Exception as e:
         logging.debug(e)
