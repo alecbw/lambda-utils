@@ -433,6 +433,18 @@ def replace_string_char_by_index(text, index, char):
     return text
 
 
+def lookback_check_string_for_substrings(string, substring_list, **kwargs):
+    start_index = kwargs.get('start_index', len(string))
+
+    while start_index:
+        if string[start_index-1] in substring_list:
+            return True
+        elif string[start_index-1] not in kwargs.get("skip_char_list", [' ']):
+            return False
+        start_index -= 1
+
+
+
 # Print/log to the terminal in color!
 def colored_log(log_level, text, color):
     color_dict = {
@@ -751,9 +763,14 @@ def fix_JSON(json_str, **kwargs):
             logging.warning(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
             return None
 
-        logging.warning(f"Replacing broken character - {json_str[idx_to_replace]} - {e}")
-
-        json_str = replace_string_char_by_index(json_str, idx_to_replace, ' ')
+        logging.warning(f"Replacing broken character - {kwargs['log_on_error']} - {json_str[idx_to_replace]} - {e}")
+        print(json_str[idx_to_replace-1])
+        print(json_str[idx_to_replace-2])
+        if "Expecting ',' delimiter:" in str(e) and json_str[idx_to_replace] == '"' and json_str[idx_to_replace-1] in ['}', ']', '"']:
+            json_str = replace_string_char_by_index(json_str, idx_to_replace, '",') # input was missing a comma
+            print('trgi')
+        else:
+            json_str = replace_string_char_by_index(json_str, idx_to_replace, ' ')
 
         return fix_JSON(json_str, recursion_depth=kwargs.get('recursion_depth', 0)+1) # continue recursively
 
