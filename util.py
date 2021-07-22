@@ -355,6 +355,24 @@ def ez_flatten_nested_list(possible_nested_list, **kwargs):
     return output_list
 
 
+# This is highly opinionated. It will throw away data if it does not match the elif!
+def ez_unnest_one_item_iterable(item, **kwargs):
+    if item and ( isinstance(item, list) or isinstance(item, tuple) ) and len(item)==1:
+        return item[0]
+    elif item and isinstance(item, set) and len(item)==1:
+        return list(item)[0]
+    elif item and isinstance(item, dict) and len(item)==1:
+        return list(item.keys())[0]
+    elif type(item) not in [list, tuple, set, dict]:
+        return item
+
+    if type(item) in kwargs.get("keep_if_multi_item", []):
+        return item
+
+    logging.info(f"Throwing away {item}")
+    return None
+
+
 def append_or_create_list(input_potential_list, item):
     if isinstance(input_potential_list, list):
         input_potential_list.append(item)
