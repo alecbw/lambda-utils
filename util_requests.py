@@ -327,16 +327,16 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                 else:
                     script_string = replace_string_char_by_index(script_string, char_index, r'\"') # internal quotation mark, must be escaped
 
-            script_string = startswith_replace(script_string, ["// <![CDATA[", "//<![CDATA[", "/*<![CDATA[*/"], "") # some sites include comments that break json.load, so we remove them before trying to load
-            script_string = endswith_replace(script_string, ["// ]]>", "//]]>", "/*]]>*/"], "")
+            script_string = startswith_replace(script_string, ["// <![CDATA[", "//<![CDATA[", "/*<![CDATA[*/", "/* <![CDATA[  */", "execOnReady(function(){", "setTimeout(function(){"], "") # some sites include comments that break json.load, so we remove them before trying to load
+            script_string = endswith_replace(script_string, ["// ]]>", "//]]>", "/*]]>*/", "/*  ]]> */", "});", "},3000);", ";"], "")
 
-            json_dict = fix_JSON(script_string.strip().rstrip(",").replace("\u003c", "<").replace("\u003e", ">").replace("\u0026", "&").replace('&#91;', '[').replace('&#93;', ']').replace("&nbsp", " "), recursion_limit=100, log_on_error=kwargs.get('url')) or {}
+            json_dict = fix_JSON(script_string.strip().rstrip(",").replace("\u003c", "<").replace("\u003e", ">").replace("\u0026", "&").replace('&#91;', '[').replace('&#93;', ']').replace("&nbsp", " ").replace("&quot;", '"'), recursion_limit=200, log_on_error=kwargs.get('url')) or {}
 
-            if not json_dict:
+            if json_dict:
+                return json_dict
+            else: # continue; there may be >1 ld+json onsite, and one of the others may work
                 logging.info(kwargs)
                 logging.info(script_string)
-
-            return json_dict
 
     return {}
 
