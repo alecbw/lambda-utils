@@ -286,12 +286,12 @@ def ez_strip_str(input_str, **kwargs):
     if not isinstance(input_str, str):
         logging.warning(f"non str fed to ez_strip_str {input_str}")
         return input_str
-    elif not ez_strip_str:
+    elif not input_str:
         return input_str
 
     if kwargs.get("reduce_interior_whitespace"):
         input_str = re.sub(r"\s{2,}", " ", input_str)
-    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&amp;", "&").replace("&#039;", "'").replace("&#8211;", "-").replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace(" &ndash;", " -").replace("u0022", '"').strip()
+    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").strip()
 
 # TODO replace dumbass implementation of replacing newline chars
 def extract_stripped_string(html_tag_or_str, **kwargs):
@@ -328,9 +328,11 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                     script_string = replace_string_char_by_index(script_string, char_index, r'\"') # internal quotation mark, must be escaped
 
             script_string = startswith_replace(script_string, ["// <![CDATA[", "//<![CDATA[", "/*<![CDATA[*/", "/* <![CDATA[  */", "execOnReady(function(){", "setTimeout(function(){"], "") # some sites include comments that break json.load, so we remove them before trying to load
-            script_string = endswith_replace(script_string, ["// ]]>", "//]]>", "/*]]>*/", "/*  ]]> */", "});", "},3000);", ";"], "")
+            script_string = endswith_replace(script_string, ["// ]]>", "//]]>", "/*]]>*/", "/*  ]]> */", "});", "},3000);"], "")
 
-            json_dict = fix_JSON(script_string.strip().rstrip(",").replace("\u003c", "<").replace("\u003e", ">").replace("\u0026", "&").replace('&#91;', '[').replace('&#93;', ']').replace("&nbsp", " ").replace("&quot;", '"'), recursion_limit=200, log_on_error=kwargs.get('url')) or {}
+            json_dict = fix_JSON(ez_strip_str(script_string.rstrip(",").rstrip(";")), recursion_limit=200, log_on_error=kwargs.get('url')) or {}
+
+
 
             if json_dict:
                 return json_dict
