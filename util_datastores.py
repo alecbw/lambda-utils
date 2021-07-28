@@ -134,6 +134,9 @@ def query_athena_table(sql_query, database, **kwargs):
         ResultConfiguration={"OutputLocation": kwargs.get("result_bucket", f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/")}
     )
 
+    if kwargs.get("dont_wait_for_query_result"):
+        return True
+
     timeout_value = kwargs.get("timeout", 15) * 1000 # bc its in milliseconds
     finished = False
 
