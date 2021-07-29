@@ -134,6 +134,9 @@ def query_athena_table(sql_query, database, **kwargs):
         ResultConfiguration={"OutputLocation": kwargs.get("result_bucket", f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/")}
     )
 
+    if kwargs.get("dont_wait_for_query_result"):
+        return True
+
     timeout_value = kwargs.get("timeout", 15) * 1000 # bc its in milliseconds
     finished = False
 
@@ -828,6 +831,12 @@ def aurora_execute_sql(db, sql, **kwargs):
 
 ########################### ~ S3 Data Lake Specific ~ ###################################################
 
+def convert_dict_to_parquet_map(input_dict):
+    output_list = []
+    for k,v in input_dict.items():
+        output_list.append( (k, v) ) # tuple
+    return output_list
+
 # only supports one day. If you have multiple dates in the data to be written, add it to the df/lod directly
 def add_yearmonthday_partition_to_lod(data, partition_date):
     if partition_date in ["Today", "today", "utcnow", "", None]:
@@ -928,6 +937,20 @@ def extract_local_file_athena_metadata():
 
 
 ########################### ~ Glue Specific ~ ###################################################
+
+"""
+At present, this appears to only do exact string literal searches, which makes it near useless. I'm clearly missing something here.
+Docs: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/glue.html#Glue.Client.search_tables
+[ ] TODO: add support for NextToken
+"""
+def search_glue_tables(search_string, **kwargs):
+    response = boto3.client('glue').search_tables(
+        CatalogId=os.environ['AWS_ACCOUNT_ID'],
+        SearchText=search_string,
+        **kwargs
+    )
+    return response['TableList']
+
 
 # col_lod entries look like [{'Name': 'col_name', 'Type': 'array<string>'},
 def get_glue_table_columns(db, table, **kwargs):
