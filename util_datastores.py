@@ -941,7 +941,7 @@ def extract_local_file_athena_metadata():
 """
 At present, this appears to only do exact string literal searches, which makes it near useless. I'm clearly missing something here.
 Docs: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/glue.html#Glue.Client.search_tables
-[ ] TODO: support for NextToken
+[ ] TODO: add support for NextToken
 """
 def search_glue_tables(search_string, **kwargs):
     response = boto3.client('glue').search_tables(
