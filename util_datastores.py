@@ -1,4 +1,4 @@
-from utility.util import is_none, ez_try_and_get, ez_get, ez_split
+from utility.util import is_none, ez_try_and_get, ez_get, ez_split, startswith_replace
 
 import sys
 import os
@@ -1198,3 +1198,52 @@ def put_ssm_param(param_name, param_value, param_type, **kwargs):
 def get_aws_account_id():
     response = boto3.client('sts').get_caller_identity()
     return response.get("Account")
+
+
+########################### ~ Cognito Specific ~ ###################################################
+
+
+def get_cognito_user_pool(pool_id):
+    response = boto3.client('cognito-idp').describe_user_pool(UserPoolId=pool_id)
+    return response['UserPool']
+
+
+def create_cognito_user_pool(pool_config_dict):
+    response =  boto3.client('cognito-idp').create_user_pool(**pool_config_dict)
+    return response
+
+
+# Not included in the GET, and not handled by this function: UserPoolAddOns
+def duplicate_cognito_user_pool(initial_pool_id, new_name):
+    existing_pool = get_cognito_user_pool(initial_pool_id)
+
+    # Throw away keys specific to the original User Pool
+    del existing_pool['AdminCreateUserConfig']['UnusedAccountValidityDays'] # weirdly the POST doesnt accept this; it inherits from ['Policies']['PasswordPolicy']['TemporaryPasswordValidityDays']
+    del existing_pool['Arn']
+    del existing_pool['CreationDate']
+    del existing_pool['EstimatedNumberOfUsers']
+    del existing_pool['Id']
+    del existing_pool['LastModifiedDate']
+    del existing_pool['Name']
+    del existing_pool['SmsConfigurationFailure']
+
+    # throw away default-but-not-wanted attributes
+    attributes_to_keep = []
+    for attribute in existing_pool.pop('SchemaAttributes'):
+        if attribute.get("Name").startswith("custom:"):
+            attribute['Name'] = startswith_replace(attribute['Name'], "custom:", "")
+            attributes_to_keep.append(attribute)
+        elif attribute.get("Required"):
+            attributes_to_keep.append(attribute)
+
+    existing_pool['Schema'] = attributes_to_keep
+    existing_pool['PoolName'] = new_name
+
+    response = create_cognito_user_pool(existing_pool)
+
+    return response
+
+
+
+
+
