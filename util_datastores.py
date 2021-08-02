@@ -1213,6 +1213,7 @@ def create_cognito_user_pool(pool_config_dict):
     return response
 
 
+# Not included in the GET, and not handled by this function: UserPoolAddOns
 def duplicate_cognito_user_pool(initial_pool_id, new_name):
     existing_pool = get_cognito_user_pool(initial_pool_id)
 
@@ -1245,5 +1246,4 @@ def duplicate_cognito_user_pool(initial_pool_id, new_name):
 
 
 
-# UserPoolAddOns
-# AliasAttributes??
+
