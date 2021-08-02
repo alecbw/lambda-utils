@@ -8,6 +8,7 @@ from time import sleep
 import warnings
 import json
 import re
+from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup, element, NavigableString
 import requests
@@ -441,3 +442,28 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         return null_value
 
     return null_value
+
+
+def add_querystrings_to_a_tags(html, dict_to_add):
+    parsed = BeautifulSoup(html, 'html.parser')
+
+    for a_tag in parsed.find_all('a'):
+        if a_tag.get('href') and "mailto:" in a_tag['href']:
+            continue
+        if a_tag.get('href') and "?" in a_tag['href']:
+            a_tag['href'] = a_tag['href'] + urlencode(dict_to_add)
+        elif a_tag.get('href'):
+            a_tag['href'] = a_tag['href'] + "?" + urlencode(dict_to_add)
+
+    return parsed
+
+
+def modify_html_template(html_template, to_replace_lot, **kwargs):
+    for to_replace_tuple in to_replace_lot:
+        html_template = html_template.replace(to_replace_tuple[0], to_replace_tuple[1])
+
+    if kwargs.get("utm_dict"):
+        html_template = str(add_querystrings_to_a_tags(html_template, kwargs['utm_dict']))
+
+    return html_template
+
