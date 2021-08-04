@@ -579,7 +579,7 @@ def get_s3_file(bucket_name, filename, **kwargs):
 
     except Exception as e:
         logging.error(e)
-        raise e
+        raise e # feels redundant TODO
 
 
 # for use with `for line in body`
@@ -1242,8 +1242,6 @@ def duplicate_cognito_user_pool(initial_pool_id, new_name):
     response = create_cognito_user_pool(existing_pool)
 
     return response
-
-
 
 
 
