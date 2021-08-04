@@ -80,8 +80,8 @@ def package_response(message, status_code, **kwargs):
     elif kwargs.get("error"):
         logging.error(message)
 
-    if kwargs.get("cors"):
-        headers = {'Content-Type': 'application/json', **kwargs['cors']}
+    if kwargs.get("headers"):
+        headers = kwargs['headers'] if "Content-Type" in kwargs['headers'] else {'Content-Type': 'application/json', **kwargs['cors']}
     else:
         headers = {'Content-Type': 'application/json'}
 
