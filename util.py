@@ -602,7 +602,7 @@ def format_url(url, **kwargs):
     elif kwargs.get("http"):
         url = "http://" + url
 
-    return url.strip().rstrip("\\").rstrip("/")
+    return url.strip().rstrip("\\").strip("/")
 
 
 # feeding in tld_list is a little dated eventually will deprecate TODO
