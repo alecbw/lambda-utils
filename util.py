@@ -54,13 +54,16 @@ def standardize_event(event):
         event.update(body_as_dict)
 
     elif event.get("httpMethod") == "POST" and event.get("body"):  # POST, synchronous API Gateway
-        event.update(event["body"])
+        if isinstance(event['body'], dict):
+            event.update(event["body"])
+        else:
+            logging.error("Malformed POST body received by standardize_event. Potentially due to missing or malformed Content-Type header")
 
     elif event.get("query"):  # GET, async API Gateway
         event.update(event["query"])
 
     elif event.get("Records"):  # triggered directly by SQS queue
-        event.update(json.loads(ez_try_and_get(event, "Records"))) #, 0, "body")))
+        event.update(json.loads(ez_try_and_get(event, "Records")))
 
     # Any of the above can also include this. GET, synchronous API Gateway will be just this.
     if event.get("queryStringParameters"):
