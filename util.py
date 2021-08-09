@@ -449,9 +449,11 @@ def startswith_replace(text, to_replace, replace_with, **kwargs):
 
 
 # util function bc 'str' object does not support item assignment
-def replace_string_char_by_index(text, index, char):
+def replace_string_char_by_index(text, index, new_char):
+    if not index or not new_char:
+        return text
     text = list(text)
-    text[index] = char
+    text[index] = new_char
     text = ''.join(text)
     return text
 
