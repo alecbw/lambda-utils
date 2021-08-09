@@ -321,8 +321,8 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             if kwargs.get("return_string"):
                 return script_string.strip().rstrip(",")
 
-            while '“' in script_string or '”' in script_string: # TODO maybe this logic should be in fix_JSON
-                char_index = script_string.find('”') if script_string.find('”') != -1 else script_string.find('“')
+            while '“' in script_string or '”' in script_string or "&quot;" in script_string: # TODO maybe this logic should be in fix_JSON
+                char_index = next((script_string.find(x) for x in ['”', '”', '&quot;'] if script_string.find(x) != -1), None)
                 if not kwargs.get("always_escape_quote") and (":" in script_string[char_index-2:char_index+3] or "," in script_string[char_index-2:char_index+3]):
                     script_string = replace_string_char_by_index(script_string, char_index, '"') # leading or trailing quote of key or value
                 else:
@@ -332,7 +332,6 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             script_string = endswith_replace(script_string, ["// ]]>", "//]]>", "/*]]>*/", "/*  ]]> */", "});", "},3000);"], "")
 
             json_dict = fix_JSON(ez_strip_str(script_string.rstrip(",").rstrip(";")), recursion_limit=200, log_on_error=kwargs.get('url')) or {}
-
 
 
             if json_dict:
