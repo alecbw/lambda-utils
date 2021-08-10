@@ -132,7 +132,7 @@ def get_ds_proxy_list(**kwargs):
 
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
-    logging.info(f"{len(proxies)} proxies were found (DS)")
+    logging.info(f"{len(proxies)} proxies were found (DS) - {kwargs}")
     if kwargs.get('show_country'):
         return [x.split("#") for x in proxies]
 
