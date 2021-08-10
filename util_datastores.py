@@ -257,8 +257,13 @@ def standardize_dynamo_output(output_data, **kwargs):
     datetime_keys = [key for key in output_data.keys() if key in ["updatedAt", "createdAt", "updated_at", "created_at", 'ttl']]
     for key in datetime_keys:
         output_data[key] = datetime.fromtimestamp(output_data[key])#.replace(tzinfo=timezone.utc)
+        if kwargs.get("output") == "datetime_str":
+            output_data[key] = output_data[key].strftime('%Y-%m-%d %H:%M:%S')
 
-    return json.dumps(output_data, cls=DynamoReadEncoder) if kwargs.get("output") == "json" else output_data
+    if kwargs.get("output") == "json": # each dict will be JSON, but not the overall list
+        return json.dumps(output_data, cls=DynamoReadEncoder)
+    else:
+        return output_data
 
 
 # Note this will BY DEFAULT overwrite items with the same primary key (upsert)
@@ -336,7 +341,7 @@ def scan_dynamodb(table, **kwargs):
     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Scan from {table}, found {result['Count']} results")
 
     for n, row in enumerate(data_lod):
-        data_lod[n] = standardize_dynamo_output(row)
+        data_lod[n] = standardize_dynamo_output(row, **kwargs)
 
     return data_lod
 
@@ -1231,7 +1236,7 @@ def duplicate_cognito_user_pool(initial_pool_id, new_name):
     attributes_to_keep = []
     for attribute in existing_pool.pop('SchemaAttributes'):
         if attribute.get("Name").startswith("custom:"):
-            attribute['Name'] = startswith_replace(attribute['Name'], "custom:", "")
+            attribute['Name'] = startswith_replace(attribute['Name'], "custom:", "") # Cognito adds this custom: prefix behind the scenes
             attributes_to_keep.append(attribute)
         elif attribute.get("Required"):
             attributes_to_keep.append(attribute)
