@@ -132,7 +132,7 @@ def get_ds_proxy_list(**kwargs):
 
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
-    logging.info(f"{len(proxies)} proxies were found (DS)")
+    logging.info(f"{len(proxies)} proxies were found (DS) - {kwargs}")
     if kwargs.get('show_country'):
         return [x.split("#") for x in proxies]
 
@@ -146,10 +146,21 @@ def get_ds_proxy_list(**kwargs):
 #     proxy = proxies.pop(0)
 #     return proxy, proxies
 
+def cache_proxy_list():
+    if not os.getenv("_LAST_FETCHED_PROXIES") or ( datetime.strptime(os.environ["_LAST_FETCHED_PROXIES"], '%Y-%m-%d %H:%M:%S') < datetime.utcnow() - timedelta(minutes=8) ):
+        proxy_list = prioritize_proxy(scan_dynamodb('proxyTable', output="json"), "US")
+        # proxy_list
+        os.environ["_PROXY_LIST"] = proxy_list
+        os.environ["_LAST_FETCHED_PROXIES"] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        return json.loads(proxy_list)
+    else:
+        print('loading frm cache')
+        return json.loads(os.environ["_PROXY_LIST"])
+
 
 def rotate_proxy(proxies, **kwargs):
     if not proxies or kwargs.get("force_scan"):
-        proxies =  prioritize_proxy(scan_dynamodb('proxyTable'), "US")
+        proxies =  cache_proxy_list() # prioritize_proxy(scan_dynamodb('proxyTable'), "US")
 
     if kwargs.get("return_proxy_dict"):
         return proxies.pop(0), proxies
@@ -321,18 +332,19 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             if kwargs.get("return_string"):
                 return script_string.strip().rstrip(",")
 
-            while '“' in script_string or '”' in script_string: # TODO maybe this logic should be in fix_JSON
-                char_index = script_string.find('”') if script_string.find('”') != -1 else script_string.find('“')
-                if not kwargs.get("always_escape_quote") and (":" in script_string[char_index-2:char_index+3] or "," in script_string[char_index-2:char_index+3]):
+            while '“' in script_string or '”' in script_string or "&quot;" in script_string: # TODO maybe this logic should be in fix_JSON
+                char_index = next((script_string.find(x) for x in ['”', '”', '&quot;'] if script_string.find(x) != -1), None)
+                if not char_index:
+                    break
+                elif not kwargs.get("always_escape_quote") and (":" in script_string[char_index-2:char_index+3] or "," in script_string[char_index-2:char_index+3]):
                     script_string = replace_string_char_by_index(script_string, char_index, '"') # leading or trailing quote of key or value
                 else:
-                    script_string = replace_string_char_by_index(script_string, char_index, r'\"') # internal quotation mark, must be escaped
+                    script_string = replace_string_char_by_index(script_string, char_index, '\"') # internal quotation mark, must be escaped
 
             script_string = startswith_replace(script_string, ["// <![CDATA[", "//<![CDATA[", "/*<![CDATA[*/", "/* <![CDATA[  */", "execOnReady(function(){", "setTimeout(function(){"], "") # some sites include comments that break json.load, so we remove them before trying to load
             script_string = endswith_replace(script_string, ["// ]]>", "//]]>", "/*]]>*/", "/*  ]]> */", "});", "},3000);"], "")
 
             json_dict = fix_JSON(ez_strip_str(script_string.rstrip(",").rstrip(";")), recursion_limit=200, log_on_error=kwargs.get('url')) or {}
-
 
 
             if json_dict:

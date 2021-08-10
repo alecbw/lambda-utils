@@ -449,9 +449,11 @@ def startswith_replace(text, to_replace, replace_with, **kwargs):
 
 
 # util function bc 'str' object does not support item assignment
-def replace_string_char_by_index(text, index, char):
+def replace_string_char_by_index(text, index, new_char):
+    if not index or not new_char:
+        return text
     text = list(text)
-    text[index] = char
+    text[index] = new_char
     text = ''.join(text)
     return text
 
@@ -789,7 +791,8 @@ def fix_JSON(json_str, **kwargs):
             logging.warning(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
             return None
 
-        logging.warning(f"Replacing broken character - {kwargs.get('log_on_error')} - {json_str[idx_to_replace]} - {e}")
+        if kwargs.get("recursion_depth", 0) == 0: # only log the first instance
+            logging.warning(f"Replacing broken character - {kwargs.get('log_on_error')} - {json_str[idx_to_replace]} - {e}")
 
         if "Expecting ',' delimiter:" in str(e) and json_str[idx_to_replace] in ['"', '{', '['] and lookback_check_string_for_substrings(json_str, ['}', ']', '"'], start_index=idx_to_replace):
             json_str = replace_string_char_by_index(json_str, idx_to_replace, ',' + json_str[idx_to_replace]) # input was missing a comma
