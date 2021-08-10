@@ -250,7 +250,7 @@ def standardize_dynamo_query(input_data, **kwargs):
 
 
 # Converts timestamps back to human readable
-def standardize_dynamo_output(output_data, **kwargs):
+def standardize_dynamo_output(output_data, **kwargs), output=kwargs.get("output"):
     if not output_data:
         return output_data
 
@@ -336,7 +336,7 @@ def scan_dynamodb(table, **kwargs):
     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Scan from {table}, found {result['Count']} results")
 
     for n, row in enumerate(data_lod):
-        data_lod[n] = standardize_dynamo_output(row)
+        data_lod[n] = standardize_dynamo_output(row, **kwargs)
 
     return data_lod
 
@@ -1231,7 +1231,7 @@ def duplicate_cognito_user_pool(initial_pool_id, new_name):
     attributes_to_keep = []
     for attribute in existing_pool.pop('SchemaAttributes'):
         if attribute.get("Name").startswith("custom:"):
-            attribute['Name'] = startswith_replace(attribute['Name'], "custom:", "")
+            attribute['Name'] = startswith_replace(attribute['Name'], "custom:", "") # Cognito adds this custom: prefix behind the scenes
             attributes_to_keep.append(attribute)
         elif attribute.get("Required"):
             attributes_to_keep.append(attribute)
