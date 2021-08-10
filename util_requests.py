@@ -146,10 +146,20 @@ def get_ds_proxy_list(**kwargs):
 #     proxy = proxies.pop(0)
 #     return proxy, proxies
 
+def cache_proxy_list():
+    if not os.getenv("_LAST_FETCHED_PROXIES") or ( datetime.strptime(os.environ["_LAST_FETCHED_PROXIES"], '%Y-%m-%d %H:%M:%S') < datetime.utcnow() - timedelta(minutes=8) ):
+        proxy_list = prioritize_proxy(scan_dynamodb('proxyTable'), "US")
+        os.environ["_PROXY_LIST"] = json.dumps(proxy_list)
+        os.environ["_LAST_FETCHED_PROXIES"] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        return proxy_list
+    else:
+        print('loading frm cache')
+        return json.loads(os.environ["_PROXY_LIST"])
+
 
 def rotate_proxy(proxies, **kwargs):
     if not proxies or kwargs.get("force_scan"):
-        proxies =  prioritize_proxy(scan_dynamodb('proxyTable'), "US")
+        proxies =  cache_proxy_list() # prioritize_proxy(scan_dynamodb('proxyTable'), "US")
 
     if kwargs.get("return_proxy_dict"):
         return proxies.pop(0), proxies
