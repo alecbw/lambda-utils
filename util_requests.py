@@ -148,7 +148,7 @@ def get_ds_proxy_list(**kwargs):
 
 def cache_proxy_list():
     if not os.getenv("_LAST_FETCHED_PROXIES") or ( datetime.strptime(os.environ["_LAST_FETCHED_PROXIES"], '%Y-%m-%d %H:%M:%S') < datetime.utcnow() - timedelta(minutes=8) ):
-        proxy_list = prioritize_proxy(scan_dynamodb('proxyTable', output="json"), "US")
+        proxy_list = prioritize_proxy(scan_dynamodb('proxyTable', output="datetime_str"), "US")
         # proxy_list
         os.environ["_PROXY_LIST"] = proxy_list
         os.environ["_LAST_FETCHED_PROXIES"] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
