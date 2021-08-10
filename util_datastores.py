@@ -250,7 +250,7 @@ def standardize_dynamo_query(input_data, **kwargs):
 
 
 # Converts timestamps back to human readable
-def standardize_dynamo_output(output_data, **kwargs), output=kwargs.get("output"):
+def standardize_dynamo_output(output_data, **kwargs):
     if not output_data:
         return output_data
 
