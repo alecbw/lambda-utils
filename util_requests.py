@@ -151,7 +151,7 @@ def cache_proxy_list(**kwargs):
     if not os.getenv("_LAST_FETCHED_PROXIES") or ( datetime.strptime(os.environ["_LAST_FETCHED_PROXIES"], '%Y-%m-%d %H:%M:%S') < datetime.utcnow() - timedelta(minutes=8) ):
         proxy_list = scan_dynamodb('proxyTable', output="datetime_str")
         if kwargs.get("shuffle_list"):
-            proxy_list = random.shuffle(proxy_list)
+            random.shuffle(proxy_list)
         else:
             proxy_list = prioritize_proxy(proxy_list, "US")
 
