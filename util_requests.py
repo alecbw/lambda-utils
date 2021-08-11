@@ -155,7 +155,7 @@ def cache_proxy_list():
         os.environ["_LAST_FETCHED_PROXIES"] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         return proxy_list
     else:
-        print('loading frm cache')
+        print('loading from cache')
         return json.loads(os.environ["_PROXY_LIST"])
 
 
@@ -183,27 +183,27 @@ def prioritize_proxy(proxies, location):
 ################################# ~ Outbound Requests ~ ####################################
 
 
-def handle_request_exception(e, disable_error_messages):
+def handle_request_exception(e, proxy, disable_error_messages):
     if "Caused by SSLError(SSLCertVerificationError" in str(e): # CertificateError
-        warning = f'-----> ERROR. Request Threw: Certificate Error. {e}<-----'
+        warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Certificate Error. {e}<-----'
         status_code = 495
     elif "Exceeded 30 redirects" in str(e):
-        warning = f'-----> ERROR. Request Threw: Too Many Redirects Error. {e}<-----'
+        warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Too Many Redirects Error. {e}<-----'
         status_code = 399
     elif "TimeoutError" in str(e) or " Read timed out." in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----'
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Request Threw TimeoutError: {e} <-----'
         status_code = 408
     elif "Caused by NewConnectionError" in str(e) and "ProxyError" not in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Effective 404 - Request Threw NewConnectionError: {e} <-----'
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Effective 404 - Request Threw NewConnectionError: {e} <-----'
         status_code = 404
     elif "Connection refused" in str(e): # or "Remote end closed connection" in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy refusing traffic {e} <-----'
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Proxy refusing traffic {e} <-----'
         status_code = 602
     elif any(x for x in ["HTTPConnectionPool", "MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----'
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. {e}<-----'
         status_code = 601
     else:
-        warning = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----'
+        warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Unknown Error. {e}<-----'
         logging.warning(warning)
         status_code = 609
 
@@ -257,7 +257,7 @@ def site_request(url, proxy, wait, **kwargs):
         response = requests.get(url, headers=headers, **request_kwargs)
 
     except Exception as e:
-        message, applied_status_code = handle_request_exception(e, kwargs.get("disable_error_messages"))
+        message, applied_status_code = handle_request_exception(e, proxy, kwargs.get("disable_error_messages"))
         return message, applied_status_code
 
 
