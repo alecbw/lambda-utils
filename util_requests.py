@@ -405,6 +405,8 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
 
     if kwargs.get("get_link"):
         data = [x.get("href").strip() if x.get("href") else x.a.get("href", "").strip() for x in html_tags]
+    elif kwargs.get("get_src"):
+        data = [x.get("src").strip() if x.get("src") else "" for x in html_tags]
     else:
         data = [x.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").strip() for x in html_tags]
 
@@ -448,7 +450,9 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             if html_tag.get("href"):
                 return html_tag.get("href").strip().rstrip("/")
             elif html_tag.a and html_tag.a.get("href"):
-                html_tag.a.get("href").strip().rstrip("/") or null_value
+                return html_tag.a.get("href").strip().rstrip("/") or null_value
+        elif kwargs.get("get_src"):
+            return html_tag.get("src").strip() if html_tag.get("src") else ""
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
         else:
