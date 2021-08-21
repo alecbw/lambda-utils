@@ -442,9 +442,9 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         # for nesting into child components. Ex: ["a", "p", "time"]
         for key in kwargs.get("children", []):
             if key == "nextSibling": # necessary, unclear why
-                html_tag = html_tag.nextSibling if html_tag else html_tag
+                html_tag = html_tag.nextSibling if html_tag.nextSibling else html_tag
             else:
-                html_tag = html_tag.key if html_tag else html_tag
+                html_tag = html_tag.key if html_tag.key else html_tag
 
         if kwargs.get("get_link") and html_tag:
             if html_tag.get("href"):
@@ -463,7 +463,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             return extract_stripped_string(html_tag, null_value=null_value)
 
     except Exception as e:
-        logging.warning(e)
+        logging.warning(f"Exception found in safely_get_text: {e}")
         return null_value
 
     return null_value
