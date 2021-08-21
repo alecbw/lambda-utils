@@ -453,6 +453,10 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
                 return html_tag.a.get("href").strip().rstrip("/") or null_value
         elif kwargs.get("get_src"):
             return html_tag.get("src").strip() if html_tag.get("src") else ""
+        elif kwargs.get("get_title"):
+            return html_tag.get("title").strip() if html_tag.get("title") else ""
+        elif kwargs.get("get_alt"):
+            return html_tag.get("alt").strip() if html_tag.get("alt") else ""
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
         else:
