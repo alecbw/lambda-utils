@@ -441,10 +441,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
 
         # for nesting into child components. Ex: ["a", "p", "time"]
         for key in kwargs.get("children", []):
-            if key == "nextSibling": # necessary, unclear why
-                html_tag = html_tag.nextSibling if html_tag.nextSibling else html_tag
-            else:
-                html_tag = html_tag.key if html_tag.key else html_tag
+            html_tag = getattr(html_tag, key) if getattr(html_tag, key) else html_tag
 
         if kwargs.get("get_link") and html_tag:
             if html_tag.get("href"):
@@ -452,11 +449,11 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             elif html_tag.a and html_tag.a.get("href"):
                 return html_tag.a.get("href").strip().rstrip("/") or null_value
         elif kwargs.get("get_src"):
-            return html_tag.get("src").strip() if html_tag.get("src") else ""
+            return html_tag.get("src").strip() if html_tag.get("src") else null_value
         elif kwargs.get("get_title"):
-            return html_tag.get("title").strip() if html_tag.get("title") else ""
+            return html_tag.get("title").strip() if html_tag.get("title") else null_value
         elif kwargs.get("get_alt"):
-            return html_tag.get("alt").strip() if html_tag.get("alt") else ""
+            return html_tag.get("alt").strip() if html_tag.get("alt") else null_value
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
         else:
