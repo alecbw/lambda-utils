@@ -169,13 +169,14 @@ def get_list_overlap(list_1, list_2, **kwargs):
 
 
 # NOTE: this only works if the value is unique
-def get_dict_key_by_value(input_dict, value):
+def get_dict_key_by_value(input_dict, value, **kwargs):
     keys = [k for k,v in input_dict.items() if v == value]
     if len(keys) == 1:
         return keys[0]
     elif keys:
         logging.warning(f"More than one key has the value {value}")
 
+    return kwargs.get("null_value", None)
 
 def get_dict_key_by_longest_value(input_dict):
     if input_dict:
@@ -675,6 +676,7 @@ def format_timestamp(timestamp, **kwargs):
     [ ] "Avril 2016"   # not English, gonna be hard to support
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
     [ ] 2019-02-19 19:54:49 -0700 MST # MST not supported by %Z
+    [ ] 2021-06-17T11:46:24-05
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
