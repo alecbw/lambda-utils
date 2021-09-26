@@ -128,7 +128,7 @@ def rotate_accept():
 
 def get_ds_proxy_list(**kwargs):
     countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GB|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
-    url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&country={countries}&https={kwargs.get('HTTPS', 'yes')}"
+    url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&https={kwargs.get('HTTPS', 'yes')}&country={countries}" #
     url += "&level=1|2"
 
     response = api_request(url, "GET", raw_response=True)
@@ -405,6 +405,8 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
 
     if kwargs.get("get_link"):
         data = [x.get("href").strip() if x.get("href") else x.a.get("href", "").strip() for x in html_tags]
+    elif kwargs.get("get_src"):
+        data = [x.get("src").strip() if x.get("src") else "" for x in html_tags]
     else:
         data = [x.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").strip() for x in html_tags]
 
@@ -439,23 +441,26 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
 
         # for nesting into child components. Ex: ["a", "p", "time"]
         for key in kwargs.get("children", []):
-            if key == "nextSibling": # necessary, unclear why
-                html_tag = html_tag.nextSibling if html_tag else html_tag
-            else:
-                html_tag = html_tag.key if html_tag else html_tag
+            html_tag = getattr(html_tag, key) if getattr(html_tag, key) else html_tag
 
         if kwargs.get("get_link") and html_tag:
             if html_tag.get("href"):
                 return html_tag.get("href").strip().rstrip("/")
             elif html_tag.a and html_tag.a.get("href"):
-                html_tag.a.get("href").strip().rstrip("/") or null_value
+                return html_tag.a.get("href").strip().rstrip("/") or null_value
+        elif kwargs.get("get_src"):
+            return html_tag.get("src").strip() if html_tag.get("src") else null_value
+        elif kwargs.get("get_title"):
+            return html_tag.get("title").strip() if html_tag.get("title") else null_value
+        elif kwargs.get("get_alt"):
+            return html_tag.get("alt").strip() if html_tag.get("alt") else null_value
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
         else:
             return extract_stripped_string(html_tag, null_value=null_value)
 
     except Exception as e:
-        logging.warning(e)
+        logging.warning(f"Exception found in safely_get_text: {e}")
         return null_value
 
     return null_value
