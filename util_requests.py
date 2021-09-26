@@ -9,6 +9,7 @@ import warnings
 import json
 import re
 from urllib.parse import urlencode
+from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup, element, NavigableString
 import requests
@@ -127,7 +128,7 @@ def rotate_accept():
 
 def get_ds_proxy_list(**kwargs):
     countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GB|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
-    url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&country={countries}&https={kwargs.get('HTTPS', 'yes')}"
+    url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&https={kwargs.get('HTTPS', 'yes')}&country={countries}" #
     url += "&level=1|2"
 
     response = api_request(url, "GET", raw_response=True)
@@ -146,21 +147,25 @@ def get_ds_proxy_list(**kwargs):
 #     proxy = proxies.pop(0)
 #     return proxy, proxies
 
-def cache_proxy_list():
+def cache_proxy_list(**kwargs):
     if not os.getenv("_LAST_FETCHED_PROXIES") or ( datetime.strptime(os.environ["_LAST_FETCHED_PROXIES"], '%Y-%m-%d %H:%M:%S') < datetime.utcnow() - timedelta(minutes=8) ):
-        proxy_list = prioritize_proxy(scan_dynamodb('proxyTable', output="json"), "US")
-        # proxy_list
-        os.environ["_PROXY_LIST"] = proxy_list
+        proxy_list = scan_dynamodb('proxyTable', output="datetime_str")
+        if kwargs.get("shuffle_list"):
+            random.shuffle(proxy_list)
+        else:
+            proxy_list = prioritize_proxy(proxy_list, "US")
+
+        os.environ["_PROXY_LIST"] = json.dumps(proxy_list)
         os.environ["_LAST_FETCHED_PROXIES"] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-        return json.loads(proxy_list)
+        return proxy_list
     else:
-        print('loading frm cache')
+        print('loading from cache')
         return json.loads(os.environ["_PROXY_LIST"])
 
 
 def rotate_proxy(proxies, **kwargs):
     if not proxies or kwargs.get("force_scan"):
-        proxies =  cache_proxy_list() # prioritize_proxy(scan_dynamodb('proxyTable'), "US")
+        proxies =  cache_proxy_list(**kwargs) # prioritize_proxy(scan_dynamodb('proxyTable'), "US")
 
     if kwargs.get("return_proxy_dict"):
         return proxies.pop(0), proxies
@@ -182,27 +187,27 @@ def prioritize_proxy(proxies, location):
 ################################# ~ Outbound Requests ~ ####################################
 
 
-def handle_request_exception(e, disable_error_messages):
+def handle_request_exception(e, proxy, disable_error_messages):
     if "Caused by SSLError(SSLCertVerificationError" in str(e): # CertificateError
-        warning = f'-----> ERROR. Request Threw: Certificate Error. {e}<-----'
+        warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Certificate Error. {e}<-----'
         status_code = 495
     elif "Exceeded 30 redirects" in str(e):
-        warning = f'-----> ERROR. Request Threw: Too Many Redirects Error. {e}<-----'
+        warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Too Many Redirects Error. {e}<-----'
         status_code = 399
     elif "TimeoutError" in str(e) or " Read timed out." in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Request Threw TimeoutError: {e} <-----'
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Request Threw TimeoutError: {e} <-----'
         status_code = 408
     elif "Caused by NewConnectionError" in str(e) and "ProxyError" not in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Effective 404 - Request Threw NewConnectionError: {e} <-----'
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Effective 404 - Request Threw NewConnectionError: {e} <-----'
         status_code = 404
-    elif "Connection refused" in str(e): # or "Remote end closed connection" in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy refusing traffic {e} <-----'
+    elif "Connection refused" in str(e) or "Connection reset by peer" in str(e): # or "Remote end closed connection" in str(e):
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Proxy refusing traffic {e} <-----'
         status_code = 602
     elif any(x for x in ["HTTPConnectionPool", "MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. {e}<-----'
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. {e}<-----'
         status_code = 601
     else:
-        warning = f'-----> ERROR. Request Threw: Unknown Error. {e}<-----'
+        warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Unknown Error. {e}<-----'
         logging.warning(warning)
         status_code = 609
 
@@ -256,7 +261,7 @@ def site_request(url, proxy, wait, **kwargs):
         response = requests.get(url, headers=headers, **request_kwargs)
 
     except Exception as e:
-        message, applied_status_code = handle_request_exception(e, kwargs.get("disable_error_messages"))
+        message, applied_status_code = handle_request_exception(e, proxy, kwargs.get("disable_error_messages"))
         return message, applied_status_code
 
 
@@ -400,6 +405,8 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
 
     if kwargs.get("get_link"):
         data = [x.get("href").strip() if x.get("href") else x.a.get("href", "").strip() for x in html_tags]
+    elif kwargs.get("get_src"):
+        data = [x.get("src").strip() if x.get("src") else "" for x in html_tags]
     else:
         data = [x.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").strip() for x in html_tags]
 
@@ -434,23 +441,26 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
 
         # for nesting into child components. Ex: ["a", "p", "time"]
         for key in kwargs.get("children", []):
-            if key == "nextSibling": # necessary, unclear why
-                html_tag = html_tag.nextSibling if html_tag else html_tag
-            else:
-                html_tag = html_tag.key if html_tag else html_tag
+            html_tag = getattr(html_tag, key) if getattr(html_tag, key) else html_tag
 
         if kwargs.get("get_link") and html_tag:
             if html_tag.get("href"):
                 return html_tag.get("href").strip().rstrip("/")
             elif html_tag.a and html_tag.a.get("href"):
-                html_tag.a.get("href").strip().rstrip("/") or null_value
+                return html_tag.a.get("href").strip().rstrip("/") or null_value
+        elif kwargs.get("get_src"):
+            return html_tag.get("src").strip() if html_tag.get("src") else null_value
+        elif kwargs.get("get_title"):
+            return html_tag.get("title").strip() if html_tag.get("title") else null_value
+        elif kwargs.get("get_alt"):
+            return html_tag.get("alt").strip() if html_tag.get("alt") else null_value
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
         else:
             return extract_stripped_string(html_tag, null_value=null_value)
 
     except Exception as e:
-        logging.warning(e)
+        logging.warning(f"Exception found in safely_get_text: {e}")
         return null_value
 
     return null_value

@@ -56,7 +56,7 @@ def naive_append_gsheet_tab(sheet, tab, output_lod, headers):
         data_lol.append([row.get(x) for x in headers])
 
     sh, worksheet_list = open_gsheet(sheet)
-    resp = sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
+    resp = sh.values_append(tab +"!A1", {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
     print(resp)
 
 
