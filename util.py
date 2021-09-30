@@ -622,7 +622,13 @@ def find_url_tld(url, tld_list, **kwargs):
         logging.warning(f"No TLD in {url}")
         return None
 
-    tld = max(matched_tlds, key=len) # get the longest matching string TLD
+    if len(tld_list) == 1:
+        return tld_list[0]
+    elif len(tld_list) > 1: # use regex to find the longest matching substr (tld) that is immediately followed by the end-of-line token
+        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($)"
+        return ez_re_find(pattern, url)
+
+        # return max(matched_tlds, key=len) # get the longest matching string TLD
     return tld
 
 
