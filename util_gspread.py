@@ -127,14 +127,16 @@ def get_gsheet_tab_names(sh):
 
 def get_gsheet_tab(sh, tab_name, **kwargs):
     if isinstance(tab_name, int):  # index
-        tab = sh.get_worksheet(tab_name)
+        tab = sh.get_worksheet(tab_name) # get_worksheet_by_id TOOD
     elif isinstance(tab_name, str):
         tab = sh.worksheet(tab_name)
+    else:
+        raise TypeError(f"Unsupported tab_name type in get_gsheet_tab - {tab_name} / {type(tab_name)}")
 
     # Weird bug where get_all_records() on an empty sheet will raise IndexError
     try:
       tab_lod = tab.get_all_records(default_blank=kwargs.get("default_blank", None))
-    except IndexError:
+    except IndexError: # TODO may've been resolved
       tab_lod = []
 
     return tab, tab_lod
