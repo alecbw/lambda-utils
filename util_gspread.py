@@ -113,7 +113,8 @@ def open_gsheet(sheet_name):
         try:
             sh = gc.open(sheet_name)
         except Exception as e:
-            logging.error(e)
+            error_message = e if len(str(e)) != 0 else "APIError - Insufficient Permission or sheet doesnt exist"
+            logging.error(error_message)
             return None, None
 
     worksheet_list = get_gsheet_tab_names(sh)
