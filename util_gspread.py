@@ -7,10 +7,11 @@ import time
 import gspread
 import requests
 import logging
-# import jwt
+# import jwt # HAPPENS BELOW
 from google.oauth2 import service_account
 
-
+# MAYBETODO: A more-modern approach uses gspread's service_account_from_dict
+# see: https://github.com/burnash/gspread/commit/810183bd5d4d441e9f4d797114d3f49b80939969
 def auth_gspread():
     auth = {
         "private_key": os.environ["GSHEETS_PRIVATE_KEY"].replace("\\n", "\n").replace('"', ''),
