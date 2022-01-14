@@ -683,13 +683,7 @@ def format_timestamp(timestamp, **kwargs):
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
     [ ] 2019-02-19 19:54:49 -0700 MST # MST not supported by %Z
     [ ] 2021-06-17T11:46:24-05 # needs two trailing 0's
-    [x] 08/09/2021 05:00 AM UTC
-    [x] 2021-01-20@19:48:46 UTC 
     [ ] 2021-02-08T13:49:46.0000000Z # has one too many 0's
-    [x] Saturday, January 8, 2022 3:02 PM
-    [x]  Jan 14 2022 09:47:06 
-    [x] 2020-12-4T20:00
-    
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
