@@ -172,7 +172,7 @@ def rotate_proxy(proxies, **kwargs):
 
     if kwargs.get("HTTPS") in ["True", "true", True]:
         https_proxy = next((x for x in proxies if x.get("HTTPS") == "Y"))
-        return proxies.pop(proxies.index(https_proxy)).get("full"), proxieså
+        return proxies.pop(proxies.index(https_proxy)).get("full"), proxies
 
     return proxies.pop(0).get("full"), proxies
 
