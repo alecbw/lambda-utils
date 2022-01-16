@@ -165,10 +165,14 @@ def cache_proxy_list(**kwargs):
 
 def rotate_proxy(proxies, **kwargs):
     if not proxies or kwargs.get("force_scan"):
-        proxies =  cache_proxy_list(**kwargs) # prioritize_proxy(scan_dynamodb('proxyTable'), "US")
+        proxies = cache_proxy_list(**kwargs) # prioritize_proxy(scan_dynamodb('proxyTable'), "US")
 
     if kwargs.get("return_proxy_dict"):
         return proxies.pop(0), proxies
+
+    if kwargs.get("HTTPS") in ["True", "true", True]:
+        https_proxy = next((x for x in proxies if x.get("HTTPS") == "Y"))
+        return proxies.pop(proxies.index(https_proxy)).get("full"), proxieså
 
     return proxies.pop(0).get("full"), proxies
 
