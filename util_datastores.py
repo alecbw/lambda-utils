@@ -555,15 +555,20 @@ def list_s3_bucket_contents(bucket_name, path, **kwargs):
 # Via S3 Select. Note: intra-AWS data transfer (e.g. Lambda <> S3) is much faster than egress, so this optimization is less impactful to intra-AWS use cases
 def get_row_count_of_s3_csv(bucket_name, path):
     sql_stmt = """SELECT count(*) FROM s3object """
-    req = boto3.client('s3').select_object_content(
-        Bucket=bucket_name,
-        Key=path,
-        ExpressionType="SQL",
-        Expression=sql_stmt,
-        InputSerialization = {"CSV": {"FileHeaderInfo": "Use", "AllowQuotedRecordDelimiter": True}},
-        OutputSerialization = {"CSV": {}},
-    )
-    row_count = next((int(x["Records"]["Payload"]) for x in req["Payload"] if x.get("Records")), 0)
+    try:
+        req = boto3.client('s3').select_object_content(
+            Bucket=bucket_name,
+            Key=path,
+            ExpressionType="SQL",
+            Expression=sql_stmt,
+            InputSerialization = {"CSV": {"FileHeaderInfo": "Use", "AllowQuotedRecordDelimiter": True}},
+            OutputSerialization = {"CSV": {}},
+        )
+        row_count = next((int(x["Records"]["Payload"]) for x in req["Payload"] if x.get("Records")), 0)
+    except ClientError as e:  # specifically for OverMaxRecordSize Error, where characters in one cell exceed maxCharsPerRecord (1,048,576)
+        logging.error(e)
+        return 0
+
     return row_count
 
 
