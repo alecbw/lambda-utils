@@ -329,11 +329,12 @@ def ez_flatten_mixed_strs_and_lists(*args):
 
 def ez_convert_lod_to_lol(lod, headers):
     output_lol = []
+    output_lol.append(headers)
     for n, row in enumerate(lod):
-        if n == 0:
-            output_lol.append(headers)
-        else:
-            output_lol.append([row.get(x) for x in headers])
+        # if n == 0:
+        #     pass
+        # else:
+        output_lol.append([row.get(x) for x in headers])
 
     return output_lol
 
