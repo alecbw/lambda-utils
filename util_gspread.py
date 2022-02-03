@@ -170,15 +170,16 @@ def create_gsheet_sheet(gc, sheet_name, **kwargs):
     return sh
 
 
-
-def simple_tab_append(sh, tab, data):
+# TODO headers not used if LoL passed
+# Note: this will not write empty rows, even if they are present in the data
+def simple_tab_append(sh, tab_name, data, headers, **kwargs):
     if isinstance(sh, str):
         sh, worksheet_list = open_gsheet(sh)
 
     if isinstance(data, list) and isinstance(data[0], dict):
-        data = ez_convert_lod_to_lol(data)
+        data = ez_convert_lod_to_lol(data, headers, include_headers=kwargs.get("include_headers"))
     elif not (isinstance(data, list) and isinstance(data[0], list)):
-        raise ValueError("You must provide a list of lists or a list of dictionaries to simple_tab_append")
+        raise ValueError("You must provide a list of lists or a list of dictionaries to simple_tab_name_append")
 
-    resp = sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data})
-    # print(resp)
+    resp = sh.values_append(tab_name, {'valueInputOption': 'USER_ENTERED'}, {'values': data})
+    logging.debug(resp)
