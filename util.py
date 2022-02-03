@@ -203,6 +203,8 @@ def ez_insensitive_get(nested_data, *keys, **kwargs):
 
     return nested_data
 
+
+
 # dict keys and/or list indexes
 def ez_try_and_get(nested_data, *keys):
     for key in keys:
@@ -762,6 +764,16 @@ def find_substrings_in_string(value, list_of_substrings, **kwargs):
     if kwargs.get("no_strip"): # no whitespace strip
         return [sub_str for sub_str in list_of_substrings if sub_str.lower() in value.lower()]
     return [sub_str for sub_str in list_of_substrings if sub_str.lower().strip() in value.lower().strip()]
+
+
+def is_in_list_insensitive(value, list_to_check, **kwargs):
+    if not value or not list_to_check:
+        logging.debug("One of value or list_to_check was None in is_in_list_insensitive")
+        return None
+
+    if kwargs.get("no_strip"): # no whitespace strip
+        return any(val for val in list_to_check if val.lower() == value.lower())
+    return any(val for val in list_to_check if val.lower().strip() == value.lower().strip())
 
 
 # i.e. split a list of len n into x smaller lists of len (n/x)
