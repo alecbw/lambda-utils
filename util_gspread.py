@@ -170,7 +170,8 @@ def create_gsheet_sheet(gc, sheet_name, **kwargs):
     return sh
 
 
-# TODO headers used if LoL passed
+# TODO headers not used if LoL passed
+# Note: this will not write empty rows, even if they are present in the data
 def simple_tab_append(sh, tab_name, data, headers, **kwargs):
     if isinstance(sh, str):
         sh, worksheet_list = open_gsheet(sh)
