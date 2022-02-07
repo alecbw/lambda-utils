@@ -320,6 +320,7 @@ def ez_strip_str(input_str, **kwargs):
         input_str = re.sub(r"\s{2,}", " ", input_str)
     return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").strip()
 
+
 # TODO replace dumbass implementation of replacing newline chars
 def extract_stripped_string(html_tag_or_str, **kwargs):
     if not html_tag_or_str:

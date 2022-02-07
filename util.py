@@ -203,6 +203,8 @@ def ez_insensitive_get(nested_data, *keys, **kwargs):
 
     return nested_data
 
+
+
 # dict keys and/or list indexes
 def ez_try_and_get(nested_data, *keys):
     for key in keys:
@@ -327,14 +329,13 @@ def ez_flatten_mixed_strs_and_lists(*args):
     return output_set
 
 
-def ez_convert_lod_to_lol(lod):
+def ez_convert_lod_to_lol(lod, headers, **kwargs):
     output_lol = []
+    if kwargs.get("include_headers"):
+        output_lol.append(headers)
+
     for n, row in enumerate(lod):
-        if n == 0:
-            headers = list(row.keys())
-            output_lol.append(headers)
-        else:
-            output_lol.append([row.get(x) for x in headers])
+        output_lol.append([row.get(x) for x in headers])
 
     return output_lol
 
@@ -701,7 +702,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if len(datetime_str) == 33 and ez_re_find("\.[0-9]{7}\-", datetime_str): # python datetime can't handle 7 decimals in ms in 2021-03-04T13:17:19.5466667-06:00
         datetime_str = datetime_str[:26] + datetime_str[27:]
 
-    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%Y-%m-%d", "%b %d, %Y", "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y", "%Y %m %d", "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z"]
+    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%Y-%m-%d", "%b %d, %Y", "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y", "%Y %m %d", "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d"]
     for dt_format in LIST_OF_DT_FORMATS:
         try:
             dt_str = datetime.strptime(datetime_str.strip().replace("&#43;", "+"), dt_format)
@@ -763,6 +764,16 @@ def find_substrings_in_string(value, list_of_substrings, **kwargs):
     if kwargs.get("no_strip"): # no whitespace strip
         return [sub_str for sub_str in list_of_substrings if sub_str.lower() in value.lower()]
     return [sub_str for sub_str in list_of_substrings if sub_str.lower().strip() in value.lower().strip()]
+
+
+def is_in_list_insensitive(value, list_to_check, **kwargs):
+    if not value or not list_to_check:
+        logging.debug("One of value or list_to_check was None in is_in_list_insensitive")
+        return None
+
+    if kwargs.get("no_strip"): # no whitespace strip
+        return any(val for val in list_to_check if val.lower() == value.lower())
+    return any(val for val in list_to_check if val.lower().strip() == value.lower().strip())
 
 
 # i.e. split a list of len n into x smaller lists of len (n/x)
