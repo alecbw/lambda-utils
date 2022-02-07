@@ -198,11 +198,14 @@ def handle_request_exception(e, proxy, url, disable_error_messages):
     elif "Exceeded 30 redirects" in str(e):
         warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Too Many Redirects Error. {e}<-----'
         status_code = 399
-    elif "TimeoutError" in str(e) or " Read timed out." in str(e):
+    elif "TimeoutError" in str(e) or " Read timed out." in str(e) or "timeout('timed out')" in str(e):
         warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Request Threw TimeoutError: {e} <-----'
         status_code = 408
     elif "Caused by NewConnectionError" in str(e) and "ProxyError" not in str(e):
         warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Effective 404 - Request Threw NewConnectionError: {e} <-----'
+        status_code = 404
+    elif "Tunnel connection failed: 404 Not Found" in str(e):
+        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Effective 404 - Request Threw OSError: {e} <-----'
         status_code = 404
     elif "Connection refused" in str(e) or "Connection reset by peer" in str(e): # or "Remote end closed connection" in str(e):
         warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Proxy refusing traffic {e} <-----'
