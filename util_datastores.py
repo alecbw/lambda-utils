@@ -843,10 +843,13 @@ def aurora_execute_sql(db, sql, **kwargs):
 
 ########################### ~ S3 Data Lake Specific ~ ###################################################
 
-def convert_dict_to_parquet_map(input_dict):
+def convert_dict_to_parquet_map(input_dict, **kwargs):
     output_list = []
     for k,v in input_dict.items():
-        output_list.append( (k, v) ) # tuple
+        if kwargs.get("force_conversion") == "string":
+            output_list.append( (str(k), str(v)) ) # tuple
+        else:
+            output_list.append( (k, v) ) # tuple
     return output_list
 
 # only supports one day. If you have multiple dates in the data to be written, add it to the df/lod directly
