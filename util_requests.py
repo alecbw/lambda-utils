@@ -128,8 +128,10 @@ def rotate_accept():
 
 def get_ds_proxy_list(**kwargs):
     countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GB|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
-    url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&https={kwargs.get('HTTPS', 'yes')}&country={countries}" #
+    url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&https={kwargs.get('HTTPS', 'yes')}"
+    url += f"&country={countries}" #
     url += "&level=1|2"
+    # print(url)
 
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
