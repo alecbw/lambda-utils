@@ -194,7 +194,7 @@ def prioritize_proxy(proxies, location):
 
 
 def handle_request_exception(e, proxy, url, disable_error_messages):
-    if "Caused by SSLError(SSLCertVerificationError" in str(e) or "SSL: WRONG_VERSION_NUMBER] wrong version number" in str(e): # CertificateError
+    if any(x for x in ["Caused by SSLError(SSLCertVerificationError", "SSL: WRONG_VERSION_NUMBER", "[Errno 65] No route to host"] if x in str(e)):  # CertificateError -> downgrade to HTTP
         warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Certificate Error. {e}<-----'
         status_code = 495
     elif "Exceeded 30 redirects" in str(e):
