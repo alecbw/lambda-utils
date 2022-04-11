@@ -600,7 +600,7 @@ def format_url(url, **kwargs):
         tld = find_url_tld(url, kwargs["remove_subdomain"])
         if not tld:
             return url.strip()
-        subdomain = ez_split(url, tld, 0, fallback_value="")
+        subdomain = url.rsplit(tld, 1)[0]   # only split once, on the right most. This is to prevent e.g. the tld '.net' in 'foo.netflix.net' from splitting the '.netflix' too
         domain = subdomain[subdomain.rfind(".")+1:]
         url = domain + tld
 
