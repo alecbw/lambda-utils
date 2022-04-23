@@ -687,37 +687,44 @@ def delete_s3_file(bucket_name, filename, **kwargs):
         return e
 
 
+# Handles deleting abandoned delete markers, as well
 def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
+    to_delete_dol = defaultdict(list)
+    all_del_markers = {}
+
     bucket = boto3.resource('s3').Bucket(bucket_name)
     paginator = boto3.client('s3').get_paginator('list_object_versions')
     pages = paginator.paginate(Bucket=bucket_name, Prefix=path) # , MaxKeys=kwargs.get("file_limit", None))
 
     for page in pages:
-        to_delete_dol = defaultdict(list)
+        if not page.get('DeleteMarkers'):
+            continue
 
         # Get all delete markers where the *marker* is the latest version, i.e., should be deleted
         del_markers = {item['Key']: item['VersionId'] for item in page['DeleteMarkers'] if item['IsLatest'] == True}
+        all_del_markers = {**all_del_markers, **del_markers}
 
         # Get all version IDs for all objects that have eligible delete markers
-        for item in page['Versions']:
+        for item in page.get('Versions', []):
             if item['Key'] in del_markers.keys():
                 to_delete_dol[item['Key']].append(item['VersionId'])
 
-        if kwargs.get("preview") and not kwargs.get("disable_print"):
-            logging.info("NOTE: Just listing entries, not deleting.")
-            [logging.info(f"{k} - {v}") for k,v in to_delete_dol.items()]
-            return
+    if kwargs.get("preview"):
+        logging.info("NOTE: Just listing entries, not deleting.")
+        [logging.info(f"{k} - {v}") for k,v in to_delete_dol.items()]
+        return
 
-        # Remove old versions of object by VersionId
-        for del_item in to_delete_dol:
+    # Remove old versions of object by VersionId
+    for del_item in to_delete_dol:
+        if not kwargs.get("disable_print"):
             logging.info(f'Deleting {del_item}')
-            object_to_remove = bucket.Object(del_item)
+        object_to_remove = bucket.Object(del_item)
 
-            for del_id in to_delete_dol[del_item]:
-                object_to_remove.delete(VersionId=del_id)
+        for del_id in to_delete_dol[del_item]:
+            object_to_remove.delete(VersionId=del_id)
 
-            # Also remove delete marker itself
-            object_to_remove.delete(VersionId=del_markers[del_item])
+        # Also remove delete marker itself
+        object_to_remove.delete(VersionId=all_del_markers[del_item])
 
 
 
