@@ -268,7 +268,7 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
         return kwargs.get("null_value", html_tag_or_str)
 
     elif isinstance(html_tag_or_str, NavigableString) and  str(html_tag_or_str):
-        return ez_strip_str(str(html_tag_or_str))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').strip()
+        return ez_strip_str(str(html_tag_or_str))
 
     elif isinstance(html_tag_or_str, str):
         return ez_strip_str(html_tag_or_str)

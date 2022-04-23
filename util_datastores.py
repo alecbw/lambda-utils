@@ -16,6 +16,7 @@ import ast
 from pprint import pprint
 from io import StringIO
 from typing import Callable, Iterator, Union, Optional, List
+from collections import defaultdict
 
 import boto3
 from botocore.exceptions import ClientError
@@ -646,6 +647,74 @@ def delete_s3_file(bucket_name, filename, **kwargs):
     except ClientError as e:
         logging.error(e)
         return e
+
+def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
+
+    if kwargs.get("preview"):
+        print("NOTE: Just listing entries, not deleting.")
+
+    s3 = boto3.client('s3')
+    paginator = s3.get_paginator('list_object_versions')
+    pages = paginator.paginate(Bucket=bucket_name, Prefix=path, MaxKeys=kwargs.get("file_limit", None))
+    for page in pages:
+        to_delete_list = []
+        for info in page['Versions']:
+            to_delete_list.append(dict(Key=info['Key'], VersionId=info['VersionId']))
+            if kwargs.get("preview") and not kwargs.get("disable_print"):
+                print("%s?%s" % (info['Key'], info['VersionId']))
+
+        if not kwargs.get("preview"):
+            response = s3.delete_objects(Bucket=bucket_name, Delete=dict(Objects=to_delete_list))
+            if response.get('Deleted') and len(response.get('Deleted')) and not kwargs.get("disable_print"):
+                for d in response.get('Deleted'):
+                    if d.get('DeleteMarker', None):
+                        print("%s (delete marker)" % (d['Key']))
+                    else:
+                        print("%s?%s" % (d['Key'], d['VersionId']))
+            if response.get('Errors') and len(response.get('Errors')):
+                for d in response.get('Errors'):
+                    logging.error(d)
+
+    # version_list = boto3.client('s3').list_object_versions(
+    #     Bucket=bucket_name,
+    #     MaxKeys=kwargs.get("file_limit", None),
+    #     Prefix=path,
+    #     # KeyMarker=KeyMarker
+    #  )
+    # id_list = defaultdict()     # Holds delete markers
+    # del_obj_list = defaultdict(list)     # Holds all version IDs for objects w/delete markers
+    #
+    # for n, file_summary in enumerate(s3_bucket.objects.filter(Prefix=path.lstrip("/")).limit(file_limit)):
+    #
+    #     s3 = boto3.resource('s3')
+    # s3_object = s3.Object(Bucket=bucket_name, Key=filename)
+    # return s3_object.get()['Body'] #body returns streaming string
+    #
+    # s3_client = boto3.client('s3')
+    # bucket = boto3.resource('s3').Bucket(bucket_name)
+    # resp = s3_client.list_object_versions(Bucket=bucket_name)
+
+    # All delete markers that are latest version, i.e., should be deleted
+    del_markers = {item['Key']: item['VersionId'] for item in resp['DeleteMarkers'] if item['IsLatest'] == True}
+
+    # Get all version IDs for all objects that have eligible delete markers
+    for item in resp['Versions']:
+        if item['Key'] in del_markers.keys():
+            del_obj_list[item['Key']].append(item['VersionId'])
+
+    # Remove old versions of object by VersionId
+    for del_item in del_obj_list:
+        print('Deleting {}....'.format(del_item))
+        rm_obj = bucket.Object(del_item)
+
+        for del_id in del_obj_list[del_item]:
+            rm_obj.delete(VersionId=del_id)
+
+        # Remove delete marker
+        rm_obj.delete(VersionId=del_markers[del_item])
+
+        print('-----\n')
+
 
 
 # http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
