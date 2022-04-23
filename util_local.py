@@ -20,7 +20,7 @@ def read_from_gsheet(sheet, tab):
         print(f"Finished reading from Google Sheet {sheet}. Status code {status_code}")
     else:
         print(f"Error reading from Google Sheet {sheet}. Status code {status_code}; message: {data}")
-    return data
+    return data # is list of dicts
 
 
 def write_to_gsheet(output_lod, sheet, tab, primary_key, **kwargs):
@@ -47,7 +47,7 @@ def write_to_gsheet(output_lod, sheet, tab, primary_key, **kwargs):
     return status_code
 
 
-# Use if you're hitting the 2MB Lambda limit
+# Use if you're hitting the 2MB Lambda limit. This uses the low-level values_append function
 def naive_append_gsheet_tab(sheet, tab, output_lod, headers):
     from utility.util_gspread import open_gsheet
 
@@ -56,7 +56,7 @@ def naive_append_gsheet_tab(sheet, tab, output_lod, headers):
         data_lol.append([row.get(x) for x in headers])
 
     sh, worksheet_list = open_gsheet(sheet)
-    resp = sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
+    resp = sh.values_append(tab +"!A1", {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
     print(resp)
 
 

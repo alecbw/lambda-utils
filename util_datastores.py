@@ -1,5 +1,6 @@
-from utility.util import is_none, ez_try_and_get, ez_get, ez_split
+from utility.util import is_none, ez_try_and_get, ez_get, ez_split, startswith_replace
 
+import sys
 import os
 from time import sleep
 import logging
@@ -20,46 +21,70 @@ from collections import defaultdict
 
 import boto3
 from botocore.exceptions import ClientError
+from botocore.client import Config
 
 """ Note: imported below
 import pandas as pd
 import awswrangler as wr
 """
 
+
 ######################## ~ Athena Queries ~ #############################################
 
-# TODO implement in standardize_athena_query_result so not iterating over list twice
-def convert_athena_array_cols(data_lod, ** kwargs):
-    if not kwargs.get("convert_array_cols"):
-        return data_lod
+
+def is_float(maybe_float):
+    try:
+        return float(maybe_float)
+    except Exception as e:
+        pass
+
+
+def convert_athena_array_cols(data_lod, **kwargs):
+    # if not kwargs.get("convert_array_cols"):
+    #     return data_lod
 
     for n, row in enumerate(data_lod):
-        for k,v in row.items():
-            if k not in kwargs["convert_array_cols"]:
-                continue
-            elif v == '[]' or not v:
-                row[k] = []
-            else:
-                row[k] = v.strip('][').split(', ')
-        data_lod[n] = row
+        data_lod[n] = convert_athena_row_types(row, **kwargs)
 
     return data_lod
 
 
+def convert_athena_row_types(row, **kwargs):
+    for k,v in row.items():
+        if k not in kwargs.get("convert_array_cols", []) and v and v.isdigit():
+            row[k] = int(v)
+        elif k not in kwargs.get("convert_array_cols", []) and is_float(v):
+            row[k] = float(v)
+        elif k not in kwargs.get("convert_array_cols", []):
+            continue
+        elif v == '[]' or not v:
+            row[k] = []
+        else:
+            row[k] = v.strip('][').split(', ')
+
+    return row
+
+
 # Opinion: Whoever designed the response schema hates developers
 def standardize_athena_query_result(results, **kwargs):
-    results = [x["Data"] for x in results['ResultSet']['Rows']]
-    for n, row in enumerate(results):
-        results[n] = [x.get('VarCharValue', None) for x in row] # NOTE: the .get(fallback=None) WILL cause problems if you have nulls in non-string cols
-    if kwargs.get("output_lod"):
-        headers = kwargs.get("headers") or results.pop(0)
+    result_lol = [x["Data"] for x in results['ResultSet']['Rows']]
+    for n, row in enumerate(result_lol):
+        result_lol[n] = [x.get('VarCharValue', None) for x in row] # NOTE: the .get(fallback=None) WILL cause problems if you have nulls in non-string cols
 
-        output_lod = []
-        for n, result_row in enumerate(results):
-            output_lod.append({headers[i]:result_row[i] for i in range(0, len(result_row))})
-        return output_lod
+    if not kwargs.get("output_lod"):
+        return result_lol
+    elif kwargs.get("output_lod"):
+        headers = kwargs.get("headers") or result_lol.pop(0)
 
-    return results
+        result_lod = []
+        for n, result_row in enumerate(result_lol):
+            result_row_dict = {headers[i]:result_row[i] for i in range(0, len(result_row))}
+            if not kwargs.get("skip_type_conversion"):
+                result_row_dict = convert_athena_row_types(result_row_dict, **kwargs)
+            result_lod.append(result_row_dict)
+
+        return result_lod
+
 
 
 # about 4s per 10k rows, with a floor of ~0.33s if only one page
@@ -107,8 +132,11 @@ def query_athena_table(sql_query, database, **kwargs):
     query_started = client.start_query_execution(
         QueryString=sql_query,
         QueryExecutionContext={'Database': database},
-        ResultConfiguration={"OutputLocation": f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/"}
+        ResultConfiguration={"OutputLocation": kwargs.get("result_bucket", f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/")}
     )
+
+    if kwargs.get("dont_wait_for_query_result"):
+        return True
 
     timeout_value = kwargs.get("timeout", 15) * 1000 # bc its in milliseconds
     finished = False
@@ -131,18 +159,18 @@ def query_athena_table(sql_query, database, **kwargs):
             sleep(kwargs.get("wait_interval", 0.1))
 
 
-    if kwargs.get("time_it"): logging.info(f"{round(timeit.default_timer() - start_time, 4)} seconds - Query execution time (NOT including pagination/file-handling)")
+    if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling) - {round(timeit.default_timer() - start_time, 4)} seconds")
 
     if kwargs.get("return_s3_path"):
         s3_result_dict["entry_count"] = get_row_count_of_s3_csv(s3_result_dict['bucket'], s3_result_dict['filename'])
         result = s3_result_dict
-    elif kwargs.get("return_s3_file"):
+    elif kwargs.get("return_s3_file"): # as lod
         s3_result_dict["data"] = convert_athena_array_cols(get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True), **kwargs)
         result = s3_result_dict
     else:
-        result = convert_athena_array_cols(paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs), **kwargs)
+        result = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
-    if kwargs.get("time_it"): logging.info(f"{round(timeit.default_timer() - start_time, 4)} seconds - Query execution time (all-in)")
+    if kwargs.get("time_it"): logging.info(f"Query execution time (all-in) - {round(timeit.default_timer() - start_time, 4)} seconds")
 
     return result
 
@@ -190,18 +218,25 @@ class DynamoReadEncoder(json.JSONEncoder):
 
 
 # Both reads and writes
+# TODO refactor for readability
 def standardize_dynamo_query(input_data, **kwargs):
+
     if not isinstance(input_data, dict):
         logging.error(f"Wrong data type for dynamodb - you input {type(input_data)}")
         return None
 
-    if not kwargs.get("skip_updated"):
-        input_data['updatedAt'] = int(datetime.utcnow().timestamp())
-    elif "updatedAt" in input_data:
-        input_data['updatedAt'] = int(input_data['updatedAt'])
+    if input_data.get("created_at") or input_data.get("updated_at"):
+        if input_data.get("created_at"):
+            input_data['created_at'] = int(input_data['created_at'])
+        input_data['updated_at'] = int(input_data.get("updated_at", input_data.get('created_at')))
+    else:
+        if not kwargs.get("skip_updated"):
+            input_data['updatedAt'] = int(datetime.utcnow().timestamp())
+        elif "updatedAt" in input_data:
+            input_data['updatedAt'] = int(input_data['updatedAt'])
 
-    if kwargs.get("add_created") and 'createdAt' not in input_data:
-        input_data['createdAt'] = input_data['updatedAt']
+        if kwargs.get("add_created") and 'createdAt' not in input_data:
+            input_data['createdAt'] = input_data['updatedAt']
 
     for k, v in input_data.items():
         if is_none(k):  # Drop falsey keys (and their vals), they break upserts
@@ -220,11 +255,18 @@ def standardize_dynamo_output(output_data, **kwargs):
     if not output_data:
         return output_data
 
-    datetime_keys = [key for key in output_data.keys() if key in ["updatedAt", "createdAt", 'ttl']]
+    datetime_keys = [key for key in output_data.keys() if key in ["updatedAt", "createdAt", "updated_at", "created_at", 'ttl']]
     for key in datetime_keys:
+        if not output_data[key]:
+            return "" if kwargs.get("output") == "datetime_str" else None
         output_data[key] = datetime.fromtimestamp(output_data[key])#.replace(tzinfo=timezone.utc)
+        if kwargs.get("output") == "datetime_str":
+            output_data[key] = output_data[key].strftime('%Y-%m-%d %H:%M:%S')
 
-    return json.dumps(output_data, cls=DynamoReadEncoder) if kwargs.get("output") == "json" else output_data
+    if kwargs.get("output") == "json": # each dict will be JSON, but not the overall list
+        return json.dumps(output_data, cls=DynamoReadEncoder)
+    else:
+        return output_data
 
 
 # Note this will BY DEFAULT overwrite items with the same primary key (upsert)
@@ -247,7 +289,10 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
     return True
 
 
-# Note this will overwrite items with the same primary key (upsert)
+"""
+Note this will overwrite items with the same primary key (upsert)
+If you pass a lod of len > 100, it will quietly split it to mini-batches of 100 each
+"""
 def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
 
@@ -294,11 +339,12 @@ def scan_dynamodb(table, **kwargs):
         kwargs["ExclusiveStartKey"] = result['LastEvaluatedKey']
         result = table.scan(**kwargs)
         data_lod.extend(result['Items'])
+        print('extending')
 
-    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo List from {table}, found {result['Count']} results")
+    if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Scan from {table}, found {result['Count']} results")
 
     for n, row in enumerate(data_lod):
-        data_lod[n] = standardize_dynamo_output(row)
+        data_lod[n] = standardize_dynamo_output(row, **kwargs)
 
     return data_lod
 
@@ -475,38 +521,6 @@ def upsert_dynamodb_item(key_dict, dict_of_attributes, table_name, **kwargs):
     return result.get('Attributes')
 
 
-# # TODO implement
-# def query_dynamodb_table(operation_parameters_dict, table, **kwargs):
-#     table = boto3.resource('dynamodb').Table(table)
-#     dict_of_attributes = standardize_dynamo_query(dict_of_attributes, **kwargs)
-#
-#     operation_parameters_dict["TableName"] = table
-#     result = table.query(**operation_parameters_dict)
-#     # client = boto3.client('dynamodb')
-#     paginator = client.get_paginator('query')
-#     operation_parameters = {
-#       'TableName': table,
-#       'FilterExpression': 'bar > :x AND bar < :y',
-#       'ExpressionAttributeValues': {
-#         ':x': {'S': '2017-01-31T01:35'},
-#         ':y': {'S': '2017-01-31T02:08'},
-#       }
-#     }
-#
-#     page_iterator = paginator.paginate(**operation_parameters_dict)
-#     for page in page_iterator:
-#         # do something
-#         print(page)
-#     # result = table.query(
-#         KeyConditionExpression=boto3.dynamodb.conditions.Key(primary_key).eq(primary_key_value)
-#     )
-#     if not kwargs.get("disable_print"): logging.info(f"Successfully did a Dynamo Query on {table}")
-#     return data
-# TODO decimal encoding? https://github.com/serverless/examples/blob/master/aws-python-rest-api-with-dynamodb/todos/decimalencoder.py
-# TODO Upsert https://github.com/serverless/examples/blob/master/aws-python-rest-api-with-dynamodb/todos/update.py
-
-
-
 #################### ~ S3 Specific ~ ##########################################
 
 
@@ -517,8 +531,11 @@ def get_s3_bucket_file_count(bucket_name, path):
     else:
         return sum(1 for _ in bucket.objects.filter(Prefix=path.lstrip("/")))
 
-# The path should be `folder/` NOT `/folder`
-# MaxKeys = number of results per page, NOT number of total results
+"""
+    The path should be `folder/` NOT `/folder`
+    MaxKeys = number of results per page, NOT number of total results
+    It would appear the list is ordered (ie if you use limit=1 it will always be the same)
+"""
 def list_s3_bucket_contents(bucket_name, path, **kwargs):
     storage_classes = ["STANDARD"] if kwargs.get("ignore_glacier") else ["STANDARD", "STANDARD_IA", "GLACIER"]
 
@@ -531,21 +548,28 @@ def list_s3_bucket_contents(bucket_name, path, **kwargs):
         filter_args["MaxKeys"] = kwargs["limit"]
 
     response = client.list_objects_v2(**filter_args)
-    return [x.get("Key") for x in response["Contents"]]
+    if response.get("Contents"):
+        return [x.get("Key") for x in response["Contents"]]
+    return []
 
 
 # Via S3 Select. Note: intra-AWS data transfer (e.g. Lambda <> S3) is much faster than egress, so this optimization is less impactful to intra-AWS use cases
 def get_row_count_of_s3_csv(bucket_name, path):
     sql_stmt = """SELECT count(*) FROM s3object """
-    req = boto3.client('s3').select_object_content(
-        Bucket=bucket_name,
-        Key=path,
-        ExpressionType="SQL",
-        Expression=sql_stmt,
-        InputSerialization = {"CSV": {"FileHeaderInfo": "Use", "AllowQuotedRecordDelimiter": True}},
-        OutputSerialization = {"CSV": {}},
-    )
-    row_count = next((int(x["Records"]["Payload"]) for x in req["Payload"] if x.get("Records")), 0)
+    try:
+        req = boto3.client('s3').select_object_content(
+            Bucket=bucket_name,
+            Key=path,
+            ExpressionType="SQL",
+            Expression=sql_stmt,
+            InputSerialization = {"CSV": {"FileHeaderInfo": "Use", "AllowQuotedRecordDelimiter": True}},
+            OutputSerialization = {"CSV": {}},
+        )
+        row_count = next((int(x["Records"]["Payload"]) for x in req["Payload"] if x.get("Records")), 0)
+    except ClientError as e:  # specifically for OverMaxRecordSize Error, where characters in one cell exceed maxCharsPerRecord (1,048,576)
+        logging.error(e)
+        return 0
+
     return row_count
 
 
@@ -558,7 +582,9 @@ def get_s3_file(bucket_name, filename, **kwargs):
         if kwargs.get("raw"):
             return s3_obj
         elif kwargs.get("convert_csv"):
-            return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
+            csv.field_size_limit(sys.maxsize) # circumvents `field larger than field limit (131072)` Error
+            return list(csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True))
+            # return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
         elif kwargs.get("convert_json"):
             return json.loads(s3_obj.read().decode('utf-8'))
         else:
@@ -566,7 +592,7 @@ def get_s3_file(bucket_name, filename, **kwargs):
 
     except Exception as e:
         logging.error(e)
-        raise e
+        raise e # feels redundant TODO
 
 
 # for use with `for line in body`
@@ -623,6 +649,18 @@ def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest
 
     if not kwargs.get("disable_print"):
         logging.info("Copy appears to have been a success")
+
+
+# Only operates on one file at a time. Pair with get_s3_files_that_match_prefix and a for loop to copy a subfolder recursively
+def move_s3_file(start_bucket, start_path, dest_bucket, dest_path, **kwargs):
+    destination_bucket = boto3.resource('s3').Bucket(dest_bucket)
+    destination_bucket.copy({'Bucket': start_bucket, 'Key': start_path}, dest_path)
+
+    # Delete original after copying over
+    delete_s3_file(start_bucket, start_path, disable_print=True)
+
+    if not kwargs.get("disable_print"):
+        logging.info(f"Move to {dest_path} appears to have been a success")
 
 
 def move_s3_file_to_glacier(bucket_name, path):
@@ -771,6 +809,23 @@ and
 """
 
 
+# DO NOTE: this will generate a url even if the file_name is not actually in the bucket
+def generate_s3_presigned_url(bucket_name, file_name, **kwargs):
+    client = boto3.client(
+        's3',
+        config=Config(
+            signature_version='s3v4',
+            s3 = {'use_accelerate_endpoint': kwargs.get("accelerate_endpoint", False)}
+        )
+    )
+
+    url = client.generate_presigned_url(
+        ClientMethod='get_object',
+        Params={'Bucket': bucket_name, 'Key': file_name},
+        ExpiresIn=kwargs.get("TTL", 3600) # one hour
+    )
+    return url
+
 
 ###################### ~ SQS Specific ~ ###################################################
 
@@ -857,6 +912,15 @@ def aurora_execute_sql(db, sql, **kwargs):
 
 ########################### ~ S3 Data Lake Specific ~ ###################################################
 
+def convert_dict_to_parquet_map(input_dict, **kwargs):
+    output_list = []
+    for k,v in input_dict.items():
+        if kwargs.get("force_conversion") == "string":
+            output_list.append( (str(k), str(v)) ) # tuple
+        else:
+            output_list.append( (k, v) ) # tuple
+    return output_list
+
 # only supports one day. If you have multiple dates in the data to be written, add it to the df/lod directly
 def add_yearmonthday_partition_to_lod(data, partition_date):
     if partition_date in ["Today", "today", "utcnow", "", None]:
@@ -927,7 +991,7 @@ def read_s3_parquet(s3_path, **kwargs):
 
     df = wr.s3.read_parquet(
         path=s3_path,
-        dataset=True,
+        dataset=kwargs.pop("dataset", True),
         validate_schema=kwargs.pop("validate_schema", True), # raises an InvalidSchemaConvergence exception if > 1 schemas are found in the files
         use_threads=kwargs.pop("use_threads", True),
         ignore_empty=True,                                   # Ignore files with 0 bytes.
@@ -958,6 +1022,20 @@ def extract_local_file_athena_metadata():
 
 ########################### ~ Glue Specific ~ ###################################################
 
+"""
+At present, this appears to only do exact string literal searches, which makes it near useless. I'm clearly missing something here.
+Docs: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/glue.html#Glue.Client.search_tables
+[ ] TODO: add support for NextToken
+"""
+def search_glue_tables(search_string, **kwargs):
+    response = boto3.client('glue').search_tables(
+        CatalogId=os.environ['AWS_ACCOUNT_ID'],
+        SearchText=search_string,
+        **kwargs
+    )
+    return response['TableList']
+
+
 # col_lod entries look like [{'Name': 'col_name', 'Type': 'array<string>'},
 def get_glue_table_columns(db, table, **kwargs):
     response = boto3.client('glue').get_table(
@@ -966,12 +1044,67 @@ def get_glue_table_columns(db, table, **kwargs):
         Name=table
     )
     col_lod = ez_get(response, "Table", "StorageDescriptor", "Columns")
-    if kwargs.get("return_type").lower() == "dict":
+    if kwargs.get("return_type", "").lower() == "dict":
         return {x["Name"]:x["Type"] for x in col_lod}
     else:
         return [x['Name'] for x in col_lod]
 
 
+def get_glue_table_location(db, table):
+    response = boto3.client('glue').get_table(
+        CatalogId=os.environ['AWS_ACCOUNT_ID'],
+        DatabaseName=db,
+        Name=table
+    )
+    table_location = response.get("Table", {}).get("StorageDescriptor", {}).get("Location", None)
+    return table_location
+
+
+def change_glue_table_s3_location(db, table, full_bucket_folder_path, **kwargs):
+    change_location_sql_query = f"ALTER TABLE {db}.{table} "
+
+    if kwargs.get("partition"):
+        change_location_sql_query += kwargs['partition']  #  eg PARTITION (zip='98040', state='WA')
+    if not full_bucket_folder_path.startswith("s3://"):
+        full_bucket_folder_path = "s3://" + full_bucket_folder_path
+
+    change_location_sql_query += f"SET LOCATION '{full_bucket_folder_path}';"
+    query_athena_table(change_location_sql_query, db)
+    logging.info(f"The {table} location change SQL query appears to have been successful")
+
+
+# Dropping a glue table DOES NOT DELETE the underlying data; you have to do so separately
+def drop_glue_table(db, table):
+
+    drop_table_sql_query = f"DROP TABLE IF EXISTS `{db}.{table}`"
+    query_athena_table(drop_table_sql_query, db)
+    logging.info(f"The {table} drop appears to have been successful")
+
+
+# NOT WORKING
+def update_glue_table(db, table, **kwargs):
+    table_input_dict = {
+        'TargetTable': {
+            'CatalogId': os.environ['AWS_ACCOUNT_ID'],
+            'DatabaseName': db,
+            'Name': table
+        }
+    }
+
+    if not kwargs:
+        raise ValueError("You must pass at least one kwarg")
+    if kwargs.get("new_table_name"):
+        table_input_dict['Name'] =  kwargs['new_table_name']
+    if kwargs.get("new_table_location"):
+        table_input_dict['StorageDescriptor']['Location'] =  kwargs['new_table_location']
+
+    response = boto3.client('glue').update_table(
+        CatalogId=os.environ['AWS_ACCOUNT_ID'],
+        DatabaseName=db,
+        TableInput=table_input_dict
+    )
+    print(response)
+    return response
 
 
 # the way the wrangler writes in main.py work we need to manually declare the day's partition daily
@@ -985,6 +1118,33 @@ def add_glue_date_partition(db, table, bucket, subfolder_path, write_date, **kwa
     LOCATION '{bucket + subfolder_path}'
     """
     query_athena_table(update_partition_sql_query, db)
+
+
+"""
+The docs for this are just terrible - boto3.amazonaws.com/v1/documentation/api/latest/reference/services/glue.html#Glue.Client.delete_partition
+
+To delete a partition like: 'account_id=abc123/year=2021/month=5/day=28', 
+pass the following as partition_values_as_a_list: ["abc123", "2021", "5", 28"]
+
+There is also batch_delete_partition, which TODO I'll implement here eventually
+"""
+def delete_glue_partition(db, table, partition_values_as_a_list):
+    if not isinstance(partition_values_as_a_list, list) or not all(x for x in partition_values_as_a_list if isinstance(x, str)):
+        logging.error(f"Double check your value for partition_values_as_a_list - {partition_values_as_a_list}")
+
+    try:
+        _ = boto3.client('glue').delete_partition(
+            DatabaseName=db,
+            TableName=table,
+            PartitionValues=partition_values_as_a_list,
+        )
+    except Exception as e:
+        if "EntityNotFoundException" in str(e):
+            logging.warning(f"Specified glue partition not found - {e}")
+        return False
+
+    return True
+
 
 ########################### ~ CloudWatch Specific ~ ###################################################
 
@@ -1040,3 +1200,132 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
         endDate=tomorrow.strftime("%Y-%m-%d"),
     )
     return response.get("items", {})
+
+
+# def create_apiKey(keyId, usagePlanId, **kwargs):
+#     today = datetime.utcnow()
+#     tomorrow = today + timedelta(days=int(kwargs.get("days_range", 1)))
+#
+#     client = boto3.client('apigateway')
+#     response = client.get_usage(
+#         usagePlanId=usagePlanId,
+#         keyId=keyId,
+#         startDate=today.strftime("%Y-%m-%d"),
+#         endDate=tomorrow.strftime("%Y-%m-%d"),
+#     )
+#     return response.get("items", {})
+
+
+########################### ~ ECR Specific ~ ###################################################
+
+
+def get_ecr_repo_image_digests(repo_name, **kwargs):
+    kwargs = {k.replace("limit", "maxResults"):v for k,v in kwargs.items() if k in ["nextToken", "maxResults", "filter", "limit"]}
+    response = boto3.client('ecr').list_images(
+        registryId=os.environ['AWS_ACCOUNT_ID'],
+        repositoryName=repo_name,
+        **kwargs
+    )
+
+    logging.debug(ez_get(response, "ResponseMetadata", "HTTPStatusCode"))
+    return response.get("imageIds", [])
+
+
+# You can optionally pass a list of dictionaries of imageDigests imageIds=[{'imageDigest': 'string', 'imageTag': 'string'}]
+def describe_ecr_repo_images(repo_name, **kwargs):
+    kwargs = {k.replace("limit", "maxResults").replace("image_digest_lod", "imageIds"):v for k,v in kwargs.items() if k in ["image_digest_lod", "imageIds", "filter", "nextToken", "maxResults", "limit"]}
+    response = boto3.client('ecr').describe_images(
+        registryId=os.environ['AWS_ACCOUNT_ID'],
+        repositoryName=repo_name,
+        **kwargs
+    )
+
+    logging.info(f"Details were found for {len(response.get('imageDetails', []))} image(s). Status code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
+    return response.get("imageDetails", [])
+
+
+########################### ~ SSM Parameter Store Specific ~ ###################################################
+
+
+def get_ssm_param(param_name):
+    ssm = boto3.client('ssm')
+    try:
+        result = ssm.get_parameter(Name=param_name, WithDecryption=True)
+        return ez_try_and_get(result, 'Parameter', 'Value')
+    except Exception as e: # ParameterNotFound
+        logging.error(e)
+
+"""
+Accepted kwargs: 
+* Description
+* Type='String'|'StringList'|'SecureString',
+* KeyId
+* Overwrite
+* AllowedPattern
+* Tags=[{'Key': 'string', 'Value': 'string'}]
+* Tier='Standard'|'Advanced'|'Intelligent-Tiering',
+* Policies='string',
+* DataType='string'
+"""
+def put_ssm_param(param_name, param_value, param_type, **kwargs):
+    if param_type not in ['String', 'StringList', 'SecureString']:
+        raise ValueError("param_type must be one of ['String', 'StringList', 'SecureString']")
+
+    ssm = boto3.client('ssm')
+    result = ssm.put_parameter(Name=param_name, Value=param_value, Type=param_type, **kwargs)
+    return ez_try_and_get(result, 'Parameter', 'Value')
+
+
+########################### ~ STS Specific ~ ###################################################
+
+
+def get_aws_account_id():
+    response = boto3.client('sts').get_caller_identity()
+    return response.get("Account")
+
+
+########################### ~ Cognito Specific ~ ###################################################
+
+
+def get_cognito_user_pool(pool_id):
+    response = boto3.client('cognito-idp').describe_user_pool(UserPoolId=pool_id)
+    return response['UserPool']
+
+
+def create_cognito_user_pool(pool_config_dict):
+    response =  boto3.client('cognito-idp').create_user_pool(**pool_config_dict)
+    return response
+
+
+# Not included in the GET, and not handled by this function: UserPoolAddOns
+def duplicate_cognito_user_pool(initial_pool_id, new_name):
+    existing_pool = get_cognito_user_pool(initial_pool_id)
+
+    # Throw away keys specific to the original User Pool
+    del existing_pool['AdminCreateUserConfig']['UnusedAccountValidityDays'] # weirdly the POST doesnt accept this; it inherits from ['Policies']['PasswordPolicy']['TemporaryPasswordValidityDays']
+    del existing_pool['Arn']
+    del existing_pool['CreationDate']
+    del existing_pool['EstimatedNumberOfUsers']
+    del existing_pool['Id']
+    del existing_pool['LastModifiedDate']
+    del existing_pool['Name']
+    del existing_pool['SmsConfigurationFailure']
+
+    # throw away default-but-not-wanted attributes
+    attributes_to_keep = []
+    for attribute in existing_pool.pop('SchemaAttributes'):
+        if attribute.get("Name").startswith("custom:"):
+            attribute['Name'] = startswith_replace(attribute['Name'], "custom:", "") # Cognito adds this custom: prefix behind the scenes
+            attributes_to_keep.append(attribute)
+        elif attribute.get("Required"):
+            attributes_to_keep.append(attribute)
+
+    existing_pool['Schema'] = attributes_to_keep
+    existing_pool['PoolName'] = new_name
+
+    response = create_cognito_user_pool(existing_pool)
+
+    return response
+
+
+

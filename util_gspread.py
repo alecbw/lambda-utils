@@ -1,3 +1,5 @@
+from utility.util import ez_convert_lod_to_lol
+
 import os
 import json
 import time
@@ -5,10 +7,11 @@ import time
 import gspread
 import requests
 import logging
-# import jwt
+# import jwt # HAPPENS BELOW
 from google.oauth2 import service_account
 
-
+# MAYBETODO: A more-modern approach uses gspread's service_account_from_dict
+# see: https://github.com/burnash/gspread/commit/810183bd5d4d441e9f4d797114d3f49b80939969
 def auth_gspread():
     auth = {
         "private_key": os.environ["GSHEETS_PRIVATE_KEY"].replace("\\n", "\n").replace('"', ''),
@@ -111,7 +114,8 @@ def open_gsheet(sheet_name):
         try:
             sh = gc.open(sheet_name)
         except Exception as e:
-            logging.error(e)
+            error_message = e if len(str(e)) != 0 else "APIError - Insufficient Permission or sheet doesnt exist"
+            logging.error(error_message)
             return None, None
 
     worksheet_list = get_gsheet_tab_names(sh)
@@ -124,20 +128,22 @@ def get_gsheet_tab_names(sh):
 
 def get_gsheet_tab(sh, tab_name, **kwargs):
     if isinstance(tab_name, int):  # index
-        tab = sh.get_worksheet(tab_name)
+        tab = sh.get_worksheet(tab_name) # get_worksheet_by_id TOOD
     elif isinstance(tab_name, str):
         tab = sh.worksheet(tab_name)
+    else:
+        raise TypeError(f"Unsupported tab_name type in get_gsheet_tab - {tab_name} / {type(tab_name)}")
 
     # Weird bug where get_all_records() on an empty sheet will raise IndexError
     try:
       tab_lod = tab.get_all_records(default_blank=kwargs.get("default_blank", None))
-    except IndexError:
+    except IndexError: # TODO may've been resolved
       tab_lod = []
 
     return tab, tab_lod
 
 
-# Create a worksheet.
+# Create a tab (aka a worksheet).
 def create_gsheet_tab(sh, tab_name, **kwargs):
     return sh.add_worksheet(
         title=tab_name,
@@ -164,7 +170,16 @@ def create_gsheet_sheet(gc, sheet_name, **kwargs):
     return sh
 
 
-# better version in util_local TODO
-def simple_tab_append(sheet, tab, data_lol):
-    sh, worksheet_list = open_gsheet(sheet)
-    sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
+# TODO headers not used if LoL passed
+# Note: this will not write empty rows, even if they are present in the data
+def simple_tab_append(sh, tab_name, data, headers, **kwargs):
+    if isinstance(sh, str):
+        sh, worksheet_list = open_gsheet(sh)
+
+    if isinstance(data, list) and isinstance(data[0], dict):
+        data = ez_convert_lod_to_lol(data, headers, include_headers=kwargs.get("include_headers"))
+    elif not (isinstance(data, list) and isinstance(data[0], list)):
+        raise ValueError("You must provide a list of lists or a list of dictionaries to simple_tab_name_append")
+
+    resp = sh.values_append(tab_name, {'valueInputOption': 'USER_ENTERED'}, {'values': data})
+    logging.debug(resp)
