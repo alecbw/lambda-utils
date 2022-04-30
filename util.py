@@ -7,7 +7,7 @@ from functools import reduce
 import logging
 from collections import Counter, defaultdict
 from string import hexdigits
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, unquote
 
 try:
     import sentry_sdk
@@ -257,6 +257,8 @@ def ez_split(phrase, delimiter, return_slice, **kwargs):
 def ez_re_find(pattern, text, **kwargs):
     if isinstance(text, list) or isinstance(text, set):
         text = ez_join(text, " ")
+
+    pattern = "(?i)" + pattern if kwargs.get("case_insensitive") else pattern
 
     if kwargs.get("find_all_captured"):
         return set([x.groups() for x in re.finditer(pattern, text)]) # groups() only returns any explicitly-captured groups in your regex (denoted by ( round brackets ) in your regex), whereas group(0) returns the entire substring that's matched by your regex regardless of whether your expression has any capture groups.
@@ -609,6 +611,9 @@ def format_url(url, **kwargs):
     elif kwargs.get("http"):
         url = "http://" + url
 
+    if kwargs.get("decode"):
+        url = unquote(url)
+
     return url.strip().rstrip("\\").strip("/")
 
 
@@ -685,6 +690,9 @@ def format_timestamp(timestamp, **kwargs):
     [ ] 2019-02-19 19:54:49 -0700 MST # MST not supported by %Z
     [ ] 2021-06-17T11:46:24-05 # needs two trailing 0's
     [ ] 2021-02-08T13:49:46.0000000Z # has one too many 0's
+    [ ] Mon, 27 Jan 2020 12:06:30 EET
+    [ ] Fri, 22 Apr 2022 16:38:25 CEST
+    [ ] 2019/12/14
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
@@ -739,6 +747,18 @@ def deduplicate_lod(input_lod, primary_key):
 
     return list(output_dict.values())
 
+
+# this assumes the main_lod and secondary_lod are already run through deduplicate_lod
+def combine_lods(main_lod, secondary_lod, primary_key):
+    output_dict = {d[primary_key]:d for d in main_lod}
+
+    for d in secondary_lod:
+        if d.get(primary_key) not in output_dict.keys():
+            output_dict[d[primary_key]] = d
+        else:
+            output_dict[d[primary_key]] = {**d, **output_dict[d[primary_key]]} # zip the two dicts if primary_key values match. Prefer the non-primary_key k:v's from the main_lod's dict
+
+    return list(output_dict.values()) # convert back to LoD
 
 # from here: https://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-whilst-preserving-order
 def deduplicate_ordered_list(seq):
