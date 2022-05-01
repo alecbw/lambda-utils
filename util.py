@@ -619,6 +619,9 @@ def format_url(url, **kwargs):
 
 # feeding in tld_list is a little dated eventually will deprecate TODO
 def find_url_tld(url, tld_list, **kwargs):
+    if not url:
+        return None
+
     tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
     matched_tlds = find_substrings_in_string(url, tld_list)
 
@@ -634,7 +637,6 @@ def find_url_tld(url, tld_list, **kwargs):
         pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($)"
         return ez_re_find(pattern, url)
 
-        # return max(matched_tlds, key=len) # get the longest matching string TLD
     return tld
 
 
