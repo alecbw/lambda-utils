@@ -265,7 +265,7 @@ def site_request(url, proxy, wait, **kwargs):
         request_kwargs = {k:v for k,v in kwargs.items() if k in approved_request_kwargs}
         request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True # TODO refactor this out
 
-        if kwargs.get("http_proxy"):
+        if kwargs.get("http_proxy"): # if you request a https site anyways, the proxy WILL NOT be used
             request_kwargs["proxies"] = {"http": f"http://{proxy}"}
         elif proxy:
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
