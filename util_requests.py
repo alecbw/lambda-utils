@@ -9,6 +9,7 @@ import warnings
 import json
 import re
 from urllib.parse import urlencode
+from html import unescape
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup, element, NavigableString
@@ -347,8 +348,11 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             script_string = script.string.strip()
             if kwargs.get("lstrip"):
                 script_string = script_string.lstrip(kwargs['lstrip'])
+            if kwargs.get("html_unescape"):
+                script_string = unescape(script_string)
             if kwargs.get("return_string"):
                 return script_string.strip().rstrip(",")
+
 
             while '“' in script_string or '”' in script_string or "&quot;" in script_string: # TODO maybe this logic should be in fix_JSON
                 char_index = next((script_string.find(x) for x in ['”', '”', '&quot;'] if script_string.find(x) != -1), None)

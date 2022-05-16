@@ -400,31 +400,6 @@ def ordered_dict_first(ordered_dict):
         return None
     return next(iter(ordered_dict))
 
-""" 
-    Zip is at the dict level - if only some of the dicts in a lod have a key, 
-        only resultant dicts with one of their primary_keys will have that given k:v pair
-    When both lods have a given (non-primary) key, the lod_2 value is prioritized.
-"""
-def zip_lods(lod_1, lod_2, primary_key, **kwargs):
-
-    d = defaultdict(dict)
-    for l in (lod_1, lod_2):
-        for elem in l:
-            if kwargs.get("rename_key_tuple"):
-                for rename_tuple in kwargs["rename_key_tuple"]:
-                    if rename_tuple[0] in elem:
-                        elem[rename_tuple[1]] = elem.pop(rename_tuple[0])
-
-            if kwargs.get("keys_subset_list") and primary_key in kwargs['keys_subset_list']:
-               elem =  {k:v for k,v in elem.items() if k in kwargs['keys_subset_list']}
-            elif kwargs.get("keys_subset_list"):
-                raise ValueError("Check your keys_subset - it needs to have the primary_key and be a list")
-
-            d[elem[primary_key]].update(elem)
-
-    output_lod = list(d.values())
-    return output_lod
-
 
 # Case sensitive!
 # only replaces last instance of to_replace. e.g. ("foobarbar", "bar", "qux") -> "foobarqux"
@@ -494,10 +469,13 @@ def colored_log(log_level, text, color):
     if log_level.lower() == "info":
         logger.info(message)
     elif log_level.lower() in ["warn", "warning"]:
-        logger.warn(message)
+        logger.warning(message)
     elif log_level.lower() == "error":
         logger.error(message)
 
+# Note: this is dumb and hacky and also unfinished
+# def get_variable_name(variable):
+#     return next((k for k, v in globals().items() if v is variable), None)
 
 def is_lod(possible_lod):
     return all(isinstance(el, dict) for el in possible_lod)
@@ -749,8 +727,33 @@ def deduplicate_lod(input_lod, primary_key):
 
     return list(output_dict.values())
 
+""" 
+    Zip is at the dict level - if only some of the dicts in a lod have a key, 
+        only resultant dicts with one of their primary_keys will have that given k:v pair
+    When both lods have a given (non-primary) key, the lod_2 value is prioritized.
+"""
+def zip_lods(lod_1, lod_2, primary_key, **kwargs):
+
+    d = defaultdict(dict)
+    for l in (lod_1, lod_2):
+        for elem in l:
+            if kwargs.get("rename_key_tuple"):
+                for rename_tuple in kwargs["rename_key_tuple"]:
+                    if rename_tuple[0] in elem:
+                        elem[rename_tuple[1]] = elem.pop(rename_tuple[0])
+
+            if kwargs.get("keys_subset_list") and primary_key in kwargs['keys_subset_list']:
+               elem =  {k:v for k,v in elem.items() if k in kwargs['keys_subset_list']}
+            elif kwargs.get("keys_subset_list"):
+                raise ValueError("Check your keys_subset - it needs to have the primary_key and be a list")
+
+            d[elem[primary_key]].update(elem)
+
+    return list(d.values()) # back to LoD
+
 
 # this assumes the main_lod and secondary_lod are already run through deduplicate_lod
+# kinda duplicate of above and not used. TODO.
 def combine_lods(main_lod, secondary_lod, primary_key):
     output_dict = {d[primary_key]:d for d in main_lod}
 
