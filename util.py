@@ -573,7 +573,7 @@ def format_url(url, **kwargs):
         pattern = re.compile("(:\d{2,})")
         url = pattern.sub('', url)
     if kwargs.get("remove_querystrings"):
-        url = ez_split(url, "?", 0)
+        url = ez_split(ez_split(url, "?", 0), "&", 0)
     if kwargs.get("remove_anchor"):
         url = ez_split(url, "#", 0)
     if kwargs.get("remove_subdomain") and url.count(".") > 1:
