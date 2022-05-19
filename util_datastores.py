@@ -156,7 +156,7 @@ def query_athena_table(sql_query, database, **kwargs):
             logging.error(f"Query timed out with no response (timeout val: {timeout_value})")
             return None
         else:
-            sleep(kwargs.get("wait_interval", 0.1))
+            sleep(kwargs.get("wait_interval", 0.01))
 
 
     if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling) - {round(timeit.default_timer() - start_time, 4)} seconds")
@@ -554,6 +554,7 @@ def list_s3_bucket_contents(bucket_name, path, **kwargs):
 
 
 # Via S3 Select. Note: intra-AWS data transfer (e.g. Lambda <> S3) is much faster than egress, so this optimization is less impactful to intra-AWS use cases
+# DOES NOT INCLUDE NULL ROWS
 def get_row_count_of_s3_csv(bucket_name, path):
     sql_stmt = """SELECT count(*) FROM s3object """
     try:
