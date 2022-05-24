@@ -196,31 +196,31 @@ def prioritize_proxy(proxies, location):
 
 def handle_request_exception(e, proxy, url, disable_error_messages):
     if any(x for x in ["Caused by SSLError(SSLCertVerificationError", "SSL: WRONG_VERSION_NUMBER", "[Errno 65] No route to host", "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired"] if x in str(e)):  # CertificateError -> downgrade to HTTP
-        warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Certificate Error. {e}<-----'
+        warning = f'-----> ERROR. URL: {url}. Proxy: {proxy}. Request Threw: Certificate Error. {e}<-----'
         status_code = 495
     elif "Exceeded 30 redirects" in str(e):
-        warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Too Many Redirects Error. {e}<-----'
+        warning = f'-----> ERROR. URL: {url}. Proxy: {proxy}. Request Threw: Too Many Redirects Error. {e}<-----'
         status_code = 399
     elif "TimeoutError" in str(e) or " Read timed out." in str(e) or "timeout('timed out')" in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Request Threw TimeoutError: {e} <-----'
+        warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Request Threw TimeoutError: {e} <-----'
         status_code = 408
     elif "Caused by NewConnectionError" in str(e) and "ProxyError" not in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Effective 404 - Request Threw NewConnectionError: {e} <-----'
+        warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Effective 404 - Request Threw NewConnectionError: {e} <-----'
         status_code = 404
     elif "Tunnel connection failed: 404 Not Found" in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Effective 404 - Request Threw OSError: {e} <-----'
+        warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Effective 404 - Request Threw OSError: {e} <-----'
         status_code = 404
     elif "Connection refused" in str(e) or "Connection reset by peer" in str(e): # or "Remote end closed connection" in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Proxy refusing traffic {e} <-----'
+        warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Proxy refusing traffic {e} <-----'
         status_code = 602
     elif any(x for x in ["HTTPConnectionPool", "MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. {e}<-----'
+        warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. {e}<-----'
         status_code = 601
     elif any(x for x in ["UnicodeError"] if x in str(e)):
         warning = f'-----> ERROR. Url: {url}. Proxy: {proxy}. Request Threw: UnicodeError Error. {e}<-----'
         status_code = 609
     else:
-        warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Unknown Error. {e}<-----'
+        warning = f'-----> ERROR. Url: {url}. Proxy: {proxy}. Request Threw: Unknown Error. {e}<-----'
         logging.warning(warning)
         status_code = 609
 
@@ -278,9 +278,9 @@ def site_request(url, proxy, wait, **kwargs):
         return message, applied_status_code
 
     if response.status_code in [502, 503, 999] and not kwargs.get("disable_error_messages"):
-        logging.warning(f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----')
+        logging.warning(f'-----> ERROR. Url: {url}. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----')
     elif response.status_code not in [200, 202, 301, 302] and not kwargs.get("disable_error_messages"):
-        logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
+        logging.warning(f'-----> ERROR. Url: {url}. Request Threw: {response.status_code} <-----')
 
     if kwargs.get("soup"):                       # Allow functions to specify if they want parsed soup or plain request resopnse
         return BeautifulSoup(response.content, 'html.parser'), response.status_code
