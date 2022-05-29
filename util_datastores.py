@@ -1221,13 +1221,14 @@ def describe_ecr_repo_images(repo_name, **kwargs):
 ########################### ~ SSM Parameter Store Specific ~ ###################################################
 
 
-def get_ssm_param(param_name):
+def get_ssm_param(param_name, **kwargs):
     ssm = boto3.client('ssm')
     try:
         result = ssm.get_parameter(Name=param_name, WithDecryption=True)
         return ez_try_and_get(result, 'Parameter', 'Value')
-    except Exception as e: # ParameterNotFound
-        logging.error(e)
+    except Exception as e: # e.g. ParameterNotFound throws an exception
+        if not kwargs.get("disable_print") and "ParameterNotFound" in e:
+            logging.error(e)
 
 """
 Accepted kwargs: 
