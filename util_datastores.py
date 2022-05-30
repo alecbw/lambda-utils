@@ -1176,6 +1176,7 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
     )
     return response.get("items", {})
 
+
 # Untested TODO
 def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
 
@@ -1189,21 +1190,11 @@ def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
         tags=kwargs.get("tags", {}),
         stageKeys=[{'restApiId': api_id, 'stageName': stage_name}],
 
-    # keyId=key_id,
     # usagePlanId=usagePlanId,
     )
     print(response)
     return response
 
-    # value='string',
-    # stageKeys=[
-    #     {
-    #         'restApiId': 'string',
-    #         'stageName': 'string'
-    #     },
-    # ],
-    # customerId='string',
-)
 
 ########################### ~ ECR Specific ~ ###################################################
 
