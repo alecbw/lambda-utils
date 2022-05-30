@@ -1178,23 +1178,6 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
     return response.get("items", {})
 
 
-
-def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
-    response = boto3.client('apigateway').create_api_key(
-        name=key_name,
-        description=kwargs.get("description", f"Made via create_api_gateway_key at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"),
-        enabled=not kwargs.get("disabled", False),
-        tags=kwargs.get("tags", {}),
-        stageKeys=[{'restApiId': api_id, 'stageName': stage_name}],
-        # usagePlanId=usagePlanId,
-    )
-    logging.info(f"Creation of API Key id: {response.get('id')} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
-
-    if kwargs.get("plan_id"):
-        resp = associate_api_gateway_key_with_usage_plan(response['id'], kwargs['plan_id'])
-
-    return response
-
 def associate_api_gateway_key_with_usage_plan(key_id, plan_id):
     response = boto3.client('apigateway').create_usage_plan_key(
         usagePlanId=plan_id,
@@ -1203,6 +1186,25 @@ def associate_api_gateway_key_with_usage_plan(key_id, plan_id):
     )
     logging.info(f"Association of API Key id: {key_id} with Usage Plan id: {plan_id} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
     return response
+
+# You can't directly associate with an API Gateway Usage Plan at creation
+def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
+    response = boto3.client('apigateway').create_api_key(
+        name=key_name,
+        description=kwargs.get("description", f"Made via create_api_gateway_key at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"),
+        enabled=not kwargs.get("disabled", False),
+        tags=kwargs.get("tags", {}),
+        stageKeys=[{'restApiId': api_id, 'stageName': stage_name}],
+    )
+    logging.info(f"Creation of API Key id: {response.get('id')} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
+
+    if kwargs.get("plan_id"):
+        _ = associate_api_gateway_key_with_usage_plan(response['id'], kwargs['plan_id'])
+
+    return response
+
+
+
 
 ########################### ~ ECR Specific ~ ###################################################
 
