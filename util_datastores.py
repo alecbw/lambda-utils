@@ -228,7 +228,7 @@ def standardize_dynamo_query(input_data, **kwargs):
         return None
 
     if input_data.get("created_at") or input_data.get("updated_at"):
-        if input_data.get("created_at"):
+        if input_data.get("created_at") and str(input_data['created_at']).isdigit():
             input_data['created_at'] = int(input_data['created_at'])
         input_data['updated_at'] = int(input_data.get("updated_at", input_data.get('created_at')))
     else:
@@ -1177,7 +1177,7 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
     return response.get("items", {})
 
 
-# Untested TODO
+
 def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
     response = boto3.client('apigateway').create_api_key(
         name=key_name,
@@ -1190,6 +1190,14 @@ def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
     logging.info(f"Creation of API Key id: {response.get('id')} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
     return response
 
+def associate_api_gateway_key_with_usage_plan(key_id, plan_id):
+    response = boto3.client('apigateway').create_usage_plan_key(
+        usagePlanId=plan_id,
+        keyId=key_id,
+        keyType='API_KEY'
+    )
+    logging.info(f"Association of API Key id: {key_id} with Usage Plan id: {plan_id} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
+    return response
 
 ########################### ~ ECR Specific ~ ###################################################
 
