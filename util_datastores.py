@@ -1179,20 +1179,15 @@ def get_apiKey_usage(keyId, usagePlanId, **kwargs):
 
 # Untested TODO
 def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
-
-    # if not key_id:
-    #     key_id = ''.join(random.SystemRandom().choice(string.ascii_lowercase + string.digits) for _ in range(10))
-
     response = boto3.client('apigateway').create_api_key(
         name=key_name,
         description=kwargs.get("description", f"Made via create_api_gateway_key at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"),
         enabled=not kwargs.get("disabled", False),
         tags=kwargs.get("tags", {}),
         stageKeys=[{'restApiId': api_id, 'stageName': stage_name}],
-
-    # usagePlanId=usagePlanId,
+        # usagePlanId=usagePlanId,
     )
-    print(response)
+    logging.info(f"Creation of API Key id: {response.get('id')} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
     return response
 
 
