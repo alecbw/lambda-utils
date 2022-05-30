@@ -11,6 +11,8 @@ import json
 import concurrent.futures
 import itertools
 import threading
+import random
+import string
 import csv
 import timeit
 import ast
@@ -32,7 +34,7 @@ import awswrangler as wr
 ######################## ~ Athena Queries ~ #############################################
 
 
-def is_float(maybe_float):
+def coerce_float(maybe_float):
     try:
         return float(maybe_float)
     except Exception as e:
@@ -53,7 +55,7 @@ def convert_athena_row_types(row, **kwargs):
     for k,v in row.items():
         if k not in kwargs.get("convert_array_cols", []) and v and v.isdigit():
             row[k] = int(v)
-        elif k not in kwargs.get("convert_array_cols", []) and is_float(v):
+        elif k not in kwargs.get("convert_array_cols", []) and coerce_float(v):
             row[k] = float(v)
         elif k not in kwargs.get("convert_array_cols", []):
             continue
@@ -1164,31 +1166,44 @@ def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
 
 def get_apiKey_usage(keyId, usagePlanId, **kwargs):
     today = datetime.utcnow()
-    tomorrow = today + timedelta(days=int(kwargs.get("days_range", 1)))
+    end_date = today + timedelta(days=int(kwargs.get("days_range", 1)))
 
-    client = boto3.client('apigateway')
-    response = client.get_usage(
+    response = boto3.client('apigateway').get_usage(
         usagePlanId=usagePlanId,
         keyId=keyId,
         startDate=today.strftime("%Y-%m-%d"),
-        endDate=tomorrow.strftime("%Y-%m-%d"),
+        endDate=end_date.strftime("%Y-%m-%d"),
     )
     return response.get("items", {})
 
+# Untested TODO
+def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
 
-# def create_apiKey(keyId, usagePlanId, **kwargs):
-#     today = datetime.utcnow()
-#     tomorrow = today + timedelta(days=int(kwargs.get("days_range", 1)))
-#
-#     client = boto3.client('apigateway')
-#     response = client.get_usage(
-#         usagePlanId=usagePlanId,
-#         keyId=keyId,
-#         startDate=today.strftime("%Y-%m-%d"),
-#         endDate=tomorrow.strftime("%Y-%m-%d"),
-#     )
-#     return response.get("items", {})
+    # if not key_id:
+    #     key_id = ''.join(random.SystemRandom().choice(string.ascii_lowercase + string.digits) for _ in range(10))
 
+    response = boto3.client('apigateway').create_api_key(
+        name=key_name,
+        description=kwargs.get("description", f"Made via create_api_gateway_key at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"),
+        enabled=not kwargs.get("disabled", False),
+        tags=kwargs.get("tags", {}),
+        stageKeys=[{'restApiId': api_id, 'stageName': stage_name}],
+
+    # keyId=key_id,
+    # usagePlanId=usagePlanId,
+    )
+    print(response)
+    return response
+
+    # value='string',
+    # stageKeys=[
+    #     {
+    #         'restApiId': 'string',
+    #         'stageName': 'string'
+    #     },
+    # ],
+    # customerId='string',
+)
 
 ########################### ~ ECR Specific ~ ###################################################
 
@@ -1231,7 +1246,7 @@ def get_ssm_param(param_name, **kwargs):
             logging.error(e)
 
 """
-Accepted kwargs: 
+SSM's Accepted kwargs: 
 * Description
 * Type='String'|'StringList'|'SecureString',
 * KeyId
