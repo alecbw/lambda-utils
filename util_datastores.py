@@ -1189,6 +1189,10 @@ def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
         # usagePlanId=usagePlanId,
     )
     logging.info(f"Creation of API Key id: {response.get('id')} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
+
+    if kwargs.get("plan_id"):
+        resp = associate_api_gateway_key_with_usage_plan(response['id'], kwargs['plan_id'])
+
     return response
 
 def associate_api_gateway_key_with_usage_plan(key_id, plan_id):
