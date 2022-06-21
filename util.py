@@ -47,14 +47,14 @@ queryStringParameters is on a separate if loop, as you can have a POST with a bo
 def standardize_event(event):
     if event.get("httpMethod") == "POST" and event.get("body") and "application/json" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower():  # POST -> synchronous API Gateway
         body_as_dict = fix_JSON(event["body"], recursion_limit=10) or {} # fix_JSON returns None if it can't be fixed
-        event.update(body_as_dict)
-
-    elif event.get("httpMethod") == "POST" and event.get("body") and "application/x-www-form-urlencoded" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower() and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
-        body_as_dict = {k:(v[0] if isinstance(v, list) and len(v)==1 else v) for k,v in parse_qs(event["body"]).items()} # v by default will be a list, but we extract the item if its a one-item list
         if isinstance(body_as_dict, dict):
             event.update(body_as_dict)
         else:
             logging.error(f"Malformed POST body received by standardize_event. Likely due to list, rather than dict, at top level of body JSON. body_as_dict is of type {type(body_as_dict)}")
+
+    elif event.get("httpMethod") == "POST" and event.get("body") and "application/x-www-form-urlencoded" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower() and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
+        body_as_dict = {k:(v[0] if isinstance(v, list) and len(v)==1 else v) for k,v in parse_qs(event["body"]).items()} # v by default will be a list, but we extract the item if its a one-item list
+        event.update(body_as_dict)
 
     elif event.get("httpMethod") == "POST" and event.get("body"):  # POST, synchronous API Gateway
         if isinstance(event['body'], dict):
