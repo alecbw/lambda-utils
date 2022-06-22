@@ -890,6 +890,10 @@ def aurora_execute_sql(db, sql, **kwargs):
 ########################### ~ S3 Data Lake Specific ~ ###################################################
 
 def convert_dict_to_parquet_map(input_dict, **kwargs):
+    if not isinstance(input_dict, dict):
+        logging.error(f"Malformed input to convert_dict_to_parquet_map: {input_dict}")
+        return []
+
     output_list = []
     for k,v in input_dict.items():
         if kwargs.get("force_conversion") == "string":
