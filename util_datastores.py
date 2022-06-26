@@ -128,7 +128,6 @@ def query_athena_table(sql_query, database, **kwargs):
         logging.warning("The provided database is not in your provided SQL query")
 
     if kwargs.get("time_it"): start_time = timeit.default_timer()
-    logging.info(f"Athena query data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
 
     client = boto3.client('athena')
     query_started = client.start_query_execution(
@@ -173,6 +172,8 @@ def query_athena_table(sql_query, database, **kwargs):
         result = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
     if kwargs.get("time_it"): logging.info(f"Query execution time (all-in) - {round(timeit.default_timer() - start_time, 4)} seconds")
+
+    logging.info(f"Athena query has finished. Data scanned: {ez_get(query_in_flight, 'Statistics', 'DataScannedInBytes')}. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
 
     return result
 
