@@ -148,7 +148,7 @@ def query_athena_table(sql_query, database, **kwargs):
 
         if query_status == 'SUCCEEDED':
             s3_result_path = query_in_flight['QueryExecution']['ResultConfiguration']['OutputLocation'].replace("s3://", "")
-            s3_result_dict = {"bucket": s3_result_path[:s3_result_path.rfind("/")], "filename": s3_result_path[s3_result_path.rfind("/")+1:]}
+            s3_result_dict = {"bucket": s3_result_path[:s3_result_path.rfind("/")], "filename": s3_result_path[s3_result_path.rfind("/")+1:], "data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000}
             finished = True
         elif query_status in ['FAILED', 'CANCELLED']: # TODO test cancelled
             logging.error(query_in_flight['QueryExecution']['Status']['StateChangeReason'])
@@ -173,7 +173,7 @@ def query_athena_table(sql_query, database, **kwargs):
 
     if kwargs.get("time_it"): logging.info(f"Query execution time (all-in) - {round(timeit.default_timer() - start_time, 4)} seconds")
 
-    logging.info(f"Athena query has finished. Data scanned: {ez_get(query_in_flight, 'Statistics', 'DataScannedInBytes')}. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
+    logging.info(f"Athena query has finished. Data scanned: {ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000} MB. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
 
     return result
 
