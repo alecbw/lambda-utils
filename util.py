@@ -7,7 +7,7 @@ from functools import reduce
 import logging
 from collections import Counter, defaultdict
 from string import hexdigits
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, unquote
 
 try:
     import sentry_sdk
@@ -45,11 +45,14 @@ Unpack the k:v pairs into the top level dict to enforce standardization across i
 queryStringParameters is on a separate if loop, as you can have a POST with a body and separate url querystrings
 """
 def standardize_event(event):
-    if event.get("httpMethod") == "POST" and event.get("body") and "application/json" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower():  # POST -> synchronous API Gateway
-        body_as_dict = fix_JSON(event["body"], recursion_limit=10) or {} # fix_JSON returns None if it can't be fixed
-        event.update(body_as_dict)
+    # if event.get("httpMethod") == "POST" and event.get("body") and "application/json" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower():  # POST -> synchronous API Gateway
+    #     body_as_dict = fix_JSON(event["body"], recursion_limit=10) or {} # fix_JSON returns None if it can't be fixed
+    #     if isinstance(body_as_dict, dict):
+    #         event.update(body_as_dict)
+    #     else:
+    #         logging.error(f"Malformed POST body received by standardize_event. Likely due to list, rather than dict, at top level of body JSON. body_as_dict is of type {type(body_as_dict)}")
 
-    elif event.get("httpMethod") == "POST" and event.get("body") and "application/x-www-form-urlencoded" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower() and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
+    if event.get("httpMethod") == "POST" and event.get("body") and "application/x-www-form-urlencoded" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower() and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
         body_as_dict = {k:(v[0] if isinstance(v, list) and len(v)==1 else v) for k,v in parse_qs(event["body"]).items()} # v by default will be a list, but we extract the item if its a one-item list
         event.update(body_as_dict)
 
@@ -174,7 +177,7 @@ def get_dict_key_by_value(input_dict, value, **kwargs):
     if len(keys) == 1:
         return keys[0]
     elif keys:
-        logging.warning(f"More than one key has the value {value}")
+        logging.warning(f"In get_dict_key_by_value, more than one key has the value {value}")
 
     return kwargs.get("null_value", None)
 
@@ -202,6 +205,8 @@ def ez_insensitive_get(nested_data, *keys, **kwargs):
             return kwargs.get("fallback_value", None)
 
     return nested_data
+
+
 
 # dict keys and/or list indexes
 def ez_try_and_get(nested_data, *keys):
@@ -255,6 +260,8 @@ def ez_split(phrase, delimiter, return_slice, **kwargs):
 def ez_re_find(pattern, text, **kwargs):
     if isinstance(text, list) or isinstance(text, set):
         text = ez_join(text, " ")
+
+    pattern = "(?i)" + pattern if kwargs.get("case_insensitive") else pattern
 
     if kwargs.get("find_all_captured"):
         return set([x.groups() for x in re.finditer(pattern, text)]) # groups() only returns any explicitly-captured groups in your regex (denoted by ( round brackets ) in your regex), whereas group(0) returns the entire substring that's matched by your regex regardless of whether your expression has any capture groups.
@@ -396,31 +403,6 @@ def ordered_dict_first(ordered_dict):
         return None
     return next(iter(ordered_dict))
 
-""" 
-    Zip is at the dict level - if only some of the dicts in a lod have a key, 
-        only resultant dicts with one of their primary_keys will have that given k:v pair
-    When both lods have a given (non-primary) key, the lod_2 value is prioritized.
-"""
-def zip_lods(lod_1, lod_2, primary_key, **kwargs):
-
-    d = defaultdict(dict)
-    for l in (lod_1, lod_2):
-        for elem in l:
-            if kwargs.get("rename_key_tuple"):
-                for rename_tuple in kwargs["rename_key_tuple"]:
-                    if rename_tuple[0] in elem:
-                        elem[rename_tuple[1]] = elem.pop(rename_tuple[0])
-
-            if kwargs.get("keys_subset_list") and primary_key in kwargs['keys_subset_list']:
-               elem =  {k:v for k,v in elem.items() if k in kwargs['keys_subset_list']}
-            elif kwargs.get("keys_subset_list"):
-                raise ValueError("Check your keys_subset - it needs to have the primary_key and be a list")
-
-            d[elem[primary_key]].update(elem)
-
-    output_lod = list(d.values())
-    return output_lod
-
 
 # Case sensitive!
 # only replaces last instance of to_replace. e.g. ("foobarbar", "bar", "qux") -> "foobarqux"
@@ -490,17 +472,20 @@ def colored_log(log_level, text, color):
     if log_level.lower() == "info":
         logger.info(message)
     elif log_level.lower() in ["warn", "warning"]:
-        logger.warn(message)
+        logger.warning(message)
     elif log_level.lower() == "error":
         logger.error(message)
 
+# Note: this is dumb and hacky and also unfinished
+# def get_variable_name(variable):
+#     return next((k for k, v in globals().items() if v is variable), None)
 
 def is_lod(possible_lod):
     return all(isinstance(el, dict) for el in possible_lod)
 
 
 def is_none(value, **kwargs):
-    None_List = ['None', 'none', 'False', 'false', 'No', 'no', ["None"], ["False"]]
+    None_List = ['None', 'none', 'NONE', 'False', 'false', 'FALSE', 'No', 'no', ["None"], ["False"]]
 
     if kwargs.get("keep_0") and value == 0:
         return False
@@ -591,14 +576,14 @@ def format_url(url, **kwargs):
         pattern = re.compile("(:\d{2,})")
         url = pattern.sub('', url)
     if kwargs.get("remove_querystrings"):
-        url = ez_split(url, "?", 0)
+        url = ez_split(ez_split(url, "?", 0), "&", 0)
     if kwargs.get("remove_anchor"):
         url = ez_split(url, "#", 0)
     if kwargs.get("remove_subdomain") and url.count(".") > 1:
         tld = find_url_tld(url, kwargs["remove_subdomain"])
         if not tld:
             return url.strip()
-        subdomain = ez_split(url, tld, 0, fallback_value="")
+        subdomain = url.rsplit(tld, 1)[0]   # only split once, on the right most. This is to prevent e.g. the tld '.net' in 'foo.netflix.net' from splitting the '.netflix' too
         domain = subdomain[subdomain.rfind(".")+1:]
         url = domain + tld
 
@@ -607,11 +592,17 @@ def format_url(url, **kwargs):
     elif kwargs.get("http"):
         url = "http://" + url
 
+    if kwargs.get("decode"):
+        url = unquote(url)
+
     return url.strip().rstrip("\\").strip("/")
 
 
 # feeding in tld_list is a little dated eventually will deprecate TODO
 def find_url_tld(url, tld_list, **kwargs):
+    if not url:
+        return None
+
     tld_list = tld_list if isinstance(tld_list, list) else get_tld_list()
     matched_tlds = find_substrings_in_string(url, tld_list)
 
@@ -627,7 +618,6 @@ def find_url_tld(url, tld_list, **kwargs):
         pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($)"
         return ez_re_find(pattern, url)
 
-        # return max(matched_tlds, key=len) # get the longest matching string TLD
     return tld
 
 
@@ -683,6 +673,9 @@ def format_timestamp(timestamp, **kwargs):
     [ ] 2019-02-19 19:54:49 -0700 MST # MST not supported by %Z
     [ ] 2021-06-17T11:46:24-05 # needs two trailing 0's
     [ ] 2021-02-08T13:49:46.0000000Z # has one too many 0's
+    [ ] Mon, 27 Jan 2020 12:06:30 EET
+    [ ] Fri, 22 Apr 2022 16:38:25 CEST
+    [ ] 2019/12/14
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
@@ -700,7 +693,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if len(datetime_str) == 33 and ez_re_find("\.[0-9]{7}\-", datetime_str): # python datetime can't handle 7 decimals in ms in 2021-03-04T13:17:19.5466667-06:00
         datetime_str = datetime_str[:26] + datetime_str[27:]
 
-    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%Y-%m-%d", "%b %d, %Y", "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y", "%Y %m %d", "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z"]
+    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%Y-%m-%d", "%b %d, %Y", "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y", "%Y %m %d", "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d"]
     for dt_format in LIST_OF_DT_FORMATS:
         try:
             dt_str = datetime.strptime(datetime_str.strip().replace("&#43;", "+"), dt_format)
@@ -737,6 +730,43 @@ def deduplicate_lod(input_lod, primary_key):
 
     return list(output_dict.values())
 
+""" 
+    Zip is at the dict level - if only some of the dicts in a lod have a key, 
+        only resultant dicts with one of their primary_keys will have that given k:v pair
+    When both lods have a given (non-primary) key, the lod_2 value is prioritized.
+"""
+def zip_lods(lod_1, lod_2, primary_key, **kwargs):
+
+    d = defaultdict(dict)
+    for l in (lod_1, lod_2):
+        for elem in l:
+            if kwargs.get("rename_key_tuple"):
+                for rename_tuple in kwargs["rename_key_tuple"]:
+                    if rename_tuple[0] in elem:
+                        elem[rename_tuple[1]] = elem.pop(rename_tuple[0])
+
+            if kwargs.get("keys_subset_list") and primary_key in kwargs['keys_subset_list']:
+               elem =  {k:v for k,v in elem.items() if k in kwargs['keys_subset_list']}
+            elif kwargs.get("keys_subset_list"):
+                raise ValueError("Check your keys_subset - it needs to have the primary_key and be a list")
+
+            d[elem[primary_key]].update(elem)
+
+    return list(d.values()) # back to LoD
+
+
+# this assumes the main_lod and secondary_lod are already run through deduplicate_lod
+# kinda duplicate of above and not used. TODO.
+def combine_lods(main_lod, secondary_lod, primary_key):
+    output_dict = {d[primary_key]:d for d in main_lod}
+
+    for d in secondary_lod:
+        if d.get(primary_key) not in output_dict.keys():
+            output_dict[d[primary_key]] = d
+        else:
+            output_dict[d[primary_key]] = {**d, **output_dict[d[primary_key]]} # zip the two dicts if primary_key values match. Prefer the non-primary_key k:v's from the main_lod's dict
+
+    return list(output_dict.values()) # convert back to LoD
 
 # from here: https://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-whilst-preserving-order
 def deduplicate_ordered_list(seq):
@@ -762,6 +792,16 @@ def find_substrings_in_string(value, list_of_substrings, **kwargs):
     if kwargs.get("no_strip"): # no whitespace strip
         return [sub_str for sub_str in list_of_substrings if sub_str.lower() in value.lower()]
     return [sub_str for sub_str in list_of_substrings if sub_str.lower().strip() in value.lower().strip()]
+
+
+def is_in_list_insensitive(value, list_to_check, **kwargs):
+    if not value or not list_to_check:
+        logging.debug("One of value or list_to_check was None in is_in_list_insensitive")
+        return None
+
+    if kwargs.get("no_strip"): # no whitespace strip
+        return any(val for val in list_to_check if val.lower() == value.lower())
+    return any(val for val in list_to_check if val.lower().strip() == value.lower().strip())
 
 
 # i.e. split a list of len n into x smaller lists of len (n/x)

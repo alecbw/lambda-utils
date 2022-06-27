@@ -11,12 +11,15 @@ import json
 import concurrent.futures
 import itertools
 import threading
+import random
+import string
 import csv
 import timeit
 import ast
 from pprint import pprint
 from io import StringIO
 from typing import Callable, Iterator, Union, Optional, List
+from collections import defaultdict
 
 import boto3
 from botocore.exceptions import ClientError
@@ -31,7 +34,7 @@ import awswrangler as wr
 ######################## ~ Athena Queries ~ #############################################
 
 
-def is_float(maybe_float):
+def coerce_float(maybe_float):
     try:
         return float(maybe_float)
     except Exception as e:
@@ -52,7 +55,7 @@ def convert_athena_row_types(row, **kwargs):
     for k,v in row.items():
         if k not in kwargs.get("convert_array_cols", []) and v and v.isdigit():
             row[k] = int(v)
-        elif k not in kwargs.get("convert_array_cols", []) and is_float(v):
+        elif k not in kwargs.get("convert_array_cols", []) and coerce_float(v):
             row[k] = float(v)
         elif k not in kwargs.get("convert_array_cols", []):
             continue
@@ -125,7 +128,6 @@ def query_athena_table(sql_query, database, **kwargs):
         logging.warning("The provided database is not in your provided SQL query")
 
     if kwargs.get("time_it"): start_time = timeit.default_timer()
-    logging.info(f"Athena query data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
 
     client = boto3.client('athena')
     query_started = client.start_query_execution(
@@ -146,7 +148,7 @@ def query_athena_table(sql_query, database, **kwargs):
 
         if query_status == 'SUCCEEDED':
             s3_result_path = query_in_flight['QueryExecution']['ResultConfiguration']['OutputLocation'].replace("s3://", "")
-            s3_result_dict = {"bucket": s3_result_path[:s3_result_path.rfind("/")], "filename": s3_result_path[s3_result_path.rfind("/")+1:]}
+            s3_result_dict = {"bucket": s3_result_path[:s3_result_path.rfind("/")], "filename": s3_result_path[s3_result_path.rfind("/")+1:], "data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000}
             finished = True
         elif query_status in ['FAILED', 'CANCELLED']: # TODO test cancelled
             logging.error(query_in_flight['QueryExecution']['Status']['StateChangeReason'])
@@ -155,7 +157,7 @@ def query_athena_table(sql_query, database, **kwargs):
             logging.error(f"Query timed out with no response (timeout val: {timeout_value})")
             return None
         else:
-            sleep(kwargs.get("wait_interval", 0.1))
+            sleep(kwargs.get("wait_interval", 0.01))
 
 
     if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling) - {round(timeit.default_timer() - start_time, 4)} seconds")
@@ -170,6 +172,8 @@ def query_athena_table(sql_query, database, **kwargs):
         result = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
     if kwargs.get("time_it"): logging.info(f"Query execution time (all-in) - {round(timeit.default_timer() - start_time, 4)} seconds")
+
+    logging.info(f"Athena query has finished. Data scanned: {ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000} MB. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
 
     return result
 
@@ -225,9 +229,10 @@ def standardize_dynamo_query(input_data, **kwargs):
         return None
 
     if input_data.get("created_at") or input_data.get("updated_at"):
-        if input_data.get("created_at"):
+        if input_data.get("created_at") and str(input_data['created_at']).isdigit():
             input_data['created_at'] = int(input_data['created_at'])
-        input_data['updated_at'] = int(input_data.get("updated_at", input_data.get('created_at')))
+        if not kwargs.get("skip_updated"):
+            input_data['updated_at'] = int(input_data.get("updated_at", input_data.get('created_at')))
     else:
         if not kwargs.get("skip_updated"):
             input_data['updatedAt'] = int(datetime.utcnow().timestamp())
@@ -258,7 +263,9 @@ def standardize_dynamo_output(output_data, **kwargs):
     for key in datetime_keys:
         if not output_data[key]:
             return "" if kwargs.get("output") == "datetime_str" else None
-        output_data[key] = datetime.fromtimestamp(output_data[key])#.replace(tzinfo=timezone.utc)
+        elif output_data[key].isdigit():
+            output_data[key] = datetime.fromtimestamp(output_data[key])#.replace(tzinfo=timezone.utc)
+
         if kwargs.get("output") == "datetime_str":
             output_data[key] = output_data[key].strftime('%Y-%m-%d %H:%M:%S')
 
@@ -553,6 +560,7 @@ def list_s3_bucket_contents(bucket_name, path, **kwargs):
 
 
 # Via S3 Select. Note: intra-AWS data transfer (e.g. Lambda <> S3) is much faster than egress, so this optimization is less impactful to intra-AWS use cases
+# DOES NOT INCLUDE NULL ROWS
 def get_row_count_of_s3_csv(bucket_name, path):
     sql_stmt = """SELECT count(*) FROM s3object """
     try:
@@ -684,6 +692,47 @@ def delete_s3_file(bucket_name, filename, **kwargs):
     except ClientError as e:
         logging.error(e)
         return e
+
+
+# Handles deleting abandoned delete markers, as well
+def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
+    to_delete_dol = defaultdict(list)
+    all_del_markers = {}
+
+    bucket = boto3.resource('s3').Bucket(bucket_name)
+    paginator = boto3.client('s3').get_paginator('list_object_versions')
+    pages = paginator.paginate(Bucket=bucket_name, Prefix=path) # , MaxKeys=kwargs.get("file_limit", None))
+
+    for page in pages:
+        if not page.get('DeleteMarkers'):
+            continue
+
+        # Get all delete markers where the *marker* is the latest version, i.e., should be deleted
+        del_markers = {item['Key']: item['VersionId'] for item in page['DeleteMarkers'] if item['IsLatest'] == True}
+        all_del_markers = {**all_del_markers, **del_markers}
+
+        # Get all version IDs for all objects that have eligible delete markers
+        for item in page.get('Versions', []):
+            if item['Key'] in del_markers.keys():
+                to_delete_dol[item['Key']].append(item['VersionId'])
+
+    if kwargs.get("preview"):
+        logging.info("NOTE: Just listing entries, not deleting.")
+        [logging.info(f"{k} - {v}") for k,v in to_delete_dol.items()]
+        return
+
+    # Remove old versions of object by VersionId
+    for del_item in to_delete_dol:
+        if not kwargs.get("disable_print"):
+            logging.info(f'Deleting {del_item}')
+        object_to_remove = bucket.Object(del_item)
+
+        for del_id in to_delete_dol[del_item]:
+            object_to_remove.delete(VersionId=del_id)
+
+        # Also remove delete marker itself
+        object_to_remove.delete(VersionId=all_del_markers[del_item])
+
 
 
 # http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
@@ -843,10 +892,17 @@ def aurora_execute_sql(db, sql, **kwargs):
 
 ########################### ~ S3 Data Lake Specific ~ ###################################################
 
-def convert_dict_to_parquet_map(input_dict):
+def convert_dict_to_parquet_map(input_dict, **kwargs):
+    if not isinstance(input_dict, dict):
+        logging.error(f"Malformed input to convert_dict_to_parquet_map: {input_dict}")
+        return []
+
     output_list = []
     for k,v in input_dict.items():
-        output_list.append( (k, v) ) # tuple
+        if kwargs.get("force_conversion") == "string":
+            output_list.append( (str(k), str(v)) ) # tuple
+        else:
+            output_list.append( (k, v) ) # tuple
     return output_list
 
 # only supports one day. If you have multiple dates in the data to be written, add it to the df/lod directly
@@ -1118,30 +1174,43 @@ def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
 
 def get_apiKey_usage(keyId, usagePlanId, **kwargs):
     today = datetime.utcnow()
-    tomorrow = today + timedelta(days=int(kwargs.get("days_range", 1)))
+    end_date = today + timedelta(days=int(kwargs.get("days_range", 1)))
 
-    client = boto3.client('apigateway')
-    response = client.get_usage(
+    response = boto3.client('apigateway').get_usage(
         usagePlanId=usagePlanId,
         keyId=keyId,
         startDate=today.strftime("%Y-%m-%d"),
-        endDate=tomorrow.strftime("%Y-%m-%d"),
+        endDate=end_date.strftime("%Y-%m-%d"),
     )
     return response.get("items", {})
 
 
-# def create_apiKey(keyId, usagePlanId, **kwargs):
-#     today = datetime.utcnow()
-#     tomorrow = today + timedelta(days=int(kwargs.get("days_range", 1)))
-#
-#     client = boto3.client('apigateway')
-#     response = client.get_usage(
-#         usagePlanId=usagePlanId,
-#         keyId=keyId,
-#         startDate=today.strftime("%Y-%m-%d"),
-#         endDate=tomorrow.strftime("%Y-%m-%d"),
-#     )
-#     return response.get("items", {})
+def associate_api_gateway_key_with_usage_plan(key_id, plan_id):
+    response = boto3.client('apigateway').create_usage_plan_key(
+        usagePlanId=plan_id,
+        keyId=key_id,
+        keyType='API_KEY'
+    )
+    logging.info(f"Association of API Key id: {key_id} with Usage Plan id: {plan_id} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
+    return response
+
+# You can't directly associate with an API Gateway Usage Plan at creation
+def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
+    response = boto3.client('apigateway').create_api_key(
+        name=key_name,
+        description=kwargs.get("description", f"Made via create_api_gateway_key at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"),
+        enabled=not kwargs.get("disabled", False),
+        tags=kwargs.get("tags", {}),
+        stageKeys=[{'restApiId': api_id, 'stageName': stage_name}],
+    )
+    logging.info(f"Creation of API Key id: {response.get('id')} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
+
+    if kwargs.get("plan_id"):
+        _ = associate_api_gateway_key_with_usage_plan(response['id'], kwargs['plan_id'])
+
+    return response
+
+
 
 
 ########################### ~ ECR Specific ~ ###################################################
@@ -1175,16 +1244,17 @@ def describe_ecr_repo_images(repo_name, **kwargs):
 ########################### ~ SSM Parameter Store Specific ~ ###################################################
 
 
-def get_ssm_param(param_name):
+def get_ssm_param(param_name, **kwargs):
     ssm = boto3.client('ssm')
     try:
         result = ssm.get_parameter(Name=param_name, WithDecryption=True)
         return ez_try_and_get(result, 'Parameter', 'Value')
-    except Exception as e: # ParameterNotFound
-        logging.error(e)
+    except Exception as e: # e.g. ParameterNotFound throws an exception
+        if not kwargs.get("disable_print") and "ParameterNotFound" in e:
+            logging.error(e)
 
 """
-Accepted kwargs: 
+SSM's Accepted kwargs: 
 * Description
 * Type='String'|'StringList'|'SecureString',
 * KeyId

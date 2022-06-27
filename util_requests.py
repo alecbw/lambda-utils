@@ -9,6 +9,7 @@ import warnings
 import json
 import re
 from urllib.parse import urlencode
+from html import unescape
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup, element, NavigableString
@@ -128,8 +129,10 @@ def rotate_accept():
 
 def get_ds_proxy_list(**kwargs):
     countries = kwargs.get("countries", "US|CA|MX|AT|BE|HR|CZ|DK|EE|FL|FR|DE|GB|GR|HU|IE|IT|LU|LT|LI|MC|NL|NO|PL|RO|RS|CS|SK|SI|ES|SE|CH|GB")
-    url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&https={kwargs.get('HTTPS', 'yes')}" #&country={countries}" #
-    # url += "&level=1|2"
+    url = os.environ["DS_URL"] + f"&showcountry={kwargs.get('show_country', 'no')}&https={kwargs.get('HTTPS', 'yes')}"
+    url += f"&country={countries}" #
+    url += "&level=1|2"
+    # print(url)
 
     response = api_request(url, "GET", raw_response=True)
     proxies = [x.decode("utf-8") for x in response.iter_lines()] # bc it returns raw text w/ newlines
@@ -192,29 +195,32 @@ def prioritize_proxy(proxies, location):
 
 
 def handle_request_exception(e, proxy, url, disable_error_messages):
-    if "Caused by SSLError(SSLCertVerificationError" in str(e): # CertificateError
-        warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Certificate Error. {e}<-----'
+    if any(x for x in ["Caused by SSLError(SSLCertVerificationError", "SSL: WRONG_VERSION_NUMBER", "[Errno 65] No route to host", "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired"] if x in str(e)):  # CertificateError -> downgrade to HTTP
+        warning = f'-----> ERROR. URL: {url}. Proxy: {proxy}. Request Threw: Certificate Error. {e}<-----'
         status_code = 495
     elif "Exceeded 30 redirects" in str(e):
-        warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Too Many Redirects Error. {e}<-----'
+        warning = f'-----> ERROR. URL: {url}. Proxy: {proxy}. Request Threw: Too Many Redirects Error. {e}<-----'
         status_code = 399
-    elif "TimeoutError" in str(e) or " Read timed out." in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Request Threw TimeoutError: {e} <-----'
+    elif "TimeoutError" in str(e) or " Read timed out." in str(e) or "timeout('timed out')" in str(e):
+        warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Request Threw TimeoutError: {e} <-----'
         status_code = 408
     elif "Caused by NewConnectionError" in str(e) and "ProxyError" not in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Effective 404 - Request Threw NewConnectionError: {e} <-----'
+        warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Effective 404 - Request Threw NewConnectionError: {e} <-----'
+        status_code = 404
+    elif "Tunnel connection failed: 404 Not Found" in str(e):
+        warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Effective 404 - Request Threw OSError: {e} <-----'
         status_code = 404
     elif "Connection refused" in str(e) or "Connection reset by peer" in str(e): # or "Remote end closed connection" in str(e):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. Proxy refusing traffic {e} <-----'
+        warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Proxy refusing traffic {e} <-----'
         status_code = 602
     elif any(x for x in ["HTTPConnectionPool", "MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
-        warning = f'-----> ERROR. ROTATE YOUR PROXY. Proxy: {proxy}. {e}<-----'
+        warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. {e}<-----'
         status_code = 601
     elif any(x for x in ["UnicodeError"] if x in str(e)):
         warning = f'-----> ERROR. Url: {url}. Proxy: {proxy}. Request Threw: UnicodeError Error. {e}<-----'
         status_code = 609
     else:
-        warning = f'-----> ERROR. Proxy: {proxy}. Request Threw: Unknown Error. {e}<-----'
+        warning = f'-----> ERROR. Url: {url}. Proxy: {proxy}. Request Threw: Unknown Error. {e}<-----'
         logging.warning(warning)
         status_code = 609
 
@@ -259,7 +265,7 @@ def site_request(url, proxy, wait, **kwargs):
         request_kwargs = {k:v for k,v in kwargs.items() if k in approved_request_kwargs}
         request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True # TODO refactor this out
 
-        if kwargs.get("http_proxy"):
+        if kwargs.get("http_proxy"): # if you request a https site anyways, the proxy WILL NOT be used
             request_kwargs["proxies"] = {"http": f"http://{proxy}"}
         elif proxy:
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
@@ -271,11 +277,10 @@ def site_request(url, proxy, wait, **kwargs):
         message, applied_status_code = handle_request_exception(e, proxy, url, kwargs.get("disable_error_messages"))
         return message, applied_status_code
 
-
     if response.status_code in [502, 503, 999] and not kwargs.get("disable_error_messages"):
-        logging.warning(f'-----> ERROR. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----')
+        logging.warning(f'-----> ERROR. Url: {url}. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----')
     elif response.status_code not in [200, 202, 301, 302] and not kwargs.get("disable_error_messages"):
-        logging.warning(f'-----> ERROR. Request Threw: {response.status_code} <-----')
+        logging.warning(f'-----> ERROR. Url: {url}. Request Threw: {response.status_code} <-----')
 
     if kwargs.get("soup"):                       # Allow functions to specify if they want parsed soup or plain request resopnse
         return BeautifulSoup(response.content, 'html.parser'), response.status_code
@@ -342,8 +347,11 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             script_string = script.string.strip()
             if kwargs.get("lstrip"):
                 script_string = script_string.lstrip(kwargs['lstrip'])
+            if kwargs.get("html_unescape"):
+                script_string = unescape(script_string)
             if kwargs.get("return_string"):
                 return script_string.strip().rstrip(",")
+
 
             while '“' in script_string or '”' in script_string or "&quot;" in script_string: # TODO maybe this logic should be in fix_JSON
                 char_index = next((script_string.find(x) for x in ['”', '”', '&quot;'] if script_string.find(x) != -1), None)
