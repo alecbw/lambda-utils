@@ -263,7 +263,9 @@ def standardize_dynamo_output(output_data, **kwargs):
     for key in datetime_keys:
         if not output_data[key]:
             return "" if kwargs.get("output") == "datetime_str" else None
-        output_data[key] = datetime.fromtimestamp(output_data[key])#.replace(tzinfo=timezone.utc)
+        elif output_data[key].isdigit():
+            output_data[key] = datetime.fromtimestamp(output_data[key])#.replace(tzinfo=timezone.utc)
+
         if kwargs.get("output") == "datetime_str":
             output_data[key] = output_data[key].strftime('%Y-%m-%d %H:%M:%S')
 
