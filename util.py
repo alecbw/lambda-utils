@@ -50,6 +50,7 @@ def standardize_event(event):
         if isinstance(body_as_dict, dict):
             event.update(body_as_dict)
         else:
+            logging.info(body_as_dict)
             logging.error(f"Malformed POST body received by standardize_event. Likely due to list, rather than dict, at top level of body JSON. body_as_dict is of type {type(body_as_dict)}")
 
     if event.get("httpMethod") == "POST" and event.get("body") and "application/x-www-form-urlencoded" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower() and "=" in event["body"]:  # POST from <form> -> synchronous API Gateway
@@ -60,7 +61,8 @@ def standardize_event(event):
         if isinstance(event['body'], dict):
             event.update(event["body"])
         else:
-            logging.error("Malformed POST body received by standardize_event. Potentially due to missing or malformed Content-Type header")
+            logging.info(event["body"])
+            logging.error(f"Malformed POST body received by standardize_event. Potentially due to missing or malformed Content-Type header. body is of type {type(event['body'])}")
 
     elif event.get("query"):  # GET, async API Gateway
         event.update(event["query"])
