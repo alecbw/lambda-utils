@@ -263,9 +263,9 @@ def ez_coerce_to_int(input):
     elif isinstance(input, float):
         return int(input)
     elif isinstance(input, str) and input.strip().isdigit():
-        return int(input.strip().isdigit())
+        return int(input.strip())
     else:
-        logging.warning(f"Unacceptable input fed to ez_coerce_to_int: {input}")
+        logging.warning(f"Unacceptable input fed to ez_coerce_to_int: {input}, of type: {type(input)}")
         return None
 
 
