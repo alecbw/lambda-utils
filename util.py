@@ -257,6 +257,18 @@ def ez_split(phrase, delimiter, return_slice, **kwargs):
         return [x.strip() for x in phrase.split(delimiter)]
 
 
+def ez_coerce_to_int(input):
+    if isinstance(input, int):
+        return input
+    elif isinstance(input, float):
+        return int(input)
+    elif isinstance(input, str) and input.strip().isdigit():
+        return int(input.strip().isdigit())
+    else:
+        logging.warning(f"Unacceptable input fed to ez_coerce_to_int: {input}")
+        return None
+
+
 # there's no re.find. I named this _find because _match makes more semantic sense than _search, but the .search operator is more useful than the .match operator
 # Note: keep in mind 0-indexing when using group=1, etc. group=1 is the second group.
 def ez_re_find(pattern, text, **kwargs):
