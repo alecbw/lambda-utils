@@ -260,10 +260,12 @@ def ez_split(phrase, delimiter, return_slice, **kwargs):
 def ez_coerce_to_int(input):
     if isinstance(input, int):
         return input
-    elif isinstance(input, float):
+    elif isinstance(input, float): # keep in mind it will round down (e.g. 5.3 -> 5)
         return int(input)
     elif isinstance(input, str) and input.strip().isdigit():
         return int(input.strip())
+    elif isinstance(input, str) and input.strip().replace(".", "", 1).isdigit(): # replace exactly 1 . to allow floats to trigger the .isdigit()
+        return int(float(input.strip()))
     else:
         logging.warning(f"Unacceptable input fed to ez_coerce_to_int: {input}, of type: {type(input)}")
         return None
