@@ -234,27 +234,29 @@ def ez_recursive_get(json_input, lookup_key):
             yield from ez_recursive_get(item, lookup_key)
 
 
-def ez_join(phrase, delimiter, **kwargs):
-    if is_none(phrase):
+# Convert iterable (list, set, ndarray) to str
+def ez_join(iterable_input, delimiter, **kwargs):
+    if is_none(iterable_input):
         return kwargs.get("fallback_value", "")
-    elif isinstance(phrase, list) or isinstance(phrase, set):
-        return delimiter.join(str(v) for v in phrase)
-    elif isinstance(phrase, str):
-        return phrase
-    elif type(phrase) == 'numpy.ndarray':
-        return delimiter.join(list(phrase))
+    elif isinstance(iterable_input, list) or isinstance(iterable_input, set):
+        return delimiter.join(str(v) for v in iterable_input)
+    elif isinstance(iterable_input, str):
+        return iterable_input
+    elif type(iterable_input) == 'numpy.ndarray':
+        return delimiter.join(list(iterable_input))
     else:
-        return phrase
+        return iterable_input
+
 
 # TODO separate fallback value for 'phrase is null' and 'delim not in phrase'
-def ez_split(phrase, delimiter, return_slice, **kwargs):
-    if not (phrase and delimiter and delimiter in phrase):
-        return kwargs.get("fallback_value", phrase)
+def ez_split(str_input, delimiter, return_slice, **kwargs):
+    if not (str_input and delimiter and delimiter in str_input):
+        return kwargs.get("fallback_value", str_input)
 
     if type(return_slice) != type(True) and isinstance(return_slice, int):
-        return phrase.split(delimiter)[return_slice]
+        return str_input.split(delimiter)[return_slice]
     else:
-        return [x.strip() for x in phrase.split(delimiter)]
+        return [x.strip() for x in str_input.split(delimiter)]
 
 
 def ez_coerce_to_int(input):
@@ -565,7 +567,7 @@ This shouldn't be a problem if your data isn't extremely dirty
 def is_url(potential_url_str, **kwargs):
     if not potential_url_str:
         return False
-    
+
     tld_list = kwargs.get("tld_list", get_tld_list())
     if find_substrings_in_string(potential_url_str, tld_list):
         return True
@@ -694,7 +696,9 @@ def format_timestamp(timestamp, **kwargs):
     [ ] 2021-02-08T13:49:46.0000000Z # has one too many 0's
     [ ] Mon, 27 Jan 2020 12:06:30 EET
     [ ] Fri, 22 Apr 2022 16:38:25 CEST
+    [ ] Thu, 21 Jul 2022 17:40:25 KST
     [ ] 2019/12/14
+    [ ] 02/12/2013
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
