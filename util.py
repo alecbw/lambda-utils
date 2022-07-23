@@ -259,7 +259,7 @@ def ez_split(str_input, delimiter, return_slice, **kwargs):
         return [x.strip() for x in str_input.split(delimiter)]
 
 
-def ez_coerce_to_int(input):
+def ez_coerce_to_int(input, **kwargs):
     if isinstance(input, int):
         return input
     elif isinstance(input, float): # keep in mind it will round down (e.g. 5.3 -> 5)
@@ -268,9 +268,11 @@ def ez_coerce_to_int(input):
         return int(input.strip())
     elif isinstance(input, str) and input.strip().replace(".", "", 1).isdigit(): # replace exactly one '.' to allow floats to trigger the .isdigit()
         return int(float(input.strip()))
-    else:
+
+    if not kwargs.get("disable_print"):
         logging.warning(f"Unacceptable input fed to ez_coerce_to_int: {input}, of type: {type(input)}")
-        return None
+
+    return None
 
 
 # there's no re.find. I named this _find because _match makes more semantic sense than _search, but the .search operator is more useful than the .match operator
@@ -699,6 +701,7 @@ def format_timestamp(timestamp, **kwargs):
     [ ] Thu, 21 Jul 2022 17:40:25 KST
     [ ] 2019/12/14
     [ ] 02/12/2013
+    [ ] 31-05-2022
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
