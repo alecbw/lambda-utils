@@ -1151,14 +1151,19 @@ def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
 
     response = None
     while response == None or response['status'] == 'Running':
-        sleep(0.25)
+        sleep(0.05)
         response = client.get_query_results(
             queryId=start_query_response['queryId']
         )
-    if kwargs.get("return_raw"):
-        return response["results"]
+
+    if kwargs.get("row"):
+        return response
 
     output_log_lod = []
+    if kwargs.get("keep_log_stream_url"): # will only do once, rather than for every log in output_log_lod for latency/cost sake
+        first_log_pointer = next((x['value'] for x in response['results'][0] if x['field'] == '@ptr'), "")
+        response['log_stream_url'] = assemble_cloudwatch_log_stream_url(client, first_log_pointer, **kwargs)
+
     for log_row in response['results']:
         output_log_lod.append({x['field'].replace("@", ""):x['value'] for x in log_row})
         if not kwargs.get("keep_pointer"):
@@ -1166,8 +1171,17 @@ def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
         if not kwargs.get("keep_log_stream_prefix") and "message" in output_log_lod[-1]:
             output_log_lod[-1]['message'] = ez_split(output_log_lod[-1]['message'], "\t", -1)
 
-    return output_log_lod
+    response['results'] = output_log_lod
+    return response
 
+
+def assemble_cloudwatch_log_stream_url(client, log_pointer, **kwargs):
+    response = client.get_log_record(logRecordPointer=log_pointer)
+    log_lambda_endpoint = ez_split(response['logRecord']['@log'], ":/", 1)
+    log_stream_id_and_date = response['logRecord']['@logStream']
+    log_stream_datetime = ez_split(response['logRecord']['@message'], "\t", 1)
+    log_stream_url = f"https://console.aws.amazon.com/cloudwatch/home?region={kwargs.get('region', client.meta.region_name)}#logEventViewer:group=/{log_lambda_endpoint};stream={log_stream_id_and_date};start={log_stream_datetime}"
+    return log_stream_url
 
 ########################### ~ API Gateway Specific ~ ###################################################
 
