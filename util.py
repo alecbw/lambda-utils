@@ -62,7 +62,7 @@ def standardize_event(event):
             event.update(event["body"])
         else:
             logging.info(event["body"])
-            logging.error(f"Malformed POST body received by standardize_event. Potentially due to missing or malformed Content-Type header. body is of type {type(event['body'])}")
+            logging.error(f"Malformed POST body received by standardize_event. Potentially due to missing or malformed Content-Type header ({ez_insensitive_get(event, 'headers', 'Content-Type')}). body is of type {type(event['body'])}")
 
     elif event.get("query"):  # GET, async API Gateway
         event.update(event["query"])
