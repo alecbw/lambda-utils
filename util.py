@@ -1,5 +1,6 @@
 import os
 import json
+import ast
 import re
 from datetime import datetime, timedelta
 import calendar
@@ -273,6 +274,14 @@ def ez_coerce_to_int(input, **kwargs):
         logging.warning(f"Unacceptable input fed to ez_coerce_to_int: {input}, of type: {type(input)}")
 
     return None
+
+# this exists bc there is a max str length for ast.literal_eval, which is unpublished and possibly variable, above which it will crash and throw a SyntaxError
+def ez_ast_eval(input):
+    try:
+        return ast.literal_eval(input)
+    except Exception as e:
+        logging.error(f"Error thrown by ez_ast_eval - {e}")
+
 
 
 # there's no re.find. I named this _find because _match makes more semantic sense than _search, but the .search operator is more useful than the .match operator
