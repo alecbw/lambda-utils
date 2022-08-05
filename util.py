@@ -251,11 +251,15 @@ def ez_join(iterable_input, delimiter, **kwargs):
 
 # TODO separate fallback value for 'phrase is null' and 'delim not in phrase'
 def ez_split(str_input, delimiter, return_slice, **kwargs):
-    if not (str_input and delimiter and delimiter in str_input):
+    if not str_input or not delimiter:
+        return kwargs.get("fallback_value", str_input)
+    elif kwargs.get("case_insensitive") and not delimiter.lower() in str_input.lower():
+        return kwargs.get("fallback_value", str_input)
+    elif not kwargs.get("case_insensitive") and not delimiter in str_input:
         return kwargs.get("fallback_value", str_input)
 
     if kwargs.get("case_insensitive"):
-         output_list = re.split(str_input, re.escape(delimiter), flags=re.IGNORECASE)
+        output_list = re.split(delimiter, str_input, flags=re.IGNORECASE)
     else:
         output_list = str_input.split(delimiter)
 
