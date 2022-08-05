@@ -254,10 +254,15 @@ def ez_split(str_input, delimiter, return_slice, **kwargs):
     if not (str_input and delimiter and delimiter in str_input):
         return kwargs.get("fallback_value", str_input)
 
-    if type(return_slice) != type(True) and isinstance(return_slice, int):
-        return str_input.split(delimiter)[return_slice]
+    if kwargs.get("case_insensitive"):
+         output_list = re.split(str_input, re.escape(delimiter), flags=re.IGNORECASE)
     else:
-        return [x.strip() for x in str_input.split(delimiter)]
+        output_list = str_input.split(delimiter)
+
+    if type(return_slice) != type(True) and isinstance(return_slice, int):
+        return output_list[return_slice]
+    else:
+        return [x.strip() for x in output_list]
 
 
 def ez_coerce_to_int(input, **kwargs):
@@ -586,7 +591,7 @@ def is_url(potential_url_str, **kwargs):
     return False
 
 """
-Keep in mind removals stack - e.g. remove_tld will remove subsite, port, and trailing slash
+Keep in mind removals will stack - e.g. remove_tld will remove subsite, port, and trailing slash
 for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time and pass it in to save 1ms per
 Known problem: strings like "lunarcovers.co.ukasdfij" will match .co.uk and return as 'lunarcovers.co.uk'
 """
@@ -708,6 +713,7 @@ def format_timestamp(timestamp, **kwargs):
     [ ] Mon, 27 Jan 2020 12:06:30 EET
     [ ] Fri, 22 Apr 2022 16:38:25 CEST
     [ ] Thu, 21 Jul 2022 17:40:25 KST
+    [ ] 18.07.2022
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
