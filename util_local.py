@@ -1,10 +1,10 @@
 from utility.util import invoke_lambda, is_url, format_url
-from utility.util_gspread import open_gsheet
+# from utility.util_gspread import open_gsheet # imported below
 
 import json
 import csv
 import sys
-
+import logging
 
 def read_from_gsheet(sheet, tab):
 
@@ -20,10 +20,14 @@ def read_from_gsheet(sheet, tab):
         print(f"Finished reading from Google Sheet {sheet}. Status code {status_code}")
     else:
         print(f"Error reading from Google Sheet {sheet}. Status code {status_code}; message: {data}")
-    return data
+    return data # is list of dicts
 
 
 def write_to_gsheet(output_lod, sheet, tab, primary_key, **kwargs):
+
+    if sys.getsizeof(output_lod) > (6291456-5000):
+        logging.warning("You need to split your data rows")
+        return 413 # payload too large
 
     resp, status_code = invoke_lambda({
             "Gsheet": sheet,
@@ -40,14 +44,19 @@ def write_to_gsheet(output_lod, sheet, tab, primary_key, **kwargs):
     else:
         print(f"Error writing to Google Sheet {sheet}. Status code {status_code}; message: {resp}")
 
-# Use if you're hitting the 2MB Lambda limit
+    return status_code
+
+
+# Use if you're hitting the 2MB Lambda limit. This uses the low-level values_append function
 def naive_append_gsheet_tab(sheet, tab, output_lod, headers):
+    from utility.util_gspread import open_gsheet
+
     data_lol = []
     for row in output_lod:
         data_lol.append([row.get(x) for x in headers])
 
     sh, worksheet_list = open_gsheet(sheet)
-    resp = sh.values_append(tab, {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
+    resp = sh.values_append(tab +"!A1", {'valueInputOption': 'USER_ENTERED'}, {'values': data_lol})
     print(resp)
 
 
@@ -78,15 +87,17 @@ def read_input_csv(filename, **kwargs):
 
 
 def write_output_csv(filename, output_lod, **kwargs):
-    filename = filename + ".csv" if ".csv" not in filename else filename
-    filename = "Output " + filename if "Output " not in filename else filename
+    if not kwargs.get("prevent_csv_suffix") and ".csv" not in filename:
+        filename = filename + ".csv"
+    if not kwargs.get("prevent_output_prefix") and "Output " not in filename:
+        filename = "Output " + filename
 
     with open(filename, 'w') as output_file:
         dict_writer = csv.DictWriter(output_file, kwargs.get("header", output_lod[0].keys()))
         dict_writer.writeheader()
         dict_writer.writerows(output_lod)
 
-    print(f"Write to csv {'Output ' + filename} was successful\n")
+    logging.info(f"Write to csv {filename} was successful\n")
 
 
 def append_to_csv(filename, output_lod, **kwargs):
