@@ -289,7 +289,7 @@ def ez_ast_eval(input):
     try:
         return ast.literal_eval(input)
     except Exception as e:
-        logging.error(f"Error thrown by ez_ast_eval - {e}")
+        logging.error(f"Error thrown by ez_ast_eval. Input: {input}; error: {e}")
 
 
 
