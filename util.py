@@ -676,6 +676,16 @@ def get_tld_list():
         raise FileNotFoundError(f"Make sure your utility submodule folder is called utility. {e}")
 
 
+def ez_add_utms(text, domain, utms):
+
+    def add_utm(match):
+        if "?" not in match.group(0):
+            return match.group(0) + utms
+        return match.group(0) + "&" + utms.lstrip("?")
+
+    return re.sub(domain.replace(".", "\.") + "[^\s<>]*", add_utm, text)
+
+
 ############################################# ~ Datetime/str handling ~ ##########################################################
 
 
