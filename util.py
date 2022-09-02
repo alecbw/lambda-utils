@@ -680,7 +680,7 @@ def ez_add_utms(text, domain, utms):
 
     def add_utm(match):
         if "?" not in match.group(0):
-            return match.group(0) + utms
+            return match.group(0) + "?" + utms.lstrip("?")
         return match.group(0) + "&" + utms.lstrip("?")
 
     return re.sub(domain.replace(".", "\.") + "[^\s<>]*", add_utm, text)

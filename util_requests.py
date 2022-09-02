@@ -372,7 +372,7 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                 return json_dict
             else: # continue; there may be >1 ld+json onsite, and one of the others may work
                 logging.info(kwargs)
-                logging.info(script_string)
+                logging.debug(script_string)
 
     return {}
 
