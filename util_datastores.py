@@ -122,7 +122,7 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
 
     return results
 
-
+# Note: Athena SQL queries have a max of 262144 bytes of SQL
 def query_athena_table(sql_query, database, **kwargs):
     if database not in sql_query:
         logging.warning("The provided database is not in your provided SQL query")

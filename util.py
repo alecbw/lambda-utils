@@ -278,6 +278,8 @@ def ez_coerce_to_int(input, **kwargs):
         return int(input.strip())
     elif isinstance(input, str) and input.strip().replace(".", "", 1).isdigit(): # replace exactly one '.' to allow floats to trigger the .isdigit()
         return int(float(input.strip()))
+    elif isinstance(input, str) and input.strip().replace(",", "").isdigit(): # long ints with commas
+        return int(input.strip().replace(",", ""))
 
     if not kwargs.get("disable_print"):
         logging.warning(f"Unacceptable input fed to ez_coerce_to_int: {input}, of type: {type(input)}")
@@ -876,7 +878,7 @@ def increment_counter(counter, *args, **kwargs):
 
 
 # From https://stackoverflow.com/questions/1505454/python-json-loads-chokes-on-escapes
-# Python will by default Abort trap: 6 at depth around 1000
+# Python will by default Abort trap: 6 at depth 1000
 def fix_JSON(json_str, **kwargs):
     if kwargs.get("recursion_depth", 0) > kwargs.get("recursion_limit", 500):
         logging.warning(f"Exceeded recursion depth trap in fix_JSON - {kwargs.get('recursion_limit', 500)}")
