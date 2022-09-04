@@ -730,6 +730,8 @@ def format_timestamp(timestamp, **kwargs):
     [ ] Fri, 22 Apr 2022 16:38:25 CEST
     [ ] Thu, 21 Jul 2022 17:40:25 KST
     [ ] 18.07.2022
+    [ ] 26/05/2022
+    [ ] Tue, 26 Nov 19 19:40:06 +0000
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
@@ -785,9 +787,9 @@ def deduplicate_lod(input_lod, primary_key):
     return list(output_dict.values())
 
 """ 
-    Zip is at the dict level - if only some of the dicts in a lod have a key, 
-        only resultant dicts with one of their primary_keys will have that given k:v pair
-    When both lods have a given (non-primary) key, the lod_2 value is prioritized.
+Zip is at the dict level - if only some of the dicts in a lod have a key, 
+    only resultant dicts with one of their primary_keys will have that given k:v pair
+When both lods have a given (non-primary) key, the lod_2 value is prioritized.
 """
 def zip_lods(lod_1, lod_2, primary_key, **kwargs):
 
