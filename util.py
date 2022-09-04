@@ -785,9 +785,9 @@ def deduplicate_lod(input_lod, primary_key):
     return list(output_dict.values())
 
 """ 
-    Zip is at the dict level - if only some of the dicts in a lod have a key, 
-        only resultant dicts with one of their primary_keys will have that given k:v pair
-    When both lods have a given (non-primary) key, the lod_2 value is prioritized.
+Zip is at the dict level - if only some of the dicts in a lod have a key, 
+    only resultant dicts with one of their primary_keys will have that given k:v pair
+When both lods have a given (non-primary) key, the lod_2 value is prioritized.
 """
 def zip_lods(lod_1, lod_2, primary_key, **kwargs):
 
