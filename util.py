@@ -623,7 +623,7 @@ def format_url(url, **kwargs):
     if kwargs.get("remove_anchor"):
         url = ez_split(url, "#", 0)
     if kwargs.get("remove_subdomain") and url.count(".") > 1:
-        tld = find_url_tld(url, kwargs["remove_subdomain"])
+        tld = find_url_tld(url.strip(), kwargs["remove_subdomain"])
         if not tld:
             return url.strip()
         subdomain = url.rsplit(tld, 1)[0]   # only split once, on the right most. This is to prevent e.g. the tld '.net' in 'foo.netflix.net' from splitting the '.netflix' too
@@ -641,7 +641,10 @@ def format_url(url, **kwargs):
     return url.strip().rstrip("\\").strip("/")
 
 
-# feeding in tld_list is a little dated eventually will deprecate TODO
+"""
+[ ] feeding in tld_list is a little dated eventually will deprecate TODO
+A url with >1 matching TLDs - like foo.bar.co.uk containing ".co", ".co.uk", and ".uk" will correctly select ".co.uk"
+"""
 def find_url_tld(url, tld_list, **kwargs):
     if not url:
         return None
@@ -657,9 +660,9 @@ def find_url_tld(url, tld_list, **kwargs):
 
     if len(tld_list) == 1:
         return tld_list[0]
-    elif len(tld_list) > 1: # use regex to find the longest matching substr (tld) that is immediately followed by the end-of-line token
-        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($)"
-        return ez_re_find(pattern, url)
+    elif len(tld_list) > 1: # use regex to find the longest matching substr (tld) that is immediately followed by the end-of-line token OR start-of-querystrings OR backslash for subsite
+        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?)"
+        return ez_re_find(pattern, url, group=0).rstrip("/").rstrip("?")
 
     return tld
 
