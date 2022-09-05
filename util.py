@@ -626,9 +626,9 @@ def format_url(url, **kwargs):
         tld = find_url_tld(url.strip(), kwargs["remove_subdomain"])
         if not tld:
             return url.strip()
-        subdomain = url.rsplit(tld, 1)[0]   # only split once, on the right most. This is to prevent e.g. the tld '.net' in 'foo.netflix.net' from splitting the '.netflix' too
-        domain = subdomain[subdomain.rfind(".")+1:]
-        url = domain + tld
+        subdomain_slug = url.rsplit(tld, 1)[0]   # only split once, on the right most. This is to prevent e.g. the tld '.net' in 'foo.netflix.net' from splitting the '.netflix' too
+        domain_slug = subdomain_slug[subdomain_slug.rfind(".")+1:]
+        url = domain_slug + tld + ez_split(url, tld, 1) # last part adds subsite, if any
 
     if kwargs.get("https"):
         url = "https://" + url
