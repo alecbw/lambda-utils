@@ -318,7 +318,7 @@ def ez_strip_str(input_str, **kwargs):
     elif not input_str:
         return input_str
 
-    if kwargs.get("reduce_interior_whitespace"):
+    if kwargs.get("reduce_interior_whitespace"): # internal whitespace can be regexed out
         input_str = re.sub(r"\s{2,}", " ", input_str)
     return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").strip()
 
@@ -374,7 +374,9 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                 logging.info(kwargs)
                 logging.debug(script_string)
 
-    return {}
+
+    return {} if not kwargs.get("return_string") else ""
+
 
 
 # Will extract the text from, and concatenate together, all elements of a given selector
