@@ -286,6 +286,13 @@ def ez_coerce_to_int(input, **kwargs):
 
     return None
 
+
+def ez_coerce_to_float(possible_float):
+    try:
+        return float(possible_float)
+    except:
+        return None
+
 # this exists bc there is a max str length for ast.literal_eval, which is unpublished and possibly variable, above which it will crash and throw a SyntaxError
 def ez_ast_eval(input):
     try:
