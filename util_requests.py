@@ -348,6 +348,8 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             if kwargs.get("lstrip"):
                 script_string = script_string.lstrip(kwargs['lstrip'])
             if kwargs.get("html_unescape"):
+                if kwargs.get("always_escape_quote"):
+                    script_string = script_string.replace('&quot;', r'\"')
                 script_string = unescape(script_string)
             if kwargs.get("return_string"):
                 return script_string.strip().rstrip(",")
