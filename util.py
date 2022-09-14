@@ -906,7 +906,9 @@ def fix_JSON(json_str, **kwargs):
             return None
 
         if kwargs.get("recursion_depth", 0) == 0: # only log the first instance
-            logging.warning(f"Replacing first broken character - {kwargs.get('log_on_error', '')} - {json_str[idx_to_replace]} - {json_str[idx_to_replace-5:idx_to_replace+5]} - {e}")
+            logging.warning(f"Replacing first broken character - {kwargs.get('log_on_error', '')} - {json_str[idx_to_replace]} - {e}")
+            if len(json_str) > idx_to_replace+5 and idx_to_replace-5 > 0:
+                logging.info(json_str[idx_to_replace-5:idx_to_replace+5])
 
         if "Expecting ',' delimiter:" in str(e) and json_str[idx_to_replace] in ['"', '{', '['] and lookback_check_string_for_substrings(json_str, ['}', ']', '"'], start_index=idx_to_replace):
             json_str = replace_string_char_by_index(json_str, idx_to_replace, ',' + json_str[idx_to_replace]) # input was missing a comma
