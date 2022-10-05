@@ -465,6 +465,7 @@ def endswith_replace(text, to_replace, replace_with, **kwargs):
     return text
 
 
+# NOT recursive
 def startswith_replace(text, to_replace, replace_with, **kwargs):
     if text and isinstance(text, str) and isinstance(to_replace, str) and text.startswith(to_replace):
         return replace_with + text[len(to_replace):]
@@ -740,7 +741,7 @@ def format_timestamp(timestamp, **kwargs):
     [ ] Fri, 22 Apr 2022 16:38:25 CEST
     [ ] Thu, 21 Jul 2022 17:40:25 KST
     [ ] 18.07.2022
-    [ ] 26/05/2022
+    [ ] 26/05/2022, 22/08/2020, 17/07/2022, 15/09/2022
     [ ] Tue, 26 Nov 19 19:40:06 +0000
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
@@ -768,7 +769,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
         except:
             if dt_format == LIST_OF_DT_FORMATS[-1]: # if none matched
                 logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
-                return kwargs.get("null_value", "") # returns empty str by default
+                return kwargs.get("null_value", "")
 
     try:
         output_dt = datetime.utcfromtimestamp(calendar.timegm(standard_dt_str)) # convert from time.struct_time to datetime.date
@@ -834,11 +835,19 @@ def combine_lods(main_lod, secondary_lod, primary_key):
 
     return list(output_dict.values()) # convert back to LoD
 
-# from here: https://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-whilst-preserving-order
-def deduplicate_ordered_list(seq):
-    seen = set()
-    seen_add = seen.add
-    return [x for x in seq if not (x in seen or seen_add(x))]
+
+# No current uses
+def combine_dicts(secondary_dict, primary_dict, **kwargs):
+    for k,v in secondary_dict.items():
+        if kwargs.get("drop_falsey_values") and not primary_dict.get(k) and v:
+            primary_dict[k] = v
+        elif not kwargs.get("drop_falsey_values") and k not in primary_dict:
+            primary_dict[k] = v
+
+    if kwargs.get("drop_falsey_values"):
+        primary_dict = {k:v for k,v in primary_dict.items() if v}
+
+    return primary_dict
 
 
 def combine_lists_unique_values(*args):
@@ -847,6 +856,25 @@ def combine_lists_unique_values(*args):
         for item in input_list:
             output_set.add(item)
     return list(output_set)
+
+# from here: https://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-whilst-preserving-order
+def deduplicate_ordered_list(seq):
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]
+
+# return max 1 item case-insensitive, but with its original casing. From here: https://stackoverflow.com/questions/48283295/how-to-remove-case-insensitive-duplicates-from-a-list-while-maintaining-the-ori
+def case_insensitive_deduplicate_list(input_list):
+    output_list = []
+    lowercase_set = set()
+
+    for x in input_list:
+        x_low = x.lower()
+        if x_low not in lowercase_set:   # test presence
+            lowercase_set.add(x_low)
+            output_list.append(x)   # preserve order
+
+    return output_list
 
 
 # e.g. checking if any tld exists in a string
