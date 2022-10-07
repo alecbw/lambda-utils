@@ -1151,7 +1151,7 @@ def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
 
     response = None
     while response == None or response['status'] == 'Running':
-        sleep(0.1)
+        sleep(0.15)
         response = client.get_query_results(
             queryId=start_query_response['queryId']
         )
