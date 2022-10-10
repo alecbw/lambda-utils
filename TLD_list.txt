@@ -121,6 +121,7 @@
 .attorney
 .au
 .asn.au
+.edu.au
 .com.au
 .id.au
 .info.au
