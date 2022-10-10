@@ -235,7 +235,7 @@ def standardize_dynamo_query(input_data, **kwargs):
             input_data['updated_at'] = int(input_data.get("updated_at", input_data.get('created_at')))
     else:
         if not kwargs.get("skip_updated"):
-            input_data['updatedAt'] = int(datetime.utcnow().timestamp())
+            input_data['updatedAt'] = int(datetime.utcnow().replace(tzinfo=timezone.utc).timestamp())
         elif "updatedAt" in input_data:
             input_data['updatedAt'] = int(input_data['updatedAt'])
 
