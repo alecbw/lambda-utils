@@ -27,7 +27,7 @@ TLD_list = None # setting up a global for caching IO of get_tld_list()
 
 # Allows enforcing of querystrings' presence
 def validate_params(event, required_params, **kwargs):
-    event = standardize_event(event)
+    event = standardize_event(event, **kwargs)
     commom_required_params = get_list_overlap(event, required_params)
     commom_optional_params = get_list_overlap(event, kwargs.get("optional_params", []))
     param_only_dict = {k:v for k, v in event.items() if k in required_params+kwargs.get("optional_params", [])}
@@ -45,7 +45,7 @@ def validate_params(event, required_params, **kwargs):
 Unpack the k:v pairs into the top level dict to enforce standardization across invoke types.
 queryStringParameters is on a separate if loop, as you can have a POST with a body and separate url querystrings
 """
-def standardize_event(event):
+def standardize_event(event, **kwargs):
     if event.get("httpMethod") == "POST" and event.get("body") and "application/json" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower():  # POST -> synchronous API Gateway
         body_as_dict = fix_JSON(event["body"], recursion_limit=10) or {} # fix_JSON returns None if it can't be fixed
         if isinstance(body_as_dict, dict):
