@@ -78,7 +78,7 @@ def standardize_event(event):
 
         if any(x for x in list(event["queryStringParameters"].keys()) if x in event): # check to prevent collision with default keys
             logging.error(f"Key collision of queryStringParameters with default API Gateway keys in standardize_event: {event['queryStringParameters'].keys()}")
-        if any(x for x in event["queryStringParameters"].keys())) != len(set(event["queryStringParameters"].keys())): # check for key duplicates
+        if any(k for k,v in event["queryStringParameters"].items() if isinstance(v, str) and len(v.split(",")) != len(event["queryStringParameters"][k])):
             logging.error(f"Key duplicates in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
         if kwargs.get("log_on_querystring_key_contains") and any(x for x in event["queryStringParameters"].keys() if find_substrings_in_string(x, kwargs['log_on_querystring_key_contains'])):
             logging.error(f"Malformed querystring key in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
