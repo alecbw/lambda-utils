@@ -73,8 +73,16 @@ def standardize_event(event):
 
     # Any of the above can also include this. GET, synchronous API Gateway will be just this.
     if event.get("queryStringParameters"):
-        if any(x for x in list(event["queryStringParameters"].keys()) if x in event): # check to prevent key collision
-            logging.error(f"Key collision in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
+        print(event)
+        logging.info(f"All found querystrings (not including body): {event['queryStringParameters'].keys()}")
+
+        if any(x for x in list(event["queryStringParameters"].keys()) if x in event): # check to prevent collision with default keys
+            logging.error(f"Key collision of queryStringParameters with default API Gateway keys in standardize_event: {event['queryStringParameters'].keys()}")
+        if any(x for x in event["queryStringParameters"].keys())) != len(set(event["queryStringParameters"].keys())): # check for key duplicates
+            logging.error(f"Key duplicates in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
+        if kwargs.get("log_on_querystring_key_contains") and any(x for x in event["queryStringParameters"].keys() if find_substrings_in_string(x, kwargs['log_on_querystring_key_contains'])):
+            logging.error(f"Malformed querystring key in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
+
         event.update(event["queryStringParameters"])
 
     return standardize_dict(event)
