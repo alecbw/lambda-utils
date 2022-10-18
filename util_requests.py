@@ -341,6 +341,9 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
 
 
 def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
+    if not parsed:
+        return {} if not kwargs.get("return_string") else ""
+
     find_all_kwargs = {k:v for k,v in kwargs.items() if k in ["id", "href", "attrs", "type", "name", "property"]}
     for script in parsed.find_all('script', **find_all_kwargs):
         if script and script.string and phrase_str in script.string:
