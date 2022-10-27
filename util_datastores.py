@@ -697,6 +697,7 @@ def delete_s3_file(bucket_name, filename, **kwargs):
 def remove_s3_file_and_delete_marker(bucket, del_item, to_delete_dol, all_del_markers, **kwargs):
     if not kwargs.get("disable_print"):
         logging.info(f'Deleting {del_item}')
+
     object_to_remove = bucket.Object(del_item)
 
     for del_id in to_delete_dol[del_item]:
@@ -706,7 +707,7 @@ def remove_s3_file_and_delete_marker(bucket, del_item, to_delete_dol, all_del_ma
     object_to_remove.delete(VersionId=all_del_markers[del_item])
 
 
-# Will not delete items that have not already been marked as deleted (i.e. with a delete marker)
+# Will not delete items that have not already been marked as deleted (i.e. those with a delete marker)
 # Handles deleting abandoned delete markers, as well
 def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
     to_delete_dol = defaultdict(list)
@@ -741,22 +742,9 @@ def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
         with concurrent.futures.ThreadPoolExecutor(kwargs['use_threads']) as executor:
             for del_item in to_delete_dol:
                 executor.submit(remove_s3_file_and_delete_marker, *[bucket, del_item, to_delete_dol, all_del_markers])
-
     else:
         for del_item in to_delete_dol:
             remove_s3_file_and_delete_marker(bucket, del_item, to_delete_dol, all_del_markers, **kwargs)
-
-            # t = threading.Thread(target=remove_s3_file_and_delete_marker, args=(bucket, del_item, to_delete_dol, all_del_markers), kwargs=kwargs).start()
-        # if not kwargs.get("disable_print"):
-        #     logging.info(f'Deleting {del_item}')
-        # object_to_remove = bucket.Object(del_item)
-        #
-        # for del_id in to_delete_dol[del_item]:
-        #     object_to_remove.delete(VersionId=del_id)
-        #
-        # # Also remove delete marker itself
-        # object_to_remove.delete(VersionId=all_del_markers[del_item])
-
 
 
 # http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
@@ -768,6 +756,7 @@ def parallel_write_s3_files(bucket_name, file_lot):
 
     logging.info(f"Parallel write to S3 Bucket {bucket_name} has commenced")
 
+
 def parallel_delete_s3_files(bucket_name, file_list):
     boto3.client('s3')
     for filename in file_list:
@@ -775,6 +764,20 @@ def parallel_delete_s3_files(bucket_name, file_list):
 
     logging.info(f"Parallel delete to S3 Bucket {bucket_name} has commenced")
 
+
+def delete_files_in_s3_subfolder(bucket_name, subfolder_path):
+    bucket_name = bucket_name.replace("s3://", "")
+    subfolder_path = startswith_replace(subfolder_path, bucket_name, "") # ensure path doesnt include bucket
+
+    filenames_list = get_s3_files_that_match_prefix(bucket_name, subfolder_path, file_limit=10000, return_names=True)
+    count_files = len(filenames_list)
+    logging.info(f"There were {count_files} files in the subfolder {subfolder_path}")
+
+    if filenames_list:
+        parallel_delete_s3_files(bucket_name, filenames_list)
+        logging.info("The deletes appear to have been successful")
+
+    return count_files
 
 
 """
