@@ -694,11 +694,13 @@ def delete_s3_file(bucket_name, filename, **kwargs):
         return e
 
 
+# Will not delete items that have not already been marked as deleted (i.e. with a delete marker)
 # Handles deleting abandoned delete markers, as well
 def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
     to_delete_dol = defaultdict(list)
     all_del_markers = {}
 
+    bucket_name = startswith_replace(bucket_name, "s3://", "")
     bucket = boto3.resource('s3').Bucket(bucket_name)
     paginator = boto3.client('s3').get_paginator('list_object_versions')
     pages = paginator.paginate(Bucket=bucket_name, Prefix=path) # , MaxKeys=kwargs.get("file_limit", None))

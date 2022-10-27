@@ -477,6 +477,8 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             return html_tag.get("title").strip() if html_tag.get("title") else null_value
         elif kwargs.get("get_alt"):
             return html_tag.get("alt").strip() if html_tag.get("alt") else null_value
+        elif kwargs.get("get_onclick"):
+            return html_tag.get("onclick").strip() if html_tag.get("onclick") else null_value
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
         else:
