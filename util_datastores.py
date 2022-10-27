@@ -694,6 +694,18 @@ def delete_s3_file(bucket_name, filename, **kwargs):
         return e
 
 
+def remove_s3_file_and_delete_marker(bucket, del_item, to_delete_dol, all_del_markers, **kwargs):
+    if not kwargs.get("disable_print"):
+        logging.info(f'Deleting {del_item}')
+    object_to_remove = bucket.Object(del_item)
+
+    for del_id in to_delete_dol[del_item]:
+        object_to_remove.delete(VersionId=del_id)
+
+    # Also remove delete marker itself
+    object_to_remove.delete(VersionId=all_del_markers[del_item])
+
+
 # Will not delete items that have not already been marked as deleted (i.e. with a delete marker)
 # Handles deleting abandoned delete markers, as well
 def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
@@ -723,17 +735,27 @@ def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
         [logging.info(f"{k} - {v}") for k,v in to_delete_dol.items()]
         return
 
+
     # Remove old versions of object by VersionId
-    for del_item in to_delete_dol:
-        if not kwargs.get("disable_print"):
-            logging.info(f'Deleting {del_item}')
-        object_to_remove = bucket.Object(del_item)
+    if kwargs.get('use_threads'):
+        with concurrent.futures.ThreadPoolExecutor(kwargs['use_threads']) as executor:
+            for del_item in to_delete_dol:
+                executor.submit(remove_s3_file_and_delete_marker, *[bucket, del_item, to_delete_dol, all_del_markers])
 
-        for del_id in to_delete_dol[del_item]:
-            object_to_remove.delete(VersionId=del_id)
+    else:
+        for del_item in to_delete_dol:
+            remove_s3_file_and_delete_marker(bucket, del_item, to_delete_dol, all_del_markers, **kwargs)
 
-        # Also remove delete marker itself
-        object_to_remove.delete(VersionId=all_del_markers[del_item])
+            # t = threading.Thread(target=remove_s3_file_and_delete_marker, args=(bucket, del_item, to_delete_dol, all_del_markers), kwargs=kwargs).start()
+        # if not kwargs.get("disable_print"):
+        #     logging.info(f'Deleting {del_item}')
+        # object_to_remove = bucket.Object(del_item)
+        #
+        # for del_id in to_delete_dol[del_item]:
+        #     object_to_remove.delete(VersionId=del_id)
+        #
+        # # Also remove delete marker itself
+        # object_to_remove.delete(VersionId=all_del_markers[del_item])
 
 
 
