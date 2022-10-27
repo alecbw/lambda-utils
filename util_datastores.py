@@ -739,6 +739,7 @@ def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
 
     # Remove old versions of object by VersionId
     if kwargs.get('use_threads'):
+        # http = urllib3.PoolManager(maxsize=kwargs['use_threads']+1, block=True) # TODO - worth implementing?
         with concurrent.futures.ThreadPoolExecutor(kwargs['use_threads']) as executor:
             for del_item in to_delete_dol:
                 executor.submit(remove_s3_file_and_delete_marker, *[bucket, del_item, to_delete_dol, all_del_markers])
@@ -765,6 +766,7 @@ def parallel_delete_s3_files(bucket_name, file_list):
     logging.info(f"Parallel delete to S3 Bucket {bucket_name} has commenced")
 
 
+# Maybe this is overthinking it and needs a refactor - TODO
 def delete_files_in_s3_subfolder(bucket_name, subfolder_path):
     bucket_name = bucket_name.replace("s3://", "")
     subfolder_path = startswith_replace(subfolder_path, bucket_name, "") # ensure path doesnt include bucket
