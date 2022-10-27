@@ -703,7 +703,7 @@ def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
     bucket_name = startswith_replace(bucket_name, "s3://", "")
     bucket = boto3.resource('s3').Bucket(bucket_name)
     paginator = boto3.client('s3').get_paginator('list_object_versions')
-    pages = paginator.paginate(Bucket=bucket_name, Prefix=path) # , MaxKeys=kwargs.get("file_limit", None))
+    pages = paginator.paginate(Bucket=bucket_name, Prefix=path.lstrip("/")) # , MaxKeys=kwargs.get("file_limit", None))
 
     for page in pages:
         if not page.get('DeleteMarkers'):
