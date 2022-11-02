@@ -457,7 +457,10 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         if kwargs.pop("find_all", False):
             return safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs)
 
-        html_tag = parsed.find(html_type, {property_type : identifier})
+        if property_type == 'string':
+            html_tag = parsed.find(html_type, string=identifier)
+        else:
+            html_tag = parsed.find(html_type, {property_type : identifier})
 
         if not html_tag:
             return null_value
