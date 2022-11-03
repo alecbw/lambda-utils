@@ -831,7 +831,7 @@ def generate_s3_presigned_url(bucket_name, file_name, **kwargs):
     url = client.generate_presigned_url(
         ClientMethod='get_object',
         Params={'Bucket': bucket_name, 'Key': file_name},
-        ExpiresIn=kwargs.get("TTL", 3600) # one hour
+        ExpiresIn=kwargs.get("TTL", kwargs.get("TTL", 60*60*24)) # one day
     )
     return url
 
