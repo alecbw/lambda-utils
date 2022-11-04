@@ -421,7 +421,11 @@ def flatten_neighboring_selectors(enclosing_element, selector_type, **kwargs):
 
 
 def safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs):
-    html_tags = parsed.find_all(html_type, {property_type : identifier})
+
+    if property_type == 'string':
+        html_tags = parsed.find_all(html_type, string=identifier)
+    else:
+        html_tags = parsed.find_all(html_type, {property_type : identifier})
 
     if not html_tags:
         return null_value
@@ -429,7 +433,15 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
     if kwargs.get("get_link"):
         data = [x.get("href").strip() if x.get("href") else x.a.get("href", "").strip() for x in html_tags]
     elif kwargs.get("get_src"):
-        data = [x.get("src").strip() if x.get("src") else "" for x in html_tags]
+        data = [x.get("src").strip() if x.get("src") else null_value for x in html_tags]
+    elif kwargs.get("get_title"):
+        data = [x.get("title").strip() if x.get("title") else null_value for x in html_tags]
+    elif kwargs.get("get_alt"):
+        data = [x.get("alt").strip() if x.get("alt") else null_value for x in html_tags]
+    elif kwargs.get("get_onclick"):
+        data = [x.get("onclick").strip() if x.get("onclick") else null_value for x in html_tags]
+    elif html_type == "meta" and html_tag:
+        data = [extract_stripped_string(x.get("content", null_value), null_value=null_value) for x in html_tags]
     else:
         data = [x.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").strip() for x in html_tags]
 
@@ -468,6 +480,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         # for nesting into child components. Ex: ["a", "p", "time"]
         for key in kwargs.get("children", []):
             html_tag = getattr(html_tag, key) if getattr(html_tag, key) else html_tag
+
 
         if kwargs.get("get_link") and html_tag:
             if html_tag.get("href"):

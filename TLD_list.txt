@@ -3013,6 +3013,7 @@
 .ups
 .us
 .tx.us
+.sc.us
 .uy
 .com.uy
 .net.uy
