@@ -501,7 +501,8 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             return extract_stripped_string(html_tag, null_value=null_value)
 
     except Exception as e:
-        logging.warning(f"Exception found in safely_get_text: {e}")
+        if not kwargs.get('disable_print'):
+            logging.warning(f"Exception found in safely_get_text: {e}")
         return null_value
 
     return null_value
