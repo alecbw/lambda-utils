@@ -618,9 +618,11 @@ for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time
 Known problem: strings like "lunarcovers.co.ukasdfij" will match .co.uk and return as 'lunarcovers.co.uk'
 """
 def format_url(url, **kwargs):
-
     if not url:
         return url
+    if isinstance(url, float): # certain ip addresses like 223.117
+        url = str(url)
+
     # if kwargs.get("check_if_ipv4") and is_ipv4(url): # TODO
     #     return url
 
@@ -750,6 +752,8 @@ def format_timestamp(timestamp, **kwargs):
     [ ] 18.07.2022
     [ ] 26/05/2022, 22/08/2020, 17/07/2022, 15/09/2022
     [ ] Tue, 26 Nov 19 19:40:06 +0000
+    [ ] 25 Oct 2022 10:50 AM
+    [ ] 21 Oct 2022
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
