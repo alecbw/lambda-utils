@@ -616,11 +616,12 @@ def is_url(potential_url_str, **kwargs):
 Keep in mind removals will stack - e.g. remove_tld will remove subsite, port, and trailing slash
 for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time and pass it in to save 1ms per
 Known problem: strings like "lunarcovers.co.ukasdfij" will match .co.uk and return as 'lunarcovers.co.uk'
+[ ] maybe should just return url immediately if float or int? TODO
 """
 def format_url(url, **kwargs):
     if not url:
         return url
-    if isinstance(url, float): # certain ip addresses like 223.117
+    if isinstance(url, float) or isinstance(url, int): # certain ip addresses like 223.117 or simply 1.
         url = str(url)
 
     # if kwargs.get("check_if_ipv4") and is_ipv4(url): # TODO
