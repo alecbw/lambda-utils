@@ -122,12 +122,10 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
 
     return results
 
-# Note: Athena SQL queries have a max of 262144 bytes of SQL
+# Note: Athena SQL queries have a limit of 262144 bytes of SQL-to-be-run
 def query_athena_table(sql_query, database, **kwargs):
     if database not in sql_query:
         logging.warning("The provided database is not in your provided SQL query")
-
-    if kwargs.get("time_it"): start_time = timeit.default_timer()
 
     client = boto3.client('athena')
     query_started = client.start_query_execution(
@@ -139,41 +137,46 @@ def query_athena_table(sql_query, database, **kwargs):
     if kwargs.get("dont_wait_for_query_result"):
         return True
 
-    timeout_value = kwargs.get("timeout", 15) * 1000 # bc its in milliseconds
-    finished = False
+    timeout_threshold = kwargs.get("timeout", 15) * 1000 # because it's in milliseconds
 
+    finished = False
     while not finished:
         query_in_flight = client.get_query_execution(QueryExecutionId=query_started["QueryExecutionId"])
         query_status = query_in_flight["QueryExecution"]["Status"]["State"]
 
         if query_status == 'SUCCEEDED':
             s3_result_path = query_in_flight['QueryExecution']['ResultConfiguration']['OutputLocation'].replace("s3://", "")
-            s3_result_dict = {"bucket": s3_result_path[:s3_result_path.rfind("/")], "filename": s3_result_path[s3_result_path.rfind("/")+1:], "data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000}
+            result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_execution_seconds": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "total_query_execution_seconds": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
+            result_dict["bucket"] = s3_result_path[:s3_result_path.rfind("/")]
+            result_dict["filename"] = s3_result_path[s3_result_path.rfind("/")+1:]
             finished = True
         elif query_status in ['FAILED', 'CANCELLED']: # TODO test cancelled
-            logging.error(query_in_flight['QueryExecution']['Status']['StateChangeReason'])
+            result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_execution_seconds": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "total_query_execution_seconds": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
+            logging.error(f"Query FAILED/CANCELLED out with no response (reason: {query_in_flight['QueryExecution']['Status']['StateChangeReason']})")
             return None
-        elif timeout_value < ez_get(query_in_flight, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
-            logging.error(f"Query timed out with no response (timeout val: {timeout_value})")
+        elif timeout_threshold < ez_get(query_in_flight, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
+            result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_execution_seconds": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "total_query_execution_seconds": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
+            logging.error(f"Query timed out with no response (timeout val: {timeout_threshold})")
             return None
         else:
-            sleep(kwargs.get("wait_interval", 0.01))
+            sleep(kwargs.get("wait_interval", 0.005))
 
 
-    if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling) - {round(timeit.default_timer() - start_time, 4)} seconds")
+    if kwargs.get("time_it"):
+        logging.info(f"Query execution time (NOT including pagination/file-handling) - {result_dict['total_query_execution_seconds']} seconds")
 
     if kwargs.get("return_s3_path"):
-        s3_result_dict["entry_count"] = get_row_count_of_s3_csv(s3_result_dict['bucket'], s3_result_dict['filename'])
-        result = s3_result_dict
+        result_dict["entry_count"] = get_row_count_of_s3_csv(result_dict['bucket'], result_dict['filename'])
+        result = result_dict
     elif kwargs.get("return_s3_file"): # as lod
-        s3_result_dict["data"] = convert_athena_array_cols(get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True), **kwargs)
-        result = s3_result_dict
+        result_dict["data"] = convert_athena_array_cols(get_s3_file(result_dict["bucket"], result_dict["filename"], convert_csv=True), **kwargs)
+        result = result_dict
     else:
         result = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
     if kwargs.get("time_it"): logging.info(f"Query execution time (all-in) - {round(timeit.default_timer() - start_time, 4)} seconds")
 
-    logging.info(f"Athena query has finished. Data scanned: {ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000} MB. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
+    logging.info(f"Athena query has finished. Data scanned: {result_dict['data_scanned_mb']} MB. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
 
     return result
 
