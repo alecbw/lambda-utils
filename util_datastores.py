@@ -1218,6 +1218,22 @@ def assemble_cloudwatch_log_stream_url(client, log_pointer, **kwargs):
 ########################### ~ API Gateway Specific ~ ###################################################
 
 
+def get_api_gateway_key(key_name_or_id, **kwargs):
+    if len(key_name_or_id) == 11 and "_key" not in key_name_or_id: # by ID
+        response = boto3.client('apigateway').get_api_key(
+            apiKey=key_name_or_id,
+            includeValue=kwargs.get('include_value', False)
+        )
+    else: # by user-set name
+        response = boto3.client('apigateway').get_api_keys(
+            nameQuery=key_name_or_id,
+            includeValues=kwargs.get('include_value', False)
+        )
+        logging.info(f"Found {len(response['items'])} with the get_api_keys query")
+
+    return ez_try_and_get(response, 'items', 0)
+
+
 def get_apiKey_usage(keyId, usagePlanId, **kwargs):
     today = datetime.utcnow()
     end_date = today + timedelta(days=int(kwargs.get("days_range", 1)))
