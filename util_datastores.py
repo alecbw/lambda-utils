@@ -127,6 +127,8 @@ def query_athena_table(sql_query, database, **kwargs):
     if database not in sql_query:
         logging.warning("The provided database is not in your provided SQL query")
 
+    if kwargs.get("time_it"): start_time = timeit.default_timer()
+
     client = boto3.client('athena')
     query_started = client.start_query_execution(
         QueryString=sql_query,
@@ -146,24 +148,24 @@ def query_athena_table(sql_query, database, **kwargs):
 
         if query_status == 'SUCCEEDED':
             s3_result_path = query_in_flight['QueryExecution']['ResultConfiguration']['OutputLocation'].replace("s3://", "")
-            result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_execution_seconds": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "total_query_execution_seconds": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
+            result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "total_query_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
             result_dict["bucket"] = s3_result_path[:s3_result_path.rfind("/")]
             result_dict["filename"] = s3_result_path[s3_result_path.rfind("/")+1:]
             finished = True
-        elif query_status in ['FAILED', 'CANCELLED']: # TODO test cancelled
-            result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_execution_seconds": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "total_query_execution_seconds": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
+        elif query_status in ['FAILED', 'CANCELLED']:
+            print(query_in_flight)
+            result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "total_query_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
             logging.error(f"Query FAILED/CANCELLED out with no response (reason: {query_in_flight['QueryExecution']['Status']['StateChangeReason']})")
             return None
         elif timeout_threshold < ez_get(query_in_flight, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
-            result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_execution_seconds": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "total_query_execution_seconds": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
+            result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "total_query_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
             logging.error(f"Query timed out with no response (timeout val: {timeout_threshold})")
             return None
         else:
             sleep(kwargs.get("wait_interval", 0.005))
 
 
-    if kwargs.get("time_it"):
-        logging.info(f"Query execution time (NOT including pagination/file-handling) - {result_dict['total_query_execution_seconds']} seconds")
+    if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling) - {result_dict['total_query_runtime_s']} seconds")
 
     if kwargs.get("return_s3_path"):
         result_dict["entry_count"] = get_row_count_of_s3_csv(result_dict['bucket'], result_dict['filename'])
