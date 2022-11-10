@@ -141,7 +141,6 @@ def query_athena_table(sql_query, database, **kwargs):
 
     timeout_value = kwargs.get("timeout", 15) * 1000 # bc its in milliseconds
     finished = False
-
     while not finished:
         query_in_flight = client.get_query_execution(QueryExecutionId=query_started["QueryExecutionId"])
         query_status = query_in_flight["QueryExecution"]["Status"]["State"]
