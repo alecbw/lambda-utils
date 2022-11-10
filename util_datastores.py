@@ -122,7 +122,8 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
 
     return results
 
-# Note: Athena SQL queries have a max of 262144 bytes of SQL
+
+# Note: Athena SQL queries have a limit of 262144 bytes of SQL-to-be-run
 def query_athena_table(sql_query, database, **kwargs):
     if database not in sql_query:
         logging.warning("The provided database is not in your provided SQL query")
@@ -139,7 +140,8 @@ def query_athena_table(sql_query, database, **kwargs):
     if kwargs.get("dont_wait_for_query_result"):
         return True
 
-    timeout_value = kwargs.get("timeout", 15) * 1000 # bc its in milliseconds
+    timeout_threshold = kwargs.get("timeout", 15) * 1000 # because it's in milliseconds
+
     finished = False
     while not finished:
         query_in_flight = client.get_query_execution(QueryExecutionId=query_started["QueryExecutionId"])
@@ -147,32 +149,38 @@ def query_athena_table(sql_query, database, **kwargs):
 
         if query_status == 'SUCCEEDED':
             s3_result_path = query_in_flight['QueryExecution']['ResultConfiguration']['OutputLocation'].replace("s3://", "")
-            s3_result_dict = {"bucket": s3_result_path[:s3_result_path.rfind("/")], "filename": s3_result_path[s3_result_path.rfind("/")+1:], "data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000}
+            result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "query_total_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
+            result_dict["bucket"] = s3_result_path[:s3_result_path.rfind("/")]
+            result_dict["filename"] = s3_result_path[s3_result_path.rfind("/")+1:]
             finished = True
-        elif query_status in ['FAILED', 'CANCELLED']: # TODO test cancelled
-            logging.error(query_in_flight['QueryExecution']['Status']['StateChangeReason'])
+        elif query_status in ['FAILED', 'CANCELLED']:
+            result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "query_total_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
+            logging.info(result_dict)
+            logging.error(f"Query FAILED/CANCELLED out with no response (reason: {query_in_flight['QueryExecution']['Status']['StateChangeReason']})")
             return None
-        elif timeout_value < ez_get(query_in_flight, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
-            logging.error(f"Query timed out with no response (timeout val: {timeout_value})")
+        elif timeout_threshold < ez_get(query_in_flight, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
+            result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "query_total_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
+            logging.info(result_dict)
+            logging.error(f"Query timed out with no response (timeout val: {timeout_threshold})")
             return None
         else:
-            sleep(kwargs.get("wait_interval", 0.01))
+            sleep(kwargs.get("wait_interval", 0.005))
 
 
-    if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling) - {round(timeit.default_timer() - start_time, 4)} seconds")
+    if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling) - {result_dict['query_total_runtime_s']} seconds")
 
     if kwargs.get("return_s3_path"):
-        s3_result_dict["entry_count"] = get_row_count_of_s3_csv(s3_result_dict['bucket'], s3_result_dict['filename'])
-        result = s3_result_dict
+        result_dict["entry_count"] = get_row_count_of_s3_csv(result_dict['bucket'], result_dict['filename'])
+        result = result_dict
     elif kwargs.get("return_s3_file"): # as lod
-        s3_result_dict["data"] = convert_athena_array_cols(get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True), **kwargs)
-        result = s3_result_dict
+        result_dict["data"] = convert_athena_array_cols(get_s3_file(result_dict["bucket"], result_dict["filename"], convert_csv=True), **kwargs)
+        result = result_dict
     else:
         result = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
     if kwargs.get("time_it"): logging.info(f"Query execution time (all-in) - {round(timeit.default_timer() - start_time, 4)} seconds")
 
-    logging.info(f"Athena query has finished. Data scanned: {ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000} MB. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
+    logging.info(f"Athena query has finished. Data scanned: {result_dict['data_scanned_mb']} MB. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
 
     return result
 
@@ -1303,13 +1311,24 @@ def describe_ecr_repo_images(repo_name, **kwargs):
 
 
 def get_ssm_param(param_name, **kwargs):
-    ssm = boto3.client('ssm')
     try:
-        result = ssm.get_parameter(Name=param_name, WithDecryption=True)
+        result = boto3.client('ssm').get_parameter(Name=param_name, WithDecryption=True)
         return ez_try_and_get(result, 'Parameter', 'Value')
     except Exception as e: # e.g. ParameterNotFound throws an exception
-        if not kwargs.get("disable_print") and "ParameterNotFound" in e:
+        if not kwargs.get("disable_print") and "ParameterNotFound" in str(e):
             logging.error(e)
+
+
+def search_ssm_params(param_phrase, **kwargs):
+    result = boto3.client('ssm').describe_parameters(
+        ParameterFilters=[{
+            'Key': kwargs.get("search_field", "Name"),
+            'Option': kwargs.get("search_type", 'BeginsWith'),
+            'Values': [param_phrase],
+        }]
+    )
+    logging.info(f"There were {len(result.get('Parameters'))} SSM Params found")
+    return result.get('Parameters')
 
 """
 SSM's Accepted kwargs: 
@@ -1331,6 +1350,12 @@ def put_ssm_param(param_name, param_value, param_type, **kwargs):
     result = ssm.put_parameter(Name=param_name, Value=param_value, Type=param_type, **kwargs)
     return ez_try_and_get(result, 'Parameter', 'Value')
 
+
+def delete_ssm_param(param_name):
+    result = boto3.client('ssm').delete_parameter(
+        Name=param_name
+    )
+    return result
 
 ########################### ~ STS Specific ~ ###################################################
 
