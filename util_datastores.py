@@ -122,6 +122,7 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
 
     return results
 
+
 # Note: Athena SQL queries have a limit of 262144 bytes of SQL-to-be-run
 def query_athena_table(sql_query, database, **kwargs):
     if database not in sql_query:
@@ -153,7 +154,6 @@ def query_athena_table(sql_query, database, **kwargs):
             result_dict["filename"] = s3_result_path[s3_result_path.rfind("/")+1:]
             finished = True
         elif query_status in ['FAILED', 'CANCELLED']:
-            print(query_in_flight)
             result_dict = {"data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000, "query_engine_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000, "query_total_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000}
             logging.info(result_dict)
             logging.error(f"Query FAILED/CANCELLED out with no response (reason: {query_in_flight['QueryExecution']['Status']['StateChangeReason']})")
@@ -1311,13 +1311,24 @@ def describe_ecr_repo_images(repo_name, **kwargs):
 
 
 def get_ssm_param(param_name, **kwargs):
-    ssm = boto3.client('ssm')
     try:
-        result = ssm.get_parameter(Name=param_name, WithDecryption=True)
+        result = boto3.client('ssm').get_parameter(Name=param_name, WithDecryption=True)
         return ez_try_and_get(result, 'Parameter', 'Value')
     except Exception as e: # e.g. ParameterNotFound throws an exception
-        if not kwargs.get("disable_print") and "ParameterNotFound" in e:
+        if not kwargs.get("disable_print") and "ParameterNotFound" in str(e):
             logging.error(e)
+
+
+def search_ssm_params(param_phrase, **kwargs):
+    result = boto3.client('ssm').describe_parameters(
+        ParameterFilters=[{
+            'Key': kwargs.get("search_field", "Name"),
+            'Option': kwargs.get("search_type", 'BeginsWith'),
+            'Values': [param_phrase],
+        }]
+    )
+    logging.info(f"There were {result.get('Parameters')} SSM Params found")
+    return result.get('Parameters')
 
 """
 SSM's Accepted kwargs: 
@@ -1339,6 +1350,12 @@ def put_ssm_param(param_name, param_value, param_type, **kwargs):
     result = ssm.put_parameter(Name=param_name, Value=param_value, Type=param_type, **kwargs)
     return ez_try_and_get(result, 'Parameter', 'Value')
 
+
+def delete_ssm_param(param_name):
+    result = boto3.client('ssm').delete_parameter(
+        Name=param_name
+    )
+    return result
 
 ########################### ~ STS Specific ~ ###################################################
 
