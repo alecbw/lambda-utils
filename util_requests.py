@@ -14,9 +14,9 @@ from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup, element, NavigableString
 import requests
-from urllib3.packages.ssl_match_hostname import CertificateError
-from urllib3.exceptions import MaxRetryError, ProtocolError
-from requests.exceptions import ProxyError, ConnectionError, HTTPError, SSLError, Timeout, TooManyRedirects
+# from urllib3.packages.ssl_match_hostname import CertificateError
+# from urllib3.exceptions import MaxRetryError, ProtocolError
+# from requests.exceptions import ProxyError, ConnectionError, HTTPError, SSLError, Timeout, TooManyRedirects
 
 
 def api_request(url, request_type, **kwargs):
@@ -506,6 +506,25 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         return null_value
 
     return null_value
+
+
+def safely_encode_text(parsed, **kwargs):
+    if not parsed:
+        return None, None
+
+    truncate_at = kwargs.get('truncate_at', 1_000_000)
+    try:
+        text = parsed.get_text(separator=" ", strip=True)                           # extract_full_site_text(parsed, drop_duplicates=True)
+        _ = text.encode('utf-8') # to trigger error - eg "UnicodeEncodeError: 'utf-8' codec can't encode characters in position 2435-2436: surrogates not allowed"
+        text = text[:truncate_at].replace("<br>", " ") # truncate to 1,000,000 characters to avoid Size of a 'single row or its columns cannot exceed 32 MB' Athena error
+        encoding = 'utf-8'
+    except UnicodeEncodeError as e:
+        text = parsed.get_text(separator=" ", strip=True).encode('utf-8', errors='replace').decode('utf-8') # into bytes and back to str
+        encoding = f"BROKE_UTF8 {kwargs.get('encoding', '')}".strip()
+        logging.warning(e)
+        logging.warning(f"The site {kwargs.get('url')} broke text encoding. Provided encoding: {kwargs.get('encoding')}")
+
+    return text, encoding
 
 
 def add_querystrings_to_a_tags(html, dict_to_add):
