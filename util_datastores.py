@@ -73,9 +73,9 @@ def standardize_athena_query_result(results, **kwargs):
     for n, row in enumerate(result_lol):
         result_lol[n] = [x.get('VarCharValue', None) for x in row] # NOTE: the .get(fallback=None) WILL cause problems if you have nulls in non-string cols
 
-    if not kwargs.get("return_output_lod"):
+    if not kwargs.get("return_lod"):
         return result_lol
-    elif kwargs.get("return_output_lod"):
+    elif kwargs.get("return_lod"):
         headers = kwargs.get("headers") or result_lol.pop(0)
 
         result_lod = []
@@ -117,7 +117,7 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
         if not results:
             break
 
-        if kwargs.get("return_output_lod"):
+        if kwargs.get("return_lod"):
             kwargs["headers"] = list(results[0].keys()) # prevent parser from .pop(0) after 1st page
 
     return results
@@ -138,7 +138,7 @@ def query_athena_table(sql_query, database, **kwargs):
     )
 
     if kwargs.get("dont_wait_for_query_result"):
-        return True # TODO
+        return {"execution_id": query_started["QueryExecutionId"]}
 
     timeout_threshold = kwargs.get("timeout", 15) * 1000 # because it's in milliseconds
 
@@ -148,10 +148,9 @@ def query_athena_table(sql_query, database, **kwargs):
         query_status = query_in_flight["QueryExecution"]["Status"]["State"]
 
         if timeout_threshold < ez_get(query_in_flight, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
-            query_status = "TIMEOUT" # TODO also actaully cancel the query
+            query_status = "TIMEOUT" # TODO also actually cancel the query
         if query_status in ["SUCCEEDED", "FAILED", "CANCELLED", "TIMEOUT"]:
             finished = True
-
             result_dict = {
                 "execution_id": ez_get(query_in_flight, 'QueryExecution', 'QueryExecutionId'),
                 "execution_status_short": query_status,
@@ -173,24 +172,20 @@ def query_athena_table(sql_query, database, **kwargs):
             sleep(kwargs.get("wait_interval", 0.005))
 
 
-
-
     if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling) - {result_dict['query_total_runtime_s']} seconds")
 
-    if kwargs.get("return_s3_path"):
+    if kwargs.get("return_s3_path"):   # No 'data' key
         result_dict["entry_count"] = get_row_count_of_s3_csv(result_dict['result_s3_bucket'], result_dict['result_s3_filename'])
-        result = result_dict
-    elif kwargs.get("return_s3_file"): # as lod
+    elif kwargs.get("return_s3_file"): # File is converted to LoD
         result_dict["data"] = convert_athena_array_cols(get_s3_file(result_dict["result_s3_bucket"], result_dict["result_s3_filename"], convert_csv=True), **kwargs)
-        result = result_dict
-    else:
-        result = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
+    else:                              # LoD or LoL
+        result_dict['data'] = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
     if kwargs.get("time_it"): logging.info(f"Query execution time (all-in) - {round(timeit.default_timer() - start_time, 4)} seconds")
 
-    logging.info(f"Athena query has finished. Data scanned: {result_dict['data_scanned_mb']} MB. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'return_output_lod'] if x in kwargs.keys()), 'lol - default')}")
+    logging.info(f"Athena query has finished. Data scanned: {result_dict['data_scanned_mb']} MB. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'return_lod'] if x in kwargs.keys()), 'lol - default')}")
 
-    return result
+    return result_dict
 
 
 def get_athena_named_queries() -> List[dict]:
@@ -1097,8 +1092,11 @@ def change_glue_table_s3_location(db, table, full_bucket_folder_path, **kwargs):
         full_bucket_folder_path = "s3://" + full_bucket_folder_path
 
     change_location_sql_query += f"SET LOCATION '{full_bucket_folder_path}';"
-    query_athena_table(change_location_sql_query, db)
-    logging.info(f"The {table} location change SQL query appears to have been successful")
+    result_dict = query_athena_table(change_location_sql_query, db)
+    if result_dict.get("execution_status_short") != "SUCCEEDED": # i.e. TIMEOUT, FAILED, or CANCELLED
+        logging.error(f"The {table} location change SQL query appears to have {result_dict.get('execution_status_short')}")
+    else:
+        logging.info(f"The {table} location change SQL query appears to have been successful")
 
 
 # Dropping a glue table DOES NOT DELETE the underlying data; you have to do so separately
