@@ -73,9 +73,9 @@ def standardize_athena_query_result(results, **kwargs):
     for n, row in enumerate(result_lol):
         result_lol[n] = [x.get('VarCharValue', None) for x in row] # NOTE: the .get(fallback=None) WILL cause problems if you have nulls in non-string cols
 
-    if not kwargs.get("output_lod"):
+    if not kwargs.get("return_output_lod"):
         return result_lol
-    elif kwargs.get("output_lod"):
+    elif kwargs.get("return_output_lod"):
         headers = kwargs.get("headers") or result_lol.pop(0)
 
         result_lod = []
@@ -117,7 +117,7 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
         if not results:
             break
 
-        if kwargs.get("output_lod"):
+        if kwargs.get("return_output_lod"):
             kwargs["headers"] = list(results[0].keys()) # prevent parser from .pop(0) after 1st page
 
     return results
@@ -180,7 +180,7 @@ def query_athena_table(sql_query, database, **kwargs):
 
     if kwargs.get("time_it"): logging.info(f"Query execution time (all-in) - {round(timeit.default_timer() - start_time, 4)} seconds")
 
-    logging.info(f"Athena query has finished. Data scanned: {result_dict['data_scanned_mb']} MB. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
+    logging.info(f"Athena query has finished. Data scanned: {result_dict['data_scanned_mb']} MB. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'return_output_lod'] if x in kwargs.keys()), 'lol - default')}")
 
     return result
 
