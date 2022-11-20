@@ -14,9 +14,6 @@ from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup, element, NavigableString
 import requests
-# from urllib3.packages.ssl_match_hostname import CertificateError
-# from urllib3.exceptions import MaxRetryError, ProtocolError
-# from requests.exceptions import ProxyError, ConnectionError, HTTPError, SSLError, Timeout, TooManyRedirects
 
 
 def api_request(url, request_type, **kwargs):
