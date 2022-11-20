@@ -162,7 +162,6 @@ def query_athena_table(sql_query, database, **kwargs):
             }
             result_dict["result_s3_bucket"] = result_dict['result_s3_path'][:result_dict['result_s3_path'].rfind("/")]
             result_dict["result_s3_filename"] = result_dict['result_s3_path'][result_dict['result_s3_path'].rfind("/")+1:]
-            print(result_dict)
 
             if query_status in ['FAILED', 'CANCELLED', 'TIMEOUT']:
                 logging.info(result_dict)
