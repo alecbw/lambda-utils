@@ -430,6 +430,8 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
     if not html_tags:
         return null_value
 
+    # TODO - children support?
+
     if kwargs.get("get_link"):
         data = [x.get("href").strip() if x.get("href") else x.a.get("href", "").strip() for x in html_tags]
     elif kwargs.get("get_src"):
@@ -440,7 +442,7 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
         data = [x.get("alt").strip() if x.get("alt") else null_value for x in html_tags]
     elif kwargs.get("get_onclick"):
         data = [x.get("onclick").strip() if x.get("onclick") else null_value for x in html_tags]
-    elif html_type == "meta" and html_tag:
+    elif html_type == "meta" and html_tags:
         data = [extract_stripped_string(x.get("content", null_value), null_value=null_value) for x in html_tags]
     else:
         data = [x.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").strip() for x in html_tags]
