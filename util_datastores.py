@@ -154,10 +154,10 @@ def query_athena_table(sql_query, database, **kwargs):
             result_dict = {
                 "execution_id": ez_get(query_in_flight, 'QueryExecution', 'QueryExecutionId'),
                 "execution_status_short": query_status,
-                "execution_status_reason": ez_get(query_in_flight, 'QueryExecution', 'Status', 'StateChangeReason') if query_status != "TIMEOUT" else f"Exceeded manually-set timeout threshold: {timeout_threshold}",
-                "query_engine_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') / 1000,
+                "execution_status_reason": ez_get(query_in_flight, 'QueryExecution', 'Status', 'StateChangeReason') if query_status != "TIMEOUT" else f"Exceeded manually-set timeout threshold: {timeout_threshold/1000}s",
+                "query_engine_runtime_s": (ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') or 0) / 1000, # possible for this to be 0 if the timeout threshold hits before the query queueing finishes
                 "query_total_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000,
-                "data_scanned_mb": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') / 1_000_000,
+                "data_scanned_mb": (ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') or 0) / 1_000_000,
                 "result_s3_path": query_in_flight['QueryExecution']['ResultConfiguration']['OutputLocation'].replace("s3://", ""),
             }
             result_dict["result_s3_bucket"] = result_dict['result_s3_path'][:result_dict['result_s3_path'].rfind("/")]
@@ -167,7 +167,7 @@ def query_athena_table(sql_query, database, **kwargs):
                 logging.info(result_dict)
                 logging.error(f"Query FAILED/CANCELLED/TIMEOUT out with no response (reason: {result_dict['execution_status_reason']})")
                 return result_dict
-        else:
+        else: # it's 'QUEUED' or 'RUNNING'
             sleep(kwargs.get("wait_interval", 0.005))
 
 
