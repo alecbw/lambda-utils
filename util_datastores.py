@@ -165,7 +165,7 @@ def query_athena_table(sql_query, database, **kwargs):
 
             if query_status in ['FAILED', 'CANCELLED', 'TIMEOUT']:
                 logging.info(result_dict)
-                logging.error(f"Query FAILED/CANCELLED/TIMEOUT out with no response (reason: {result_dict['execution_status_reason']})")
+                logging.error(f"Query {query_status} out with no response (reason: {result_dict['execution_status_reason']})")
                 return result_dict
         else: # it's 'QUEUED' or 'RUNNING'
             sleep(kwargs.get("wait_interval", 0.005))
@@ -840,7 +840,7 @@ def generate_s3_presigned_url(bucket_name, file_name, **kwargs):
     url = client.generate_presigned_url(
         ClientMethod='get_object',
         Params={'Bucket': bucket_name, 'Key': file_name},
-        ExpiresIn=kwargs.get("TTL", kwargs.get("TTL", 60*60*24)) # one day
+        ExpiresIn=kwargs.get("TTL", 60*60*24) # one day
     )
     return url
 
