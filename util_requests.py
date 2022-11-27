@@ -337,6 +337,8 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
     return kwargs.get("null_value", html_tag_or_str)
 
 
+# [ ] deal with special apostrophe ’ ?
+# [ ] need to figure out what to do with encode().decode() logic and resulting
 def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
     if not parsed:
         return {} if not kwargs.get("return_string") else ""
@@ -347,10 +349,17 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             script_string = script.string.strip()
             if kwargs.get("lstrip"):
                 script_string = script_string.lstrip(kwargs['lstrip'])
+
             if kwargs.get("html_unescape"):
                 if kwargs.get("always_escape_quote"):
                     script_string = script_string.replace('&quot;', r'\"')
                 script_string = unescape(script_string)
+                if r'\u' in script_string: # there's unicode characters in an otherwise UTF string
+                    logging.info("there's unicode characters in an otherwise UTF string")
+                    logging.info(script_string)
+                    logging.info(script_string.encode().decode('unicode-escape').encode('latin-1').decode('utf-8'))
+                #     script_string = script_string.encode().decode('unicode-escape')
+
             if kwargs.get("return_string"):
                 return script_string.strip().rstrip(",")
 
@@ -359,7 +368,7 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                 char_index = next((script_string.find(x) for x in ['“', '”', '&quot;'] if script_string.find(x) != -1), None)
                 if not char_index:
                     break
-                elif (not kwargs.get("always_escape_quote") and (":" in script_string[char_index-2:char_index+3] or "," in script_string[char_index-2:char_index+3])):
+                elif (not kwargs.get("always_escape_quote") and (":" in script_string[char_index-2:char_index+3] or "," in script_string[char_index-2:char_index+3])): # maybe the always_escape_quote logic should be separate of the above always_escape_quote logic. MAYBETODO
                     script_string = replace_string_char_by_index(script_string, char_index, '"') # leading or trailing quote of key or value
                 else:
                     script_string = replace_string_char_by_index(script_string, char_index, r'\"') # internal quotation mark, must be escaped
@@ -430,7 +439,7 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
     # TODO - children support?
 
     if kwargs.get("get_link"):
-        data = [x.get("href").strip() if x.get("href") else x.a.get("href", "").strip() for x in html_tags]
+        data = [x.get("href").strip() if x.get("href") else (x.a.get("href", "").strip() if x.a else "") for x in html_tags]
     elif kwargs.get("get_src"):
         data = [x.get("src").strip() if x.get("src") else null_value for x in html_tags]
     elif kwargs.get("get_title"):
