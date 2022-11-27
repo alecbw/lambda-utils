@@ -356,9 +356,9 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                 script_string = unescape(script_string)
                 if r'\u' in script_string: # there's unicode characters in an otherwise UTF string
                     logging.info("there's unicode characters in an otherwise UTF string")
-                    logging.info(script_string)
-                    logging.info(script_string.encode().decode('unicode-escape').encode('latin-1').decode('utf-8'))
-                #     script_string = script_string.encode().decode('unicode-escape')
+                    logging.debug(script_string)
+                    logging.debug(script_string.encode().decode('unicode-escape').encode('latin-1').decode('utf-8'))
+                    # script_string = script_string.encode().decode('unicode-escape')
 
             if kwargs.get("return_string"):
                 return script_string.strip().rstrip(",")
@@ -377,7 +377,6 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             script_string = endswith_replace(script_string, ["// ]]>", "//]]>", "/*]]>*/", "/*  ]]> */", "});", "},3000);"], "")
 
             json_dict = fix_JSON(ez_strip_str(script_string.rstrip(",").rstrip(";")), recursion_limit=200, log_on_error=kwargs.get('url')) or {}
-
 
             if json_dict:
                 return json_dict
