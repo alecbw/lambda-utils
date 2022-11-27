@@ -308,6 +308,7 @@ def iterative_managed_site_request(url_list, **kwargs):
 
 ############################## ~ Handling HTML ~ ####################################
 
+
 def ez_strip_str(input_str, **kwargs):
     if not isinstance(input_str, str):
         logging.warning(f"non str fed to ez_strip_str {input_str}")
@@ -315,9 +316,15 @@ def ez_strip_str(input_str, **kwargs):
     elif not input_str:
         return input_str
 
-    if kwargs.get("reduce_interior_whitespace"): # internal whitespace can be regexed out
+    if kwargs.get("reduce_interior_whitespace"): # internal whitespace can be regexed out, but it can be slow
         input_str = re.sub(r"\s{2,}", " ", input_str)
-    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#39;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").strip()
+
+    # if r'\u' in input_str: # there's unicode characters in an otherwise UTF string
+    #     logging.debug(f"there's unicode characters in an otherwise UTF string in ez_strip_str - {input_str}")
+    #     input_str = input_str.encode().decode('unicode-escape')
+
+
+    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(r"\u0027", "'").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#39;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").strip()
 
 
 # TODO replace dumbass implementation of replacing newline chars
@@ -356,8 +363,8 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                 script_string = unescape(script_string)
                 if r'\u' in script_string: # there's unicode characters in an otherwise UTF string
                     logging.info("there's unicode characters in an otherwise UTF string")
-                    logging.debug(script_string)
-                    logging.debug(script_string.encode().decode('unicode-escape').encode('latin-1').decode('utf-8'))
+                    # logging.debug(script_string)
+                    # logging.debug(script_string.encode().decode('unicode-escape').encode('latin-1').decode('utf-8'))
                     # script_string = script_string.encode().decode('unicode-escape')
 
             if kwargs.get("return_string"):
