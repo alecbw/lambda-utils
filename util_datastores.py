@@ -1160,7 +1160,7 @@ def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
         return response
 
     output_log_lod = []
-    if kwargs.get("keep_log_stream_url"): # will only do once, rather than for every log in output_log_lod for latency/cost sake
+    if kwargs.get("keep_log_stream_url") and response['results']: # will only do once, rather than for every log in output_log_lod for latency/cost sake
         first_log_pointer = next((x['value'] for x in response['results'][0] if x['field'] == '@ptr'), "")
         response['log_stream_url'] = assemble_cloudwatch_log_stream_url(client, first_log_pointer, **kwargs)
 
