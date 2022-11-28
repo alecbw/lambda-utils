@@ -125,6 +125,7 @@
 .com.au
 .id.au
 .info.au
+.gov.au
 .net.au
 .org.au
 .auction
@@ -385,6 +386,8 @@
 .org.bz
 .za.bz
 .bzh
+.on.ca
+.bc.ca
 .ca
 .cab
 .cafe
@@ -945,6 +948,7 @@
 .gop
 .got
 .gov
+.dc.gov
 .gp
 .com.gp
 .mobi.gp
@@ -3008,6 +3012,8 @@
 .uol
 .ups
 .us
+.tx.us
+.sc.us
 .uy
 .com.uy
 .net.uy

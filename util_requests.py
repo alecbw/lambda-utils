@@ -14,9 +14,6 @@ from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup, element, NavigableString
 import requests
-from urllib3.packages.ssl_match_hostname import CertificateError
-from urllib3.exceptions import MaxRetryError, ProtocolError
-from requests.exceptions import ProxyError, ConnectionError, HTTPError, SSLError, Timeout, TooManyRedirects
 
 
 def api_request(url, request_type, **kwargs):
@@ -311,6 +308,7 @@ def iterative_managed_site_request(url_list, **kwargs):
 
 ############################## ~ Handling HTML ~ ####################################
 
+
 def ez_strip_str(input_str, **kwargs):
     if not isinstance(input_str, str):
         logging.warning(f"non str fed to ez_strip_str {input_str}")
@@ -318,9 +316,15 @@ def ez_strip_str(input_str, **kwargs):
     elif not input_str:
         return input_str
 
-    if kwargs.get("reduce_interior_whitespace"): # internal whitespace can be regexed out
+    if kwargs.get("reduce_interior_whitespace"): # internal whitespace can be regexed out, but it can be slow
         input_str = re.sub(r"\s{2,}", " ", input_str)
-    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#39;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").strip()
+
+    # if r'\u' in input_str: # there's unicode characters in an otherwise UTF string
+    #     logging.debug(f"there's unicode characters in an otherwise UTF string in ez_strip_str - {input_str}")
+    #     input_str = input_str.encode().decode('unicode-escape')
+
+
+    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(r"\u0027", "'").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#39;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").strip()
 
 
 # TODO replace dumbass implementation of replacing newline chars
@@ -340,17 +344,29 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
     return kwargs.get("null_value", html_tag_or_str)
 
 
+# [ ] deal with special apostrophe ’ ?
+# [ ] need to figure out what to do with encode().decode() logic and resulting
 def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
+    if not parsed:
+        return {} if not kwargs.get("return_string") else ""
+
     find_all_kwargs = {k:v for k,v in kwargs.items() if k in ["id", "href", "attrs", "type", "name", "property"]}
     for script in parsed.find_all('script', **find_all_kwargs):
         if script and script.string and phrase_str in script.string:
             script_string = script.string.strip()
             if kwargs.get("lstrip"):
                 script_string = script_string.lstrip(kwargs['lstrip'])
+
             if kwargs.get("html_unescape"):
                 if kwargs.get("always_escape_quote"):
                     script_string = script_string.replace('&quot;', r'\"')
                 script_string = unescape(script_string)
+                if r'\u' in script_string: # there's unicode characters in an otherwise UTF string
+                    logging.info("there's unicode characters in an otherwise UTF string")
+                    # logging.debug(script_string)
+                    # logging.debug(script_string.encode().decode('unicode-escape').encode('latin-1').decode('utf-8'))
+                    # script_string = script_string.encode().decode('unicode-escape')
+
             if kwargs.get("return_string"):
                 return script_string.strip().rstrip(",")
 
@@ -359,7 +375,7 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                 char_index = next((script_string.find(x) for x in ['“', '”', '&quot;'] if script_string.find(x) != -1), None)
                 if not char_index:
                     break
-                elif (not kwargs.get("always_escape_quote") and (":" in script_string[char_index-2:char_index+3] or "," in script_string[char_index-2:char_index+3])):
+                elif (not kwargs.get("always_escape_quote") and (":" in script_string[char_index-2:char_index+3] or "," in script_string[char_index-2:char_index+3])): # maybe the always_escape_quote logic should be separate of the above always_escape_quote logic. MAYBETODO
                     script_string = replace_string_char_by_index(script_string, char_index, '"') # leading or trailing quote of key or value
                 else:
                     script_string = replace_string_char_by_index(script_string, char_index, r'\"') # internal quotation mark, must be escaped
@@ -368,7 +384,6 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             script_string = endswith_replace(script_string, ["// ]]>", "//]]>", "/*]]>*/", "/*  ]]> */", "});", "},3000);"], "")
 
             json_dict = fix_JSON(ez_strip_str(script_string.rstrip(",").rstrip(";")), recursion_limit=200, log_on_error=kwargs.get('url')) or {}
-
 
             if json_dict:
                 return json_dict
@@ -418,15 +433,29 @@ def flatten_neighboring_selectors(enclosing_element, selector_type, **kwargs):
 
 
 def safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs):
-    html_tags = parsed.find_all(html_type, {property_type : identifier})
+
+    if property_type == 'string':
+        html_tags = parsed.find_all(html_type, string=identifier)
+    else:
+        html_tags = parsed.find_all(html_type, {property_type : identifier})
 
     if not html_tags:
         return null_value
 
+    # TODO - children support?
+
     if kwargs.get("get_link"):
-        data = [x.get("href").strip() if x.get("href") else x.a.get("href", "").strip() for x in html_tags]
+        data = [x.get("href").strip() if x.get("href") else (x.a.get("href", "").strip() if x.a else "") for x in html_tags]
     elif kwargs.get("get_src"):
-        data = [x.get("src").strip() if x.get("src") else "" for x in html_tags]
+        data = [x.get("src").strip() if x.get("src") else null_value for x in html_tags]
+    elif kwargs.get("get_title"):
+        data = [x.get("title").strip() if x.get("title") else null_value for x in html_tags]
+    elif kwargs.get("get_alt"):
+        data = [x.get("alt").strip() if x.get("alt") else null_value for x in html_tags]
+    elif kwargs.get("get_onclick"):
+        data = [x.get("onclick").strip() if x.get("onclick") else null_value for x in html_tags]
+    elif html_type == "meta" and html_tags:
+        data = [extract_stripped_string(x.get("content", null_value), null_value=null_value) for x in html_tags]
     else:
         data = [x.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").strip() for x in html_tags]
 
@@ -454,7 +483,10 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         if kwargs.pop("find_all", False):
             return safely_find_all(parsed, html_type, property_type, identifier, null_value, **kwargs)
 
-        html_tag = parsed.find(html_type, {property_type : identifier})
+        if property_type == 'string':
+            html_tag = parsed.find(html_type, string=identifier)
+        else:
+            html_tag = parsed.find(html_type, {property_type : identifier})
 
         if not html_tag:
             return null_value
@@ -462,6 +494,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         # for nesting into child components. Ex: ["a", "p", "time"]
         for key in kwargs.get("children", []):
             html_tag = getattr(html_tag, key) if getattr(html_tag, key) else html_tag
+
 
         if kwargs.get("get_link") and html_tag:
             if html_tag.get("href"):
@@ -474,16 +507,38 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             return html_tag.get("title").strip() if html_tag.get("title") else null_value
         elif kwargs.get("get_alt"):
             return html_tag.get("alt").strip() if html_tag.get("alt") else null_value
+        elif kwargs.get("get_onclick"):
+            return html_tag.get("onclick").strip() if html_tag.get("onclick") else null_value
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
         else:
             return extract_stripped_string(html_tag, null_value=null_value)
 
     except Exception as e:
-        logging.warning(f"Exception found in safely_get_text: {e}")
+        if not kwargs.get('disable_print'):
+            logging.warning(f"Exception found in safely_get_text: {e}")
         return null_value
 
     return null_value
+
+
+def safely_encode_text(parsed, **kwargs):
+    if not parsed:
+        return None, None
+
+    truncate_at = kwargs.get('truncate_at', 1_000_000)
+    try:
+        text = parsed.get_text(separator=" ", strip=True)                           # extract_full_site_text(parsed, drop_duplicates=True)
+        _ = text.encode('utf-8') # to trigger error - eg "UnicodeEncodeError: 'utf-8' codec can't encode characters in position 2435-2436: surrogates not allowed"
+        text = text[:truncate_at].replace("<br>", " ") # truncate to 1,000,000 characters to avoid Size of a 'single row or its columns cannot exceed 32 MB' Athena error
+        encoding = 'utf-8'
+    except UnicodeEncodeError as e:
+        text = parsed.get_text(separator=" ", strip=True).encode('utf-8', errors='replace').decode('utf-8') # into bytes and back to str
+        encoding = f"BROKE_UTF8 {kwargs.get('encoding', '')}".strip()
+        logging.warning(e)
+        logging.warning(f"The site {kwargs.get('url')} broke text encoding. Provided encoding: {kwargs.get('encoding')}")
+
+    return text, encoding
 
 
 def add_querystrings_to_a_tags(html, dict_to_add):
