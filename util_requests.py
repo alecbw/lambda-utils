@@ -308,6 +308,7 @@ def iterative_managed_site_request(url_list, **kwargs):
 
 ############################## ~ Handling HTML ~ ####################################
 
+
 def ez_strip_str(input_str, **kwargs):
     if not isinstance(input_str, str):
         logging.warning(f"non str fed to ez_strip_str {input_str}")
@@ -315,9 +316,15 @@ def ez_strip_str(input_str, **kwargs):
     elif not input_str:
         return input_str
 
-    if kwargs.get("reduce_interior_whitespace"): # internal whitespace can be regexed out
+    if kwargs.get("reduce_interior_whitespace"): # internal whitespace can be regexed out, but it can be slow
         input_str = re.sub(r"\s{2,}", " ", input_str)
-    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#39;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").strip()
+
+    # if r'\u' in input_str: # there's unicode characters in an otherwise UTF string
+    #     logging.debug(f"there's unicode characters in an otherwise UTF string in ez_strip_str - {input_str}")
+    #     input_str = input_str.encode().decode('unicode-escape')
+
+
+    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(r"\u0027", "'").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#39;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").strip()
 
 
 # TODO replace dumbass implementation of replacing newline chars
@@ -337,6 +344,8 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
     return kwargs.get("null_value", html_tag_or_str)
 
 
+# [ ] deal with special apostrophe ’ ?
+# [ ] need to figure out what to do with encode().decode() logic and resulting
 def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
     if not parsed:
         return {} if not kwargs.get("return_string") else ""
@@ -347,10 +356,17 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             script_string = script.string.strip()
             if kwargs.get("lstrip"):
                 script_string = script_string.lstrip(kwargs['lstrip'])
+
             if kwargs.get("html_unescape"):
                 if kwargs.get("always_escape_quote"):
                     script_string = script_string.replace('&quot;', r'\"')
                 script_string = unescape(script_string)
+                if r'\u' in script_string: # there's unicode characters in an otherwise UTF string
+                    logging.info("there's unicode characters in an otherwise UTF string")
+                    # logging.debug(script_string)
+                    # logging.debug(script_string.encode().decode('unicode-escape').encode('latin-1').decode('utf-8'))
+                    # script_string = script_string.encode().decode('unicode-escape')
+
             if kwargs.get("return_string"):
                 return script_string.strip().rstrip(",")
 
@@ -359,7 +375,7 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                 char_index = next((script_string.find(x) for x in ['“', '”', '&quot;'] if script_string.find(x) != -1), None)
                 if not char_index:
                     break
-                elif (not kwargs.get("always_escape_quote") and (":" in script_string[char_index-2:char_index+3] or "," in script_string[char_index-2:char_index+3])):
+                elif (not kwargs.get("always_escape_quote") and (":" in script_string[char_index-2:char_index+3] or "," in script_string[char_index-2:char_index+3])): # maybe the always_escape_quote logic should be separate of the above always_escape_quote logic. MAYBETODO
                     script_string = replace_string_char_by_index(script_string, char_index, '"') # leading or trailing quote of key or value
                 else:
                     script_string = replace_string_char_by_index(script_string, char_index, r'\"') # internal quotation mark, must be escaped
@@ -368,7 +384,6 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             script_string = endswith_replace(script_string, ["// ]]>", "//]]>", "/*]]>*/", "/*  ]]> */", "});", "},3000);"], "")
 
             json_dict = fix_JSON(ez_strip_str(script_string.rstrip(",").rstrip(";")), recursion_limit=200, log_on_error=kwargs.get('url')) or {}
-
 
             if json_dict:
                 return json_dict
@@ -430,7 +445,7 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
     # TODO - children support?
 
     if kwargs.get("get_link"):
-        data = [x.get("href").strip() if x.get("href") else x.a.get("href", "").strip() for x in html_tags]
+        data = [x.get("href").strip() if x.get("href") else (x.a.get("href", "").strip() if x.a else "") for x in html_tags]
     elif kwargs.get("get_src"):
         data = [x.get("src").strip() if x.get("src") else null_value for x in html_tags]
     elif kwargs.get("get_title"):
