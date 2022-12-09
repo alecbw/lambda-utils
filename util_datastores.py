@@ -305,12 +305,42 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
 
 
 """
+# Use this to see the WCU consumption of batch_writer - https://peppydays.medium.com/getting-response-of-aws-dynamodb-batchwriter-request-2aa3f81019fa
+from boto3.dynamodb.table import BatchWriter
+class DynamoDBBatchWriter(BatchWriter):
+    def __init__(self, table_name, client, flush_amount=25, overwrite_by_pkeys=None):
+        super().__init__(table_name, client, flush_amount, overwrite_by_pkeys)
+        self.responses = []
+        self.consumed_wcu = 0
+
+    def _flush(self):
+        items_to_send = self._items_buffer[:self._flush_amount]
+        self._items_buffer = self._items_buffer[self._flush_amount:]
+        response = self._client.batch_write_item(
+            RequestItems={self._table_name: items_to_send},
+            ReturnConsumedCapacity='INDEXES'
+        )
+        unprocessed_items = response['UnprocessedItems']
+
+        if unprocessed_items and unprocessed_items[self._table_name]:
+            self._items_buffer.extend(unprocessed_items[self._table_name])
+        else:
+            self._items_buffer = []
+
+        self.responses.append(response)
+        self.consumed_wcu += response['ConsumedCapacity'][0]['CapacityUnits']
+"""
+
+"""
 Note this will overwrite items with the same primary key (upsert)
-If you pass a lod of len > 100, it will quietly split it to mini-batches of 100 each
+If you pass a lod of len > 25, it will quietly split it to mini-batches of 25 each
 """
 def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
+    import timeit
 
+    start_time = timeit.default_timer()
+    """with DynamoDBBatchWriter('ssUnprocessedUrlTable', boto3.resource('dynamodb')) as batch:"""
     with table.batch_writer() as batch:
         for item in lod_to_write:
             standard_item = standardize_dynamo_query(item, **kwargs)
@@ -319,6 +349,10 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
                     batch.put_item(Item=standard_item)
                 except Exception as e:
                     logging.error(f"{e} -- {standard_item}")
+
+    print(f'{batch.consumed_wcu}')
+    print(f'Responsed of actual batch write request: {batch.responses}')
+    print(timeit.default_timer() - start_time)
 
     logging.info(f"Successfully did a Dynamo Batch Write of length {len(lod_to_write)} to {table}")
     return True
