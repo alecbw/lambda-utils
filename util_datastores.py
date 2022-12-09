@@ -337,10 +337,8 @@ If you pass a lod of len > 25, it will quietly split it to mini-batches of 25 ea
 """
 def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
-    import timeit
 
-    start_time = timeit.default_timer()
-    """with DynamoDBBatchWriter('ssUnprocessedUrlTable', boto3.resource('dynamodb')) as batch:"""
+    # with DynamoDBBatchWriter('ssUnprocessedUrlTable', boto3.resource('dynamodb')) as batch:
     with table.batch_writer() as batch:
         for item in lod_to_write:
             standard_item = standardize_dynamo_query(item, **kwargs)
@@ -350,9 +348,8 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
                 except Exception as e:
                     logging.error(f"{e} -- {standard_item}")
 
-    print(f'{batch.consumed_wcu}')
-    print(f'Responsed of actual batch write request: {batch.responses}')
-    print(timeit.default_timer() - start_time)
+    # print(f'{batch.consumed_wcu}')
+    # print(f'Response of actual batch write request: {batch.responses}')
 
     logging.info(f"Successfully did a Dynamo Batch Write of length {len(lod_to_write)} to {table}")
     return True
