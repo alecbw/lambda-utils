@@ -267,7 +267,7 @@ def ez_split(str_input, delimiter, return_slice, **kwargs):
         return kwargs.get("fallback_value", str_input)
 
     if kwargs.get("case_insensitive"):
-        output_list = re.split(delimiter, str_input, flags=re.IGNORECASE)
+        output_list = re.split(re.escape(delimiter), str_input, flags=re.IGNORECASE)
     else:
         output_list = str_input.split(delimiter)
 
