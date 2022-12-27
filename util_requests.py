@@ -190,6 +190,7 @@ def prioritize_proxy(proxies, location):
 
 ################################# ~ Outbound Requests ~ ####################################
 
+# Your proxy appears to only use HTTP and not HTTPS, try changing your proxy URL to be HTTP
 
 def handle_request_exception(e, proxy, url, disable_error_messages):
     if any(x for x in ["Caused by SSLError(SSLCertVerificationError", "SSL: WRONG_VERSION_NUMBER", "[Errno 65] No route to host", "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired"] if x in str(e)):  # CertificateError -> downgrade to HTTP
