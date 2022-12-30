@@ -751,7 +751,8 @@ def format_timestamp(timestamp, **kwargs):
     [ ] 2019-02-19 19:54:49 -0700 MST # MST not supported by %Z
     [ ] "Tue, 11 May 2021 16:00:00 YEKT"   # tried "%a, %d %B %Y %H:%M:%S %Z", didnt work
     [ ] 'Fri, 22 Apr 2022 16:38:25 CEST', 'Thu, 21 Jul 2022 17:40:25 KST', 'Mon, 27 Jan 2020 12:06:30 EET'
-    [ ] Fri Jan 14 00:00:00 CST 2022 - should be '%a %d %b %H:%M:%S %Z %Y', not clera why not working 
+    [ ] Fri Jan 14 00:00:00 CST 2022 - should be '%a %d %b %H:%M:%S %Z %Y', not clera why not working
+    [ ] 'Thu Sep 22 00:00:00 CDT 2022' 
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:

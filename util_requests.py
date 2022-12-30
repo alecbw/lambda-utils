@@ -265,6 +265,8 @@ def site_request(url, proxy, wait, **kwargs):
 
         if kwargs.get("http_proxy"): # if you request a https site anyways, the proxy WILL NOT be used
             request_kwargs["proxies"] = {"http": f"http://{proxy}"}
+        elif isinstance(proxy, dict): # preformatted
+            request_kwargs["proxies"] = proxy
         elif proxy:
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
 
