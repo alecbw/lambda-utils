@@ -80,12 +80,30 @@ def standardize_event(event, **kwargs):
         if event.get("multiValueQueryStringParameters") and any(k for k,v in event["queryStringParameters"].items() if isinstance(v, str) and len(v.split(",")) != len(event["multiValueQueryStringParameters"][k]) and len(event["multiValueQueryStringParameters"][k]) > 1):
             logging.info({k:v for k,v in event.items() if k in ["queryStringParameters", "multiValueQueryStringParameters", "body", "httpMethod"]}) # throw out other k:vs to prevent logging API key
             logging.error(f"Key duplicates in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
+        enumerated_querystring_keys = [x for x in list(event["queryStringParameters"].keys()) if isinstance(x, str) and ez_re_find('\[\d\]', x)]
+        if len(enumerated_querystring_keys) > 1:
+            logging.info(f"Found the following enumerated_querystring_keys in standardize_event: {enumerated_querystring_keys}")
+            event["queryStringParameters"] = deal_with_enumerated_querystring_keys(event["queryStringParameters"])
         if kwargs.get("log_on_querystring_key_contains") and any(x for x in event["queryStringParameters"].keys() if find_substrings_in_string(x, kwargs['log_on_querystring_key_contains'])):
             logging.error(f"Malformed querystring key in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
 
         event.update(event["queryStringParameters"])
 
     return standardize_dict(event)
+
+
+# WILL order resulting list values by index in brackets UP TO 9 - 10, 11, etc after will go before 2 because its alphabetical. GPT written code.
+def deal_with_enumerated_querystring_keys(qs_dict):
+    result_dict = {}
+    for key in sorted(list(qs_dict.keys())):
+      match = re.search(r"\[(\d+)\]", key) if isinstance(key, str) else False
+      if match:
+        if key[:match.start()] not in result_dict:
+          result_dict[key[:match.start()]] = []
+        result_dict[key[:match.start()]].append(qs_dict[key])
+      else:
+        result_dict[key] = qs_dict[key]
+    return result_dict
 
 
 # Necessary for API Gateway to return
