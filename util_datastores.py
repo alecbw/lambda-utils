@@ -11,12 +11,15 @@ import json
 import concurrent.futures
 import itertools
 import threading
+import random
+import string
 import csv
 import timeit
 import ast
 from pprint import pprint
 from io import StringIO
 from typing import Callable, Iterator, Union, Optional, List
+from collections import defaultdict
 
 import boto3
 from botocore.exceptions import ClientError
@@ -31,7 +34,7 @@ import awswrangler as wr
 ######################## ~ Athena Queries ~ #############################################
 
 
-def is_float(maybe_float):
+def coerce_float(maybe_float):
     try:
         return float(maybe_float)
     except Exception as e:
@@ -52,7 +55,7 @@ def convert_athena_row_types(row, **kwargs):
     for k,v in row.items():
         if k not in kwargs.get("convert_array_cols", []) and v and v.isdigit():
             row[k] = int(v)
-        elif k not in kwargs.get("convert_array_cols", []) and is_float(v):
+        elif k not in kwargs.get("convert_array_cols", []) and coerce_float(v):
             row[k] = float(v)
         elif k not in kwargs.get("convert_array_cols", []):
             continue
@@ -70,9 +73,9 @@ def standardize_athena_query_result(results, **kwargs):
     for n, row in enumerate(result_lol):
         result_lol[n] = [x.get('VarCharValue', None) for x in row] # NOTE: the .get(fallback=None) WILL cause problems if you have nulls in non-string cols
 
-    if not kwargs.get("output_lod"):
+    if not kwargs.get("return_lod"):
         return result_lol
-    elif kwargs.get("output_lod"):
+    elif kwargs.get("return_lod"):
         headers = kwargs.get("headers") or result_lol.pop(0)
 
         result_lod = []
@@ -114,64 +117,74 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
         if not results:
             break
 
-        if kwargs.get("output_lod"):
+        if kwargs.get("return_lod"):
             kwargs["headers"] = list(results[0].keys()) # prevent parser from .pop(0) after 1st page
 
     return results
 
 
+# Note: Athena SQL queries have a limit of 262144 bytes for the text of the SQL-to-be-run
 def query_athena_table(sql_query, database, **kwargs):
     if database not in sql_query:
-        logging.warning("The provided database is not in your provided SQL query")
+        logging.warning(f"The provided database ({database}) is not in your provided SQL query")
 
     if kwargs.get("time_it"): start_time = timeit.default_timer()
-    logging.info(f"Athena query data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'output_lod'] if x in kwargs.keys()), 'lol - default')}")
 
     client = boto3.client('athena')
     query_started = client.start_query_execution(
         QueryString=sql_query,
         QueryExecutionContext={'Database': database},
-        ResultConfiguration={"OutputLocation": kwargs.get("result_bucket", f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/")}
+        ResultConfiguration={"OutputLocation": kwargs.get("output_bucket", f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/")}
     )
 
     if kwargs.get("dont_wait_for_query_result"):
-        return True
+        return {"execution_id": query_started["QueryExecutionId"]}
 
-    timeout_value = kwargs.get("timeout", 15) * 1000 # bc its in milliseconds
+    timeout_threshold = kwargs.get("timeout", 15) * 1000 # because it's in milliseconds
+
     finished = False
-
     while not finished:
         query_in_flight = client.get_query_execution(QueryExecutionId=query_started["QueryExecutionId"])
         query_status = query_in_flight["QueryExecution"]["Status"]["State"]
 
-        if query_status == 'SUCCEEDED':
-            s3_result_path = query_in_flight['QueryExecution']['ResultConfiguration']['OutputLocation'].replace("s3://", "")
-            s3_result_dict = {"bucket": s3_result_path[:s3_result_path.rfind("/")], "filename": s3_result_path[s3_result_path.rfind("/")+1:]}
+        if timeout_threshold < ez_get(query_in_flight, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
+            query_status = "TIMEOUT" # TODO also actually cancel the query
+        if query_status in ["SUCCEEDED", "FAILED", "CANCELLED", "TIMEOUT"]:
             finished = True
-        elif query_status in ['FAILED', 'CANCELLED']: # TODO test cancelled
-            logging.error(query_in_flight['QueryExecution']['Status']['StateChangeReason'])
-            return None
-        elif timeout_value < ez_get(query_in_flight, "QueryExecution", "Statistics", "TotalExecutionTimeInMillis"):
-            logging.error(f"Query timed out with no response (timeout val: {timeout_value})")
-            return None
-        else:
-            sleep(kwargs.get("wait_interval", 0.1))
+            result_dict = {
+                "execution_id": ez_get(query_in_flight, 'QueryExecution', 'QueryExecutionId'),
+                "execution_status_short": query_status,
+                "execution_status_reason": ez_get(query_in_flight, 'QueryExecution', 'Status', 'StateChangeReason') if query_status != "TIMEOUT" else f"Exceeded manually-set timeout threshold: {timeout_threshold/1000}s",
+                "query_engine_runtime_s": (ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'EngineExecutionTimeInMillis') or 0) / 1000, # possible for this to be 0 if the timeout threshold hits before the query queueing finishes
+                "query_total_runtime_s": ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'TotalExecutionTimeInMillis') / 1000,
+                "data_scanned_mb": (ez_get(query_in_flight, 'QueryExecution', 'Statistics', 'DataScannedInBytes') or 0) / 1_000_000,
+                "result_s3_path": query_in_flight['QueryExecution']['ResultConfiguration']['OutputLocation'].replace("s3://", ""),
+            }
+            result_dict["result_s3_bucket"] = result_dict['result_s3_path'][:result_dict['result_s3_path'].rfind("/")]
+            result_dict["result_s3_filename"] = result_dict['result_s3_path'][result_dict['result_s3_path'].rfind("/")+1:]
+
+            if query_status in ['FAILED', 'CANCELLED', 'TIMEOUT']:
+                logging.info(result_dict)
+                logging.error(f"Query {query_status} out with no response (reason: {result_dict['execution_status_reason']})")
+                return result_dict
+        else: # it's 'QUEUED' or 'RUNNING'
+            sleep(kwargs.get("wait_interval", 0.005))
 
 
-    if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling) - {round(timeit.default_timer() - start_time, 4)} seconds")
+    if kwargs.get("time_it"): logging.info(f"Query execution time (NOT including pagination/file-handling) - {result_dict['query_total_runtime_s']} seconds")
 
-    if kwargs.get("return_s3_path"):
-        s3_result_dict["entry_count"] = get_row_count_of_s3_csv(s3_result_dict['bucket'], s3_result_dict['filename'])
-        result = s3_result_dict
-    elif kwargs.get("return_s3_file"): # as lod
-        s3_result_dict["data"] = convert_athena_array_cols(get_s3_file(s3_result_dict["bucket"], s3_result_dict["filename"], convert_csv=True), **kwargs)
-        result = s3_result_dict
-    else:
-        result = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
+    if kwargs.get("return_s3_path"):   # No 'data' key
+        result_dict["entry_count"] = get_row_count_of_s3_csv(result_dict['result_s3_bucket'], result_dict['result_s3_filename'])
+    elif kwargs.get("return_s3_file"): # File is converted to LoD
+        result_dict["data"] = convert_athena_array_cols(get_s3_file(result_dict["result_s3_bucket"], result_dict["result_s3_filename"], convert_csv=True), **kwargs)
+    else:                              # LoD or LoL
+        result_dict['data'] = paginate_athena_response(client, query_started["QueryExecutionId"], **kwargs)
 
     if kwargs.get("time_it"): logging.info(f"Query execution time (all-in) - {round(timeit.default_timer() - start_time, 4)} seconds")
 
-    return result
+    logging.info(f"Athena query has finished. Data scanned: {result_dict['data_scanned_mb']} MB. Data return will be {next((x for x in ['return_s3_path', 'return_s3_file', 'return_lod'] if x in kwargs.keys()), 'lol - default')}")
+
+    return result_dict
 
 
 def get_athena_named_queries() -> List[dict]:
@@ -225,12 +238,13 @@ def standardize_dynamo_query(input_data, **kwargs):
         return None
 
     if input_data.get("created_at") or input_data.get("updated_at"):
-        if input_data.get("created_at"):
+        if input_data.get("created_at") and str(input_data['created_at']).isdigit():
             input_data['created_at'] = int(input_data['created_at'])
-        input_data['updated_at'] = int(input_data.get("updated_at", input_data.get('created_at')))
+        if not kwargs.get("skip_updated"):
+            input_data['updated_at'] = int(input_data.get("updated_at", input_data.get('created_at')))
     else:
         if not kwargs.get("skip_updated"):
-            input_data['updatedAt'] = int(datetime.utcnow().timestamp())
+            input_data['updatedAt'] = int(datetime.utcnow().replace(tzinfo=timezone.utc).timestamp())
         elif "updatedAt" in input_data:
             input_data['updatedAt'] = int(input_data['updatedAt'])
 
@@ -258,7 +272,9 @@ def standardize_dynamo_output(output_data, **kwargs):
     for key in datetime_keys:
         if not output_data[key]:
             return "" if kwargs.get("output") == "datetime_str" else None
-        output_data[key] = datetime.fromtimestamp(output_data[key])#.replace(tzinfo=timezone.utc)
+        elif not (isinstance(output_data[key], str) and not output_data[key].isdigit()):
+            output_data[key] = datetime.fromtimestamp(output_data[key])#.replace(tzinfo=timezone.utc)
+
         if kwargs.get("output") == "datetime_str":
             output_data[key] = output_data[key].strftime('%Y-%m-%d %H:%M:%S')
 
@@ -289,12 +305,40 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
 
 
 """
+# Use this to see the WCU consumption of batch_writer - https://peppydays.medium.com/getting-response-of-aws-dynamodb-batchwriter-request-2aa3f81019fa
+from boto3.dynamodb.table import BatchWriter
+class DynamoDBBatchWriter(BatchWriter):
+    def __init__(self, table_name, client, flush_amount=25, overwrite_by_pkeys=None):
+        super().__init__(table_name, client, flush_amount, overwrite_by_pkeys)
+        self.responses = []
+        self.consumed_wcu = 0
+
+    def _flush(self):
+        items_to_send = self._items_buffer[:self._flush_amount]
+        self._items_buffer = self._items_buffer[self._flush_amount:]
+        response = self._client.batch_write_item(
+            RequestItems={self._table_name: items_to_send},
+            ReturnConsumedCapacity='INDEXES'
+        )
+        unprocessed_items = response['UnprocessedItems']
+
+        if unprocessed_items and unprocessed_items[self._table_name]:
+            self._items_buffer.extend(unprocessed_items[self._table_name])
+        else:
+            self._items_buffer = []
+
+        self.responses.append(response)
+        self.consumed_wcu += response['ConsumedCapacity'][0]['CapacityUnits']
+"""
+
+"""
 Note this will overwrite items with the same primary key (upsert)
-If you pass a lod of len > 100, it will quietly split it to mini-batches of 100 each
+If you pass a lod of len > 25, it will quietly split it to mini-batches of 25 each
 """
 def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
 
+    # with DynamoDBBatchWriter('ssUnprocessedUrlTable', boto3.resource('dynamodb')) as batch:
     with table.batch_writer() as batch:
         for item in lod_to_write:
             standard_item = standardize_dynamo_query(item, **kwargs)
@@ -303,6 +347,9 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
                     batch.put_item(Item=standard_item)
                 except Exception as e:
                     logging.error(f"{e} -- {standard_item}")
+
+    # print(f'{batch.consumed_wcu}')
+    # print(f'Response of actual batch write request: {batch.responses}')
 
     logging.info(f"Successfully did a Dynamo Batch Write of length {len(lod_to_write)} to {table}")
     return True
@@ -553,17 +600,23 @@ def list_s3_bucket_contents(bucket_name, path, **kwargs):
 
 
 # Via S3 Select. Note: intra-AWS data transfer (e.g. Lambda <> S3) is much faster than egress, so this optimization is less impactful to intra-AWS use cases
+# DOES NOT INCLUDE NULL ROWS
 def get_row_count_of_s3_csv(bucket_name, path):
     sql_stmt = """SELECT count(*) FROM s3object """
-    req = boto3.client('s3').select_object_content(
-        Bucket=bucket_name,
-        Key=path,
-        ExpressionType="SQL",
-        Expression=sql_stmt,
-        InputSerialization = {"CSV": {"FileHeaderInfo": "Use", "AllowQuotedRecordDelimiter": True}},
-        OutputSerialization = {"CSV": {}},
-    )
-    row_count = next((int(x["Records"]["Payload"]) for x in req["Payload"] if x.get("Records")), 0)
+    try:
+        req = boto3.client('s3').select_object_content(
+            Bucket=bucket_name,
+            Key=path,
+            ExpressionType="SQL",
+            Expression=sql_stmt,
+            InputSerialization = {"CSV": {"FileHeaderInfo": "Use", "AllowQuotedRecordDelimiter": True}},
+            OutputSerialization = {"CSV": {}},
+        )
+        row_count = next((int(x["Records"]["Payload"]) for x in req["Payload"] if x.get("Records")), 0)
+    except ClientError as e:  # specifically for OverMaxRecordSize Error, where characters in one cell exceed maxCharsPerRecord (1,048,576)
+        logging.error(e)
+        return 0
+
     return row_count
 
 
@@ -681,6 +734,60 @@ def delete_s3_file(bucket_name, filename, **kwargs):
         return e
 
 
+def remove_s3_file_and_delete_marker(bucket, del_item, to_delete_dol, all_del_markers, **kwargs):
+    if not kwargs.get("disable_print"):
+        logging.info(f'Deleting {del_item}')
+
+    object_to_remove = bucket.Object(del_item)
+
+    for del_id in to_delete_dol[del_item]:
+        object_to_remove.delete(VersionId=del_id)
+
+    # Also remove delete marker itself
+    object_to_remove.delete(VersionId=all_del_markers[del_item])
+
+
+# Will not delete items that have not already been marked as deleted (i.e. those with a delete marker)
+# Handles deleting abandoned delete markers, as well
+def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
+    to_delete_dol = defaultdict(list)
+    all_del_markers = {}
+
+    bucket_name = startswith_replace(bucket_name, "s3://", "")
+    bucket = boto3.resource('s3').Bucket(bucket_name)
+    paginator = boto3.client('s3').get_paginator('list_object_versions')
+    pages = paginator.paginate(Bucket=bucket_name, Prefix=path.lstrip("/")) # , MaxKeys=kwargs.get("file_limit", None))
+
+    for page in pages:
+        if not page.get('DeleteMarkers'):
+            continue
+
+        # Get all delete markers where the *marker* is the latest version, i.e., should be deleted
+        del_markers = {item['Key']: item['VersionId'] for item in page['DeleteMarkers'] if item['IsLatest'] == True}
+        all_del_markers = {**all_del_markers, **del_markers}
+
+        # Get all version IDs for all objects that have eligible delete markers
+        for item in page.get('Versions', []):
+            if item['Key'] in del_markers.keys():
+                to_delete_dol[item['Key']].append(item['VersionId'])
+
+    if kwargs.get("preview"):
+        logging.info("NOTE: Just listing entries, not deleting.")
+        [logging.info(f"{k} - {v}") for k,v in to_delete_dol.items()]
+        return
+
+
+    # Remove old versions of object by VersionId
+    if kwargs.get('use_threads'):
+        # http = urllib3.PoolManager(maxsize=kwargs['use_threads']+1, block=True) # TODO - worth implementing?
+        with concurrent.futures.ThreadPoolExecutor(kwargs['use_threads']) as executor:
+            for del_item in to_delete_dol:
+                executor.submit(remove_s3_file_and_delete_marker, *[bucket, del_item, to_delete_dol, all_del_markers])
+    else:
+        for del_item in to_delete_dol:
+            remove_s3_file_and_delete_marker(bucket, del_item, to_delete_dol, all_del_markers, **kwargs)
+
+
 # http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
 # pass this a list of tuples of (filename, data)
 def parallel_write_s3_files(bucket_name, file_lot):
@@ -690,6 +797,7 @@ def parallel_write_s3_files(bucket_name, file_lot):
 
     logging.info(f"Parallel write to S3 Bucket {bucket_name} has commenced")
 
+
 def parallel_delete_s3_files(bucket_name, file_list):
     boto3.client('s3')
     for filename in file_list:
@@ -697,6 +805,21 @@ def parallel_delete_s3_files(bucket_name, file_list):
 
     logging.info(f"Parallel delete to S3 Bucket {bucket_name} has commenced")
 
+
+# Maybe this is overthinking it and needs a refactor - TODO
+def delete_files_in_s3_subfolder(bucket_name, subfolder_path):
+    bucket_name = bucket_name.replace("s3://", "")
+    subfolder_path = startswith_replace(subfolder_path, bucket_name, "") # ensure path doesnt include bucket
+
+    filenames_list = get_s3_files_that_match_prefix(bucket_name, subfolder_path, file_limit=10000, return_names=True)
+    count_files = len(filenames_list)
+    logging.info(f"There were {count_files} files in the subfolder {subfolder_path}")
+
+    if filenames_list:
+        parallel_delete_s3_files(bucket_name, filenames_list)
+        logging.info("The deletes appear to have been successful")
+
+    return count_files
 
 
 """
@@ -748,7 +871,7 @@ def generate_s3_presigned_url(bucket_name, file_name, **kwargs):
     url = client.generate_presigned_url(
         ClientMethod='get_object',
         Params={'Bucket': bucket_name, 'Key': file_name},
-        ExpiresIn=kwargs.get("TTL", 3600) # one hour
+        ExpiresIn=kwargs.get("TTL", 60*60*24) # one day
     )
     return url
 
@@ -838,10 +961,17 @@ def aurora_execute_sql(db, sql, **kwargs):
 
 ########################### ~ S3 Data Lake Specific ~ ###################################################
 
-def convert_dict_to_parquet_map(input_dict):
+def convert_dict_to_parquet_map(input_dict, **kwargs):
+    if not isinstance(input_dict, dict):
+        logging.error(f"Malformed input to convert_dict_to_parquet_map: {input_dict}")
+        return []
+
     output_list = []
     for k,v in input_dict.items():
-        output_list.append( (k, v) ) # tuple
+        if kwargs.get("force_conversion") == "string":
+            output_list.append( (str(k), str(v)) ) # tuple
+        else:
+            output_list.append( (k, v) ) # tuple
     return output_list
 
 # only supports one day. If you have multiple dates in the data to be written, add it to the df/lod directly
@@ -992,8 +1122,11 @@ def change_glue_table_s3_location(db, table, full_bucket_folder_path, **kwargs):
         full_bucket_folder_path = "s3://" + full_bucket_folder_path
 
     change_location_sql_query += f"SET LOCATION '{full_bucket_folder_path}';"
-    query_athena_table(change_location_sql_query, db)
-    logging.info(f"The {table} location change SQL query appears to have been successful")
+    result_dict = query_athena_table(change_location_sql_query, db)
+    if result_dict.get("execution_status_short") != "SUCCEEDED": # i.e. TIMEOUT, FAILED, or CANCELLED
+        logging.error(f"The {table} location change SQL query appears to have {result_dict.get('execution_status_short')}")
+    else:
+        logging.info(f"The {table} location change SQL query appears to have been successful")
 
 
 # Dropping a glue table DOES NOT DELETE the underlying data; you have to do so separately
@@ -1090,14 +1223,19 @@ def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
 
     response = None
     while response == None or response['status'] == 'Running':
-        sleep(0.25)
+        sleep(0.15)
         response = client.get_query_results(
             queryId=start_query_response['queryId']
         )
-    if kwargs.get("return_raw"):
-        return response["results"]
+
+    if kwargs.get("row"):
+        return response
 
     output_log_lod = []
+    if kwargs.get("keep_log_stream_url") and response['results']: # will only do once, rather than for every log in output_log_lod for latency/cost sake
+        first_log_pointer = next((x['value'] for x in response['results'][0] if x['field'] == '@ptr'), "")
+        response['log_stream_url'] = assemble_cloudwatch_log_stream_url(client, first_log_pointer, **kwargs)
+
     for log_row in response['results']:
         output_log_lod.append({x['field'].replace("@", ""):x['value'] for x in log_row})
         if not kwargs.get("keep_pointer"):
@@ -1105,38 +1243,76 @@ def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
         if not kwargs.get("keep_log_stream_prefix") and "message" in output_log_lod[-1]:
             output_log_lod[-1]['message'] = ez_split(output_log_lod[-1]['message'], "\t", -1)
 
-    return output_log_lod
+    response['results'] = output_log_lod
+    return response
 
+
+def assemble_cloudwatch_log_stream_url(client, log_pointer, **kwargs):
+    response = client.get_log_record(logRecordPointer=log_pointer)
+    log_lambda_endpoint = ez_split(response['logRecord']['@log'], ":/", 1)
+    log_stream_id_and_date = response['logRecord']['@logStream']
+    log_stream_datetime = ez_split(response['logRecord']['@message'], "\t", 1)
+    log_stream_url = f"https://console.aws.amazon.com/cloudwatch/home?region={kwargs.get('region', client.meta.region_name)}#logEventViewer:group=/{log_lambda_endpoint};stream={log_stream_id_and_date};start={log_stream_datetime}"
+    return log_stream_url
 
 ########################### ~ API Gateway Specific ~ ###################################################
 
 
+def get_api_gateway_key(key_name_or_id, **kwargs):
+    if len(key_name_or_id) == 11 and "_key" not in key_name_or_id: # by ID
+        response = boto3.client('apigateway').get_api_key(
+            apiKey=key_name_or_id,
+            includeValue=kwargs.get('include_value', False)
+        )
+    else: # by user-set name
+        response = boto3.client('apigateway').get_api_keys(
+            nameQuery=key_name_or_id,
+            includeValues=kwargs.get('include_value', False)
+        )
+        logging.info(f"Found {len(response['items'])} with the get_api_keys query")
+
+    return ez_try_and_get(response, 'items', 0)
+
+
 def get_apiKey_usage(keyId, usagePlanId, **kwargs):
     today = datetime.utcnow()
-    tomorrow = today + timedelta(days=int(kwargs.get("days_range", 1)))
+    end_date = today + timedelta(days=int(kwargs.get("days_range", 1)))
 
-    client = boto3.client('apigateway')
-    response = client.get_usage(
+    response = boto3.client('apigateway').get_usage(
         usagePlanId=usagePlanId,
         keyId=keyId,
         startDate=today.strftime("%Y-%m-%d"),
-        endDate=tomorrow.strftime("%Y-%m-%d"),
+        endDate=end_date.strftime("%Y-%m-%d"),
     )
     return response.get("items", {})
 
 
-# def create_apiKey(keyId, usagePlanId, **kwargs):
-#     today = datetime.utcnow()
-#     tomorrow = today + timedelta(days=int(kwargs.get("days_range", 1)))
-#
-#     client = boto3.client('apigateway')
-#     response = client.get_usage(
-#         usagePlanId=usagePlanId,
-#         keyId=keyId,
-#         startDate=today.strftime("%Y-%m-%d"),
-#         endDate=tomorrow.strftime("%Y-%m-%d"),
-#     )
-#     return response.get("items", {})
+def associate_api_gateway_key_with_usage_plan(key_id, plan_id):
+    response = boto3.client('apigateway').create_usage_plan_key(
+        usagePlanId=plan_id,
+        keyId=key_id,
+        keyType='API_KEY'
+    )
+    logging.info(f"Association of API Key id: {key_id} with Usage Plan id: {plan_id} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
+    return response
+
+# You can't directly associate with an API Gateway Usage Plan at creation
+def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
+    response = boto3.client('apigateway').create_api_key(
+        name=key_name,
+        description=kwargs.get("description", f"Made via create_api_gateway_key at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"),
+        enabled=not kwargs.get("disabled", False),
+        tags=kwargs.get("tags", {}),
+        stageKeys=[{'restApiId': api_id, 'stageName': stage_name}],
+    )
+    logging.info(f"Creation of API Key id: {response.get('id')} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
+
+    if kwargs.get("plan_id"):
+        _ = associate_api_gateway_key_with_usage_plan(response['id'], kwargs['plan_id'])
+
+    return response
+
+
 
 
 ########################### ~ ECR Specific ~ ###################################################
@@ -1170,16 +1346,28 @@ def describe_ecr_repo_images(repo_name, **kwargs):
 ########################### ~ SSM Parameter Store Specific ~ ###################################################
 
 
-def get_ssm_param(param_name):
-    ssm = boto3.client('ssm')
+def get_ssm_param(param_name, **kwargs):
     try:
-        result = ssm.get_parameter(Name=param_name, WithDecryption=True)
+        result = boto3.client('ssm').get_parameter(Name=param_name, WithDecryption=True)
         return ez_try_and_get(result, 'Parameter', 'Value')
-    except Exception as e: # ParameterNotFound
-        logging.error(e)
+    except Exception as e: # e.g. ParameterNotFound throws an exception
+        if not kwargs.get("disable_print") and "ParameterNotFound" in str(e):
+            logging.error(e)
+
+
+def search_ssm_params(param_phrase, **kwargs):
+    result = boto3.client('ssm').describe_parameters(
+        ParameterFilters=[{
+            'Key': kwargs.get("search_field", "Name"),
+            'Option': kwargs.get("search_type", 'BeginsWith'),
+            'Values': [param_phrase],
+        }]
+    )
+    logging.info(f"There were {len(result.get('Parameters'))} SSM Params found")
+    return result.get('Parameters')
 
 """
-Accepted kwargs: 
+SSM's Accepted kwargs: 
 * Description
 * Type='String'|'StringList'|'SecureString',
 * KeyId
@@ -1198,6 +1386,12 @@ def put_ssm_param(param_name, param_value, param_type, **kwargs):
     result = ssm.put_parameter(Name=param_name, Value=param_value, Type=param_type, **kwargs)
     return ez_try_and_get(result, 'Parameter', 'Value')
 
+
+def delete_ssm_param(param_name):
+    result = boto3.client('ssm').delete_parameter(
+        Name=param_name
+    )
+    return result
 
 ########################### ~ STS Specific ~ ###################################################
 
