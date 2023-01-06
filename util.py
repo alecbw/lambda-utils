@@ -175,7 +175,7 @@ def standardize_dict(input_dict):
     return {k.title().strip().replace(" ", "_"):(False if is_none(v) else v) for (k, v) in input_dict.items()}
 
 
-# can this be deprecated? TODO
+# can this be deprecated? TODO [ ] refactor 3 more files to ez_split
 def standardize_str_to_list(input_str):
     if isinstance(input_str, list):
         return input_str
@@ -620,12 +620,12 @@ Note: this will return false positives for made up TLDs that contain viable TLDs
 ex: '.ae.com' is a true positive TLD, but the made up '.aee.com' is false positive, as it contains '.com'
 This shouldn't be a problem if your data isn't extremely dirty
 """
-def is_url(potential_url_str, **kwargs):
-    if not potential_url_str:
+def is_url(potential_url, **kwargs):
+    if not potential_url:
         return False
 
     tld_list = kwargs.get("tld_list", get_tld_list())
-    if find_substrings_in_string(potential_url_str, tld_list):
+    if find_substrings_in_string(potential_url, tld_list) and potential_url[0] != ".":
         return True
 
     return False
