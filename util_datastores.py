@@ -346,10 +346,8 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
             standard_item = standardize_dynamo_query(item, **kwargs)
             if standard_item:
                 try:
-                    put_kwargs = {"ConditionExpression": "attribute_not_exists(#pk)", "ExpressionAttributeNames": {"#pk": kwargs["prevent_overwrites"]}} if kwargs.get('prevent_overwrites') else {}
                     batch.put_item(
                         Item=standard_item,
-                        **put_kwargs
                     )
                 except Exception as e:
                     logging.error(f"{e} -- {standard_item}")
