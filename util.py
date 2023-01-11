@@ -80,12 +80,30 @@ def standardize_event(event, **kwargs):
         if event.get("multiValueQueryStringParameters") and any(k for k,v in event["queryStringParameters"].items() if isinstance(v, str) and len(v.split(",")) != len(event["multiValueQueryStringParameters"][k]) and len(event["multiValueQueryStringParameters"][k]) > 1):
             logging.info({k:v for k,v in event.items() if k in ["queryStringParameters", "multiValueQueryStringParameters", "body", "httpMethod"]}) # throw out other k:vs to prevent logging API key
             logging.error(f"Key duplicates in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
+        enumerated_querystring_keys = [x for x in list(event["queryStringParameters"].keys()) if isinstance(x, str) and ez_re_find('\[\d\]', x)]
+        if len(enumerated_querystring_keys) > 1:
+            logging.info(f"Found the following enumerated_querystring_keys in standardize_event: {enumerated_querystring_keys}")
+            event["queryStringParameters"] = deal_with_enumerated_querystring_keys(event["queryStringParameters"])
         if kwargs.get("log_on_querystring_key_contains") and any(x for x in event["queryStringParameters"].keys() if find_substrings_in_string(x, kwargs['log_on_querystring_key_contains'])):
             logging.error(f"Malformed querystring key in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
 
         event.update(event["queryStringParameters"])
 
     return standardize_dict(event)
+
+
+# WILL order resulting list values by index in brackets UP TO 9 - 10, 11, etc after will go before 2 because its alphabetical. GPT written code.
+def deal_with_enumerated_querystring_keys(qs_dict):
+    result_dict = {}
+    for key in sorted(list(qs_dict.keys())):
+      match = re.search(r"\[(\d+)\]", key) if isinstance(key, str) else False
+      if match:
+        if key[:match.start()] not in result_dict:
+          result_dict[key[:match.start()]] = []
+        result_dict[key[:match.start()]].append(qs_dict[key])
+      else:
+        result_dict[key] = qs_dict[key]
+    return result_dict
 
 
 # Necessary for API Gateway to return
@@ -157,7 +175,7 @@ def standardize_dict(input_dict):
     return {k.title().strip().replace(" ", "_"):(False if is_none(v) else v) for (k, v) in input_dict.items()}
 
 
-# can this be deprecated? TODO
+# can this be deprecated? TODO [ ] refactor 3 more files to ez_split
 def standardize_str_to_list(input_str):
     if isinstance(input_str, list):
         return input_str
@@ -602,12 +620,12 @@ Note: this will return false positives for made up TLDs that contain viable TLDs
 ex: '.ae.com' is a true positive TLD, but the made up '.aee.com' is false positive, as it contains '.com'
 This shouldn't be a problem if your data isn't extremely dirty
 """
-def is_url(potential_url_str, **kwargs):
-    if not potential_url_str:
+def is_url(potential_url, **kwargs):
+    if not potential_url:
         return False
 
     tld_list = kwargs.get("tld_list", get_tld_list())
-    if find_substrings_in_string(potential_url_str, tld_list):
+    if find_substrings_in_string(potential_url, tld_list) and potential_url[0] != ".":
         return True
 
     return False
