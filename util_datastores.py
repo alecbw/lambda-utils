@@ -289,8 +289,8 @@ def write_dynamodb_item(dict_to_write, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
     dict_to_write = {"Item": standardize_dynamo_query(dict_to_write, **kwargs)}
 
-    if kwargs.get("prevent_overwrites"): # TODO test
-        dict_to_write["ConditionExpression"] =  "attribute_not_exists(#pk)",
+    if kwargs.get("prevent_overwrites"):
+        dict_to_write["ConditionExpression"] =  "attribute_not_exists(#pk)"
         dict_to_write["ExpressionAttributeNames"] = {"#pk": kwargs["prevent_overwrites"]}
 
     try:
@@ -334,6 +334,8 @@ class DynamoDBBatchWriter(BatchWriter):
 """
 Note this will overwrite items with the same primary key (upsert)
 If you pass a lod of len > 25, it will quietly split it to mini-batches of 25 each
+
+ConditionExpression='attribute_not_exists(Id)'
 """
 def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
     table = boto3.resource('dynamodb').Table(table)
@@ -344,7 +346,11 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
             standard_item = standardize_dynamo_query(item, **kwargs)
             if standard_item:
                 try:
-                    batch.put_item(Item=standard_item)
+                    put_kwargs = {"ConditionExpression": "attribute_not_exists(#pk)", "ExpressionAttributeNames": {"#pk": kwargs["prevent_overwrites"]}} if kwargs.get('prevent_overwrites') else {}
+                    batch.put_item(
+                        Item=standard_item,
+                        **put_kwargs
+                    )
                 except Exception as e:
                     logging.error(f"{e} -- {standard_item}")
 
