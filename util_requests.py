@@ -1,4 +1,4 @@
-from utility.util import package_response, standardize_event, validate_params, format_url, fix_JSON, replace_string_char_by_index, startswith_replace, endswith_replace
+from utility.util import package_response, standardize_event, validate_params, format_url, fix_JSON, replace_string_char_by_index, startswith_replace, endswith_replace, ez_re_find
 from utility.util_datastores import scan_dynamodb
 
 import random
@@ -459,6 +459,8 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
         data = [x.get("value").strip() if x.get("value") else null_value for x in html_tags]
     elif kwargs.get("get_onclick"):
         data = [x.get("onclick").strip() if x.get("onclick") else null_value for x in html_tags]
+    elif kwargs.get("get_background_image_url"):
+        data = [ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', x.get('style'), group=1) if x.get('style') else null_value for x in html_tags]
     elif html_type == "meta" and html_tags:
         data = [extract_stripped_string(x.get("content", null_value), null_value=null_value) for x in html_tags]
     else:
@@ -516,6 +518,8 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             return html_tag.get("value").strip() if html_tag.get("value") else null_value
         elif kwargs.get("get_onclick"):
             return html_tag.get("onclick").strip() if html_tag.get("onclick") else null_value
+        elif kwargs.get("get_background_image_url"):
+            return ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', html_tag.get('style'), group=1) if html_tag.get('style') else null_value
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
         else:
