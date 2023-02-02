@@ -653,6 +653,28 @@ def stream_s3_file(bucket_name, filename, **kwargs):
     return s3_object.get()['Body'] #body returns streaming string
 
 
+def create_xml_file(input_lod, item_name, **kwargs):
+    xml = "<root>\n"
+
+    for row in input_lod:
+        xml += "\t<" + item_name + ">\n"
+        for key, value in row.items():
+            if isinstance(value, str):
+                xml += f"\t\t<{key}><![CDATA[ {value} ]]></{key}>\n"
+            else:
+                xml += f"\t\t<{key}>{value}</{key}>\n"
+        xml += "\t</" + item_name + ">\n"
+    xml += "</root>"
+
+    if kwargs.get("top_level_element"):
+        xml = xml.replace("<root>", f"<{kwargs['top_level_element']>")
+        # xml = xml.replace("<root>\n", "<root>\n\t</" + kwargs['top_level_element'] + ">\n")
+        # xml = xml.replace("</root>", "\t<" + kwargs['top_level_element'] + ">\n</root>")
+
+    return xml
+# if kwargs.get("top_level_element"):
+#         xml += "\t<" + kwargs['top_level_element'] + ">\n"
+
 def write_s3_file(bucket_name, filename, file_data, **kwargs):
     file_type = kwargs.get("file_type", "json")
     if file_type == "json":
@@ -663,6 +685,8 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
             dict_writer.writeheader()
             dict_writer.writerows(file_data)
         file_to_write = open(f'/tmp/{filename}.txt', 'rb')
+    elif file_type == "xml":
+        file_to_write = create_xml_file(file_data, kwargs.pop("item_name", "dict"), **kwargs)
 
     if not filename.endswith(f".{file_type}"):
         filename = filename + f".{file_type}"
