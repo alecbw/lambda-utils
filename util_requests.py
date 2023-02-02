@@ -1,4 +1,4 @@
-from utility.util import package_response, standardize_event, validate_params, format_url, fix_JSON, replace_string_char_by_index, startswith_replace, endswith_replace
+from utility.util import package_response, standardize_event, validate_params, format_url, fix_JSON, replace_string_char_by_index, startswith_replace, endswith_replace, ez_re_find
 from utility.util_datastores import scan_dynamodb
 
 import random
@@ -193,7 +193,7 @@ def prioritize_proxy(proxies, location):
 # Your proxy appears to only use HTTP and not HTTPS, try changing your proxy URL to be HTTP
 
 def handle_request_exception(e, proxy, url, disable_error_messages):
-    if any(x for x in ["Caused by SSLError(SSLCertVerificationError", "SSL: WRONG_VERSION_NUMBER", "[Errno 65] No route to host", "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired"] if x in str(e)):  # CertificateError -> downgrade to HTTP
+    if any(x for x in ["Caused by SSLError(SSLCertVerificationError", "SSL: WRONG_VERSION_NUMBER", "[Errno 65] No route to host", "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired", 'Caused by SSLError(CertificateError("hostname'] if x in str(e)):  # CertificateError -> downgrade to HTTP
         warning = f'-----> ERROR. URL: {url}. Proxy: {proxy}. Request Threw: Certificate Error. {e}<-----'
         status_code = 495
     elif "Exceeded 30 redirects" in str(e):
@@ -208,6 +208,12 @@ def handle_request_exception(e, proxy, url, disable_error_messages):
     elif "Tunnel connection failed: 404 Not Found" in str(e):
         warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Effective 404 - Request Threw OSError: {e} <-----'
         status_code = 404
+    elif "Tunnel connection failed: 503 Service Unavailable" in str(e): # this MAY be a proxy problem and it may be a true 503 from the domain. Only happens with a proxy.
+        warning = f'-----> ERROR. Url: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Request Threw: OSError Error. {e}<-----'
+        status_code = 503
+    elif "Tunnel connection failed: 403 Forbidden" in str(e): # this MAY be a proxy problem and it may be a true 403 from the domain. Only happens with a proxy.
+        warning = f'-----> ERROR. Url: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Request Threw: OSError Error. {e}<-----'
+        status_code = 403
     elif "Connection refused" in str(e) or "Connection reset by peer" in str(e): # or "Remote end closed connection" in str(e):
         warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Proxy refusing traffic {e} <-----'
         status_code = 602
@@ -459,6 +465,8 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
         data = [x.get("value").strip() if x.get("value") else null_value for x in html_tags]
     elif kwargs.get("get_onclick"):
         data = [x.get("onclick").strip() if x.get("onclick") else null_value for x in html_tags]
+    elif kwargs.get("get_background_image_url"):
+        data = [ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', x.get('style'), group=1) if x.get('style') else null_value for x in html_tags]
     elif html_type == "meta" and html_tags:
         data = [extract_stripped_string(x.get("content", null_value), null_value=null_value) for x in html_tags]
     else:
@@ -516,6 +524,8 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             return html_tag.get("value").strip() if html_tag.get("value") else null_value
         elif kwargs.get("get_onclick"):
             return html_tag.get("onclick").strip() if html_tag.get("onclick") else null_value
+        elif kwargs.get("get_background_image_url"):
+            return ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', html_tag.get('style'), group=1) if html_tag.get('style') else null_value
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
         else:
