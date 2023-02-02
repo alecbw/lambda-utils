@@ -13,7 +13,8 @@ from urllib.parse import parse_qs, unquote
 try:
     import sentry_sdk
     from sentry_sdk.integrations.aws_lambda import AwsLambdaIntegration
-    sentry_kwargs = {"integrations": [AwsLambdaIntegration()]} if os.getenv("_HANDLER") else {}
+    sentry_kwargs = {"ignore_errors": [KeyboardInterrupt]}
+    sentry_kwargs = {**sentry_kwargs, **{"integrations": [AwsLambdaIntegration()]}} if os.getenv("_HANDLER") else sentry_kwargs
     sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], **sentry_kwargs)
 except (ImportError, KeyError) as e:
     logging.warning(f"Sentry did not init: {e}")
@@ -328,8 +329,12 @@ def ez_ast_eval(input):
 
 
 
-# there's no re.find. I named this _find because _match makes more semantic sense than _search, but the .search operator is more useful than the .match operator
-# Note: keep in mind 0-indexing when using group=1, etc. group=1 is the second group.
+"""
+Notes:
+    There's no re.find. I named this _find because _match makes more semantic sense than _search, but the .search operator is more useful than the .match operator
+    Keep in mind 0-indexing when using group=1, etc. group=1 is the second group.
+    For non-capturing groups (?:), you MUST use find_all_captured=True or group=int - otherwise it will be captured 
+"""
 def ez_re_find(pattern, text, **kwargs):
     if isinstance(text, list) or isinstance(text, set):
         text = ez_join(text, " ")
@@ -350,7 +355,7 @@ def ez_re_find(pattern, text, **kwargs):
     elif kwargs.get("group") and isinstance(kwargs["group"], int):
         return possible_match.groups()[kwargs["group"]]
     else:
-        return possible_match.group() # if possible_match else ""
+        return possible_match.group()
 
 
 def ez_remove(iterable, to_remove):
@@ -475,6 +480,37 @@ def ordered_dict_first(ordered_dict):
     if not ordered_dict:
         return None
     return next(iter(ordered_dict))
+
+
+def convert_item_to_xml(key, value, xml):
+    if isinstance(value, str):
+        xml += f"\t\t<{key}><![CDATA[ {value} ]]></{key}>\n"
+    else:
+        xml += f"\t\t<{key}>{value}</{key}>\n"
+    return xml
+
+
+def convert_lod_to_xml(input_lod, item_name, **kwargs):
+    xml = "<root>\n"
+
+    for row in input_lod:
+        xml += "\t<" + item_name + ">\n"
+        for key, value in row.items():
+            if isinstance(value, list):
+                xml += f"\t\t<{key}>\n"
+                for subvalue in value:
+                    xml = convert_item_to_xml(key, subvalue, xml).replace("\t\t<", "\t\t\t<") # # xml += f"\t\t\t<item>{subvalue}</item>\n"
+                xml += f"\t\t</{key}>\n"
+            else:
+                xml = convert_item_to_xml(key, value, xml)
+        xml += "\t</" + item_name + ">\n"
+
+    xml += "</root>"
+
+    if kwargs.get("root_element"):
+        xml = xml.replace("<root>", f"<{kwargs['root_element']}>").replace("</root>", f"</{kwargs['root_element']}>")
+
+    return xml
 
 
 # Case sensitive!
