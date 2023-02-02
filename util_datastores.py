@@ -666,14 +666,11 @@ def create_xml_file(input_lod, item_name, **kwargs):
         xml += "\t</" + item_name + ">\n"
     xml += "</root>"
 
-    if kwargs.get("top_level_element"):
-        xml = xml.replace("<root>", f"<{kwargs['top_level_element']>")
-        # xml = xml.replace("<root>\n", "<root>\n\t</" + kwargs['top_level_element'] + ">\n")
-        # xml = xml.replace("</root>", "\t<" + kwargs['top_level_element'] + ">\n</root>")
+    if kwargs.get("root_element"):
+        xml = xml.replace("<root>", f"<{kwargs['root_element']}>").replace("</root>", f"</{kwargs['root_element']}>")
 
     return xml
-# if kwargs.get("top_level_element"):
-#         xml += "\t<" + kwargs['top_level_element'] + ">\n"
+
 
 def write_s3_file(bucket_name, filename, file_data, **kwargs):
     file_type = kwargs.get("file_type", "json")
