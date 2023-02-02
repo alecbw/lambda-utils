@@ -482,34 +482,35 @@ def ordered_dict_first(ordered_dict):
     return next(iter(ordered_dict))
 
 
+# this probably doesn't handle deep nesting well. or nested dicts.
 def convert_item_to_xml(key, value, xml):
-    if isinstance(value, str):
+    if isinstance(value, list):
+        xml += f"\t\t<{key}>\n"
+        for subvalue in value:
+            xml = convert_item_to_xml("item", subvalue, xml).replace(">\n\t\t<item",">\n\t\t\t<item")
+        xml += f"\t\t</{key}>\n"
+    elif isinstance(value, str):
         xml += f"\t\t<{key}><![CDATA[ {value} ]]></{key}>\n"
+    elif isinstance(value, bool):
+        xml += f'\t\t<{key} xs:type="xs:boolean">{str(value).lower()}</{key}>\n'
+    elif value is None: # kinda arbitrary to make one xs and one xsi but the docs online are super unclear and conflicting
+        xml += f'\t\t<{key} xsi:nil="true"/>\n'
     else:
         xml += f"\t\t<{key}>{value}</{key}>\n"
+
     return xml
 
 
 def convert_lod_to_xml(input_lod, item_name, **kwargs):
-    xml = "<root>\n"
+    xml = f"<{kwargs.get('root_element', 'root')}>\n"
 
     for row in input_lod:
         xml += "\t<" + item_name + ">\n"
         for key, value in row.items():
-            if isinstance(value, list):
-                xml += f"\t\t<{key}>\n"
-                for subvalue in value:
-                    xml = convert_item_to_xml(key, subvalue, xml).replace("\t\t<", "\t\t\t<") # # xml += f"\t\t\t<item>{subvalue}</item>\n"
-                xml += f"\t\t</{key}>\n"
-            else:
-                xml = convert_item_to_xml(key, value, xml)
+            xml += convert_item_to_xml(key, value, "")
         xml += "\t</" + item_name + ">\n"
 
-    xml += "</root>"
-
-    if kwargs.get("root_element"):
-        xml = xml.replace("<root>", f"<{kwargs['root_element']}>").replace("</root>", f"</{kwargs['root_element']}>")
-
+    xml += f"</{kwargs.get('root_element', 'root')}>\n"
     return xml
 
 
