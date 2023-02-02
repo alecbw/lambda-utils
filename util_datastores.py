@@ -1,4 +1,4 @@
-from utility.util import is_none, ez_try_and_get, ez_get, ez_split, startswith_replace
+from utility.util import is_none, ez_try_and_get, ez_get, ez_split, startswith_replace, convert_lod_to_xml
 
 import sys
 import os
@@ -653,25 +653,6 @@ def stream_s3_file(bucket_name, filename, **kwargs):
     return s3_object.get()['Body'] #body returns streaming string
 
 
-def create_xml_file(input_lod, item_name, **kwargs):
-    xml = "<root>\n"
-
-    for row in input_lod:
-        xml += "\t<" + item_name + ">\n"
-        for key, value in row.items():
-            if isinstance(value, str):
-                xml += f"\t\t<{key}><![CDATA[ {value} ]]></{key}>\n"
-            else:
-                xml += f"\t\t<{key}>{value}</{key}>\n"
-        xml += "\t</" + item_name + ">\n"
-    xml += "</root>"
-
-    if kwargs.get("root_element"):
-        xml = xml.replace("<root>", f"<{kwargs['root_element']}>").replace("</root>", f"</{kwargs['root_element']}>")
-
-    return xml
-
-
 def write_s3_file(bucket_name, filename, file_data, **kwargs):
     file_type = kwargs.get("file_type", "json")
     if file_type == "json":
@@ -683,7 +664,7 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
             dict_writer.writerows(file_data)
         file_to_write = open(f'/tmp/{filename}.txt', 'rb')
     elif file_type == "xml":
-        file_to_write = create_xml_file(file_data, kwargs.pop("item_name", "dict"), **kwargs)
+        file_to_write = convert_lod_to_xml(file_data, kwargs.pop("item_name", "dict"), **kwargs)
 
     if not filename.endswith(f".{file_type}"):
         filename = filename + f".{file_type}"
