@@ -494,13 +494,13 @@ def convert_item_to_xml(key, value, xml):
         for subvalue in value:
             xml = convert_item_to_xml("item", subvalue, xml).replace(">\n\t\t<item",">\n\t\t\t<item")
         xml += f"\t\t</{key}>\n"
+    elif isinstance(value, bool) or (isinstance(value, str) and value.lower() in ["true", "false"]):
+        xml += f'\t\t<{key} xs:type="xs:boolean">{str(value).lower()}</{key}>\n'
     elif isinstance(value, str):
         xml += f"\t\t<{key}><![CDATA[ {value} ]]></{key}>\n"
-    elif isinstance(value, bool):
-        xml += f'\t\t<{key} xs:type="xs:boolean">{str(value).lower()}</{key}>\n'
     elif value is None: # kinda arbitrary to make one xs and one xsi but the docs online are super unclear and conflicting
         xml += f'\t\t<{key} xsi:nil="true"/>\n'
-    else:
+    else: # float, int, etc
         xml += f"\t\t<{key}>{value}</{key}>\n"
 
     return xml
