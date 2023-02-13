@@ -355,7 +355,11 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
                         Item=standard_item,
                     )
                 except Exception as e:
-                    logging.error(f"{e} -- {standard_item}")
+                    if "ProvisionedThroughputExceededException" in str(e):
+                        logging.error(f"ProvisionedThroughputExceededException - {table}")
+                        sleep(0.1)
+                    else:
+                        logging.error(f"{e} -- {standard_item}")
 
     # print(f'{batch.consumed_wcu}')
     # print(f'Response of actual batch write request: {batch.responses}')
