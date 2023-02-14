@@ -261,6 +261,11 @@ def ez_recursive_get(json_input, lookup_key):
         for item in json_input:
             yield from ez_recursive_get(item, lookup_key)
 
+def ez_index(input_list, key):
+    try:
+        return input_list.index(key)
+    except ValueError:
+        return None
 
 # Convert iterable (list, set, ndarray) to str
 def ez_join(iterable_input, delimiter, **kwargs):
@@ -482,7 +487,7 @@ def ordered_dict_first(ordered_dict):
     return next(iter(ordered_dict))
 
 
-# this probably doesn't handle deep nesting well. or nested dicts.
+# this probably doesn't handle deep nesting well. or dicts of dicts.
 def convert_item_to_xml(key, value, xml):
     if isinstance(value, list):
         xml += f"\t\t<{key}>\n"

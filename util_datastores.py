@@ -18,8 +18,13 @@ import timeit
 import ast
 from pprint import pprint
 from io import StringIO
-from typing import Callable, Iterator, Union, Optional, List
+from typing import List # Callable, Iterator, Union, Optional,
 from collections import defaultdict
+# from cryptography.hazmat.backends import default_backend
+# from cryptography.hazmat.primitives import hashes
+# from cryptography.hazmat.primitives import serialization
+# from cryptography.hazmat.primitives.asymmetric import padding
+# from botocore.signers import CloudFrontSigner
 
 import boto3
 from botocore.exceptions import ClientError
@@ -350,7 +355,11 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
                         Item=standard_item,
                     )
                 except Exception as e:
-                    logging.error(f"{e} -- {standard_item}")
+                    if "ProvisionedThroughputExceededException" in str(e):
+                        logging.error(f"ProvisionedThroughputExceededException - {table}")
+                        sleep(0.1)
+                    else:
+                        logging.error(f"{e} -- {standard_item}")
 
     # print(f'{batch.consumed_wcu}')
     # print(f'Response of actual batch write request: {batch.responses}')
@@ -880,6 +889,7 @@ def generate_s3_presigned_url(bucket_name, file_name, **kwargs):
         ExpiresIn=kwargs.get("TTL", 60*60*24) # one day
     )
     return url
+
 
 
 ###################### ~ SQS Specific ~ ###################################################
