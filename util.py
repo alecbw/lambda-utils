@@ -996,7 +996,7 @@ def increment_counter(counter, *args, **kwargs):
 # Python will by default Abort trap: 6 at depth 1000 by default
 def fix_JSON(json_str, **kwargs):
     if kwargs.get("recursion_depth", 0) > kwargs.get("recursion_limit", 500):
-        logging.warning(f"Exceeded recursion depth trap in fix_JSON - {kwargs.get('recursion_limit', 500)}")
+        logging.debug(f"Exceeded recursion depth trap in fix_JSON - {kwargs.get('recursion_limit', 500)}")
         return None
 
     try:
@@ -1005,13 +1005,13 @@ def fix_JSON(json_str, **kwargs):
         idx_to_replace = int(str(e).split(' ')[-1].replace(')', ''))  # Find the offending character index
 
         if idx_to_replace > len(json_str)-1:
-            logging.warning(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
+            logging.debug(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
             return None
 
         if kwargs.get("recursion_depth", 0) == 0: # only log the first instance
-            logging.warning(f"Replacing first broken character - {kwargs.get('log_on_error', '')} - {json_str[idx_to_replace]} - {e}")
+            logging.debug(f"Replacing first broken character - {kwargs.get('log_on_error', '')} - {json_str[idx_to_replace]} - {e}")
             if len(json_str) > idx_to_replace+5 and idx_to_replace-5 > 0:
-                logging.info(json_str[idx_to_replace-5:idx_to_replace+5])
+                logging.debug(json_str[idx_to_replace-5:idx_to_replace+5])
 
         if "Expecting ',' delimiter:" in str(e) and json_str[idx_to_replace] in ['"', '{', '['] and lookback_check_string_for_substrings(json_str, ['}', ']', '"'], start_index=idx_to_replace):
             json_str = replace_string_char_by_index(json_str, idx_to_replace, ',' + json_str[idx_to_replace]) # input was missing a comma
