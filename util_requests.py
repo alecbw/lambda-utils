@@ -371,7 +371,7 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                     script_string = script_string.replace('&quot;', r'\"')
                 script_string = unescape(script_string)
                 if r'\u' in script_string: # there's unicode characters in an otherwise UTF string
-                    logging.info("there's unicode characters in an otherwise UTF string")
+                    logging.debug("there's unicode characters in an otherwise UTF string")
                     # logging.debug(script_string)
                     # logging.debug(script_string.encode().decode('unicode-escape').encode('latin-1').decode('utf-8'))
                     # script_string = script_string.encode().decode('unicode-escape')
@@ -545,12 +545,18 @@ def safely_encode_text(parsed, **kwargs):
 
     truncate_at = kwargs.get('truncate_at', 1_000_000)
     try:
-        text = parsed.get_text(separator=" ", strip=True)                           # extract_full_site_text(parsed, drop_duplicates=True)
+        if isinstance(parsed, str):
+            text = parsed
+        else:
+            text = parsed.get_text(separator=" ", strip=True)                           # extract_full_site_text(parsed, drop_duplicates=True)
         _ = text.encode('utf-8') # to trigger error - eg "UnicodeEncodeError: 'utf-8' codec can't encode characters in position 2435-2436: surrogates not allowed"
         text = text[:truncate_at].replace("<br>", " ") # truncate to 1,000,000 characters to avoid Size of a 'single row or its columns cannot exceed 32 MB' Athena error
         encoding = 'utf-8'
     except UnicodeEncodeError as e:
-        text = parsed.get_text(separator=" ", strip=True).encode('utf-8', errors='replace').decode('utf-8') # into bytes and back to str
+        if isinstance(parsed, str):
+            text = parsed.encode('utf-8', errors='replace').decode('utf-8')
+        else:
+            text = parsed.get_text(separator=" ", strip=True).encode('utf-8', errors='replace').decode('utf-8') # into bytes and back to str
         encoding = f"BROKE_UTF8 {kwargs.get('encoding', '')}".strip()
         logging.warning(e)
         logging.warning(f"The site {kwargs.get('url')} broke text encoding. Provided encoding: {kwargs.get('encoding')}")
