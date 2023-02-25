@@ -819,6 +819,12 @@ def format_timestamp(timestamp, **kwargs):
     [ ] think about '%m/%d/%Y', '%Y/%m/%d', '%d-%m-%Y', '%d-%b-%Y', which goes first
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
+    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%Y/%m/%d', '%m-%d-%Y', '%d-%m-%Y', '%m-%d-%y', '%d-%m-%y', '%d-%b-%Y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y', '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p']
+    if kwargs.get("country") and kwargs['country'] != 'United States':
+        pass
+
+    print(len(LIST_OF_DT_FORMATS))
+    
     if not datetime_str:
         return kwargs.get("null_value", "")
     elif isinstance(datetime_str, int):
@@ -836,7 +842,6 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
 
     datetime_str = datetime_str.strip().replace("&#43;", "+").replace('CST', '-0600')
 
-    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%Y/%m/%d', '%m-%d-%Y', '%d-%m-%Y', '%m-%d-%y', '%d-%m-%y', '%d-%b-%Y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y', '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p']
     for dt_format in LIST_OF_DT_FORMATS:
         try:
             dt_str = datetime.strptime(datetime_str, dt_format)
