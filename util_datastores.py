@@ -1379,7 +1379,7 @@ def search_ssm_params(param_phrase, **kwargs):
             'Values': [param_phrase],
         }]
     )
-    logging.info(f"There were {len(result.get('Parameters'))} SSM Params found")
+    logging.info(f"There were {len(result.get('Parameters'))} SSM Params found with value {param_phrase}")
     return result.get('Parameters')
 
 """

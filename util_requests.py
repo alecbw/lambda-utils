@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 from html import unescape
 from datetime import datetime, timedelta
 
-from bs4 import BeautifulSoup, element, NavigableString
+from bs4 import BeautifulSoup, element, NavigableString, Tag
 import requests
 
 
@@ -347,7 +347,7 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
     elif isinstance(html_tag_or_str, str):
         return ez_strip_str(html_tag_or_str)
 
-    elif html_tag_or_str.get_text():
+    elif isinstance(html_tag_or_str, Tag):
         return ez_strip_str(html_tag_or_str.get_text(separator=kwargs.get("text_sep", " "), strip=True))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
 
     return kwargs.get("null_value", html_tag_or_str)

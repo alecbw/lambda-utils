@@ -803,10 +803,12 @@ def format_timestamp(timestamp, **kwargs):
 
 # Forces conversion to UTC
 """
+    currently preferring month-day-year when amibigous - "%Y-%m-%d", "%Y %m %d", '%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%Y/%m/%d', '%m-%d-%Y', '%d-%m-%Y', %m-%d-%y', '%d-%m-%y', '%d-%b-%Y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y'
+    [ ] kwarg for country, where if country = 'US', then month-day-year, else day-month-year?
+
     [ ] "1.1.7"   # unclear if month or day first, waiting for another example
-    [ ] 18.07.2022
-    [ ] 26/05/2022, 22/08/2020, 17/07/2022, 15/09/2022
     [ ] "Avril 2016"   # not English, gonna be hard to support
+    [ ] '17 août 2016','31 janv. 2023'
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
     [ ] 2021-06-17T11:46:24-05 # needs two trailing 0's
     [ ] 2021-02-08T13:49:46.0000000Z # has one too many 0's
@@ -816,7 +818,6 @@ def format_timestamp(timestamp, **kwargs):
     [ ] Fri Jan 14 00:00:00 CST 2022 - should be '%a %d %b %H:%M:%S %Z %Y', not clera why not working
     [ ] 'Thu Sep 22 00:00:00 CDT 2022' 
     [ ] Feb 8, 2023 (HK Time)
-    [ ] think about '%m/%d/%Y', '%Y/%m/%d', '%d-%m-%Y', '%d-%b-%Y', which goes first  
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if not datetime_str:
