@@ -1371,6 +1371,7 @@ def get_ssm_param(param_name, **kwargs):
             logging.error(e)
 
 
+# BeginsWith will sometimes just not work for reasons I do not understand - TODO
 def search_ssm_params(param_phrase, **kwargs):
     result = boto3.client('ssm').describe_parameters(
         ParameterFilters=[{
@@ -1381,6 +1382,7 @@ def search_ssm_params(param_phrase, **kwargs):
     )
     logging.info(f"There were {len(result.get('Parameters'))} SSM Params found with value {param_phrase}")
     return result.get('Parameters')
+
 
 """
 SSM's Accepted kwargs: 
