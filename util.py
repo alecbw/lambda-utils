@@ -742,7 +742,7 @@ def find_url_tld(url, tld_list, **kwargs):
     if len(tld_list) == 1:
         return tld_list[0]
     elif len(tld_list) > 1: # use regex to find the longest matching substr (tld) that is immediately followed by the end-of-line token OR start-of-querystrings OR backslash for subsite
-        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?|:)"
+        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?|:|#)"
         return ez_re_find(pattern, url, group=0).rstrip("/").rstrip("?")
 
     return tld
