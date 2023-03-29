@@ -749,6 +749,13 @@ def delete_s3_file(bucket_name, filename, **kwargs):
         return e
 
 
+# TODO - generalize this more
+def delete_delete_marker(bucket, object_id, all_del_markers, **kwargs):
+    print(object_id)
+    object_to_restore = bucket.Object(object_id)
+    object_to_restore.delete(VersionId=all_del_markers[object_id])
+
+
 def remove_s3_file_and_delete_marker(bucket, del_item, to_delete_dol, all_del_markers, **kwargs):
     if not kwargs.get("disable_print"):
         logging.info(f'Deleting {del_item}')
@@ -801,6 +808,45 @@ def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
     else:
         for del_item in to_delete_dol:
             remove_s3_file_and_delete_marker(bucket, del_item, to_delete_dol, all_del_markers, **kwargs)
+
+
+
+def restore_s3_files_from_delete_markers(bucket_name, path, **kwargs):
+    to_restore_dol = defaultdict(list)
+    all_del_markers = {}
+
+    bucket_name = startswith_replace(bucket_name, "s3://", "")
+    bucket = boto3.resource('s3').Bucket(bucket_name)
+    paginator = boto3.client('s3').get_paginator('list_object_versions')
+    pages = paginator.paginate(Bucket=bucket_name, Prefix=path.lstrip("/")) # , MaxKeys=kwargs.get("file_limit", None))
+
+    for page in pages:
+        if not page.get('DeleteMarkers'):
+            continue
+
+        # Get all delete markers where the *marker* is the latest version, i.e. is marked for deletion
+        del_markers = {item['Key']: item['VersionId'] for item in page['DeleteMarkers'] if item['IsLatest'] == True}
+        all_del_markers = {**all_del_markers, **del_markers}
+
+        # Get all version IDs for all objects that have eligible delete markers
+        for item in page.get('Versions', []):
+            if item['Key'] in del_markers.keys():
+                to_restore_dol[item['Key']].append(item['VersionId'])
+
+    if kwargs.get("preview"):
+        logging.info("NOTE: Just listing entries, not deleting.")
+        [logging.info(f"{k} - {v}") for k,v in to_restore_dol.items()]
+        return
+
+    # Remove delete markers by the marker's VersionId
+    if kwargs.get('use_threads'):
+        # http = urllib3.PoolManager(maxsize=kwargs['use_threads']+1, block=True) # TODO - worth implementing?
+        with concurrent.futures.ThreadPoolExecutor(kwargs['use_threads']) as executor:
+            for object_id in to_restore_dol:
+                executor.submit(delete_delete_marker, *[bucket, object_id, all_del_markers])
+    else:
+        for object_id in to_restore_dol:
+            delete_delete_marker(bucket, object_id, all_del_markers)
 
 
 # http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
