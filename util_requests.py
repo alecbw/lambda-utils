@@ -498,6 +498,8 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
 
         if property_type == 'string':
             html_tag = parsed.find(html_type, string=identifier)
+        elif not html_type and not property_type: # just want to get text of passed in element, not to drill down
+            html_tag = parsed
         else:
             html_tag = parsed.find(html_type, {property_type : identifier})
 
