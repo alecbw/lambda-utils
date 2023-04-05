@@ -13,7 +13,8 @@ from urllib.parse import parse_qs, unquote
 try:
     import sentry_sdk
     from sentry_sdk.integrations.aws_lambda import AwsLambdaIntegration
-    sentry_kwargs = {"integrations": [AwsLambdaIntegration()]} if os.getenv("_HANDLER") else {}
+    sentry_kwargs = {"ignore_errors": [KeyboardInterrupt]}
+    sentry_kwargs = {**sentry_kwargs, **{"integrations": [AwsLambdaIntegration()]}} if os.getenv("_HANDLER") else sentry_kwargs
     sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], **sentry_kwargs)
 except (ImportError, KeyError) as e:
     logging.warning(f"Sentry did not init: {e}")
@@ -27,7 +28,7 @@ TLD_list = None # setting up a global for caching IO of get_tld_list()
 
 # Allows enforcing of querystrings' presence
 def validate_params(event, required_params, **kwargs):
-    event = standardize_event(event)
+    event = standardize_event(event, **kwargs)
     commom_required_params = get_list_overlap(event, required_params)
     commom_optional_params = get_list_overlap(event, kwargs.get("optional_params", []))
     param_only_dict = {k:v for k, v in event.items() if k in required_params+kwargs.get("optional_params", [])}
@@ -45,7 +46,7 @@ def validate_params(event, required_params, **kwargs):
 Unpack the k:v pairs into the top level dict to enforce standardization across invoke types.
 queryStringParameters is on a separate if loop, as you can have a POST with a body and separate url querystrings
 """
-def standardize_event(event):
+def standardize_event(event, **kwargs):
     if event.get("httpMethod") == "POST" and event.get("body") and "application/json" in ez_insensitive_get(event, "headers", "Content-Type", fallback_value="").lower():  # POST -> synchronous API Gateway
         body_as_dict = fix_JSON(event["body"], recursion_limit=10) or {} # fix_JSON returns None if it can't be fixed
         if isinstance(body_as_dict, dict):
@@ -73,11 +74,37 @@ def standardize_event(event):
 
     # Any of the above can also include this. GET, synchronous API Gateway will be just this.
     if event.get("queryStringParameters"):
-        if any(x for x in list(event["queryStringParameters"].keys()) if x in event): # check to prevent key collision
-            logging.error(f"Key collision in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
+        logging.info(f"All found querystrings (not including body): {event['queryStringParameters'].keys()}")
+
+        if any(x for x in list(event["queryStringParameters"].keys()) if x in event): # check to prevent collision with default keys
+            logging.error(f"Key collision of queryStringParameters with default API Gateway keys in standardize_event: {event['queryStringParameters'].keys()}")
+        if event.get("multiValueQueryStringParameters") and any(k for k,v in event["queryStringParameters"].items() if isinstance(v, str) and len(v.split(",")) != len(event["multiValueQueryStringParameters"][k]) and len(event["multiValueQueryStringParameters"][k]) > 1):
+            logging.info({k:v for k,v in event.items() if k in ["queryStringParameters", "multiValueQueryStringParameters", "body", "httpMethod"]}) # throw out other k:vs to prevent logging API key
+            logging.error(f"Key duplicates in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
+        enumerated_querystring_keys = [x for x in list(event["queryStringParameters"].keys()) if isinstance(x, str) and ez_re_find('\[\d\]', x)]
+        if len(enumerated_querystring_keys) > 1:
+            logging.info(f"Found the following enumerated_querystring_keys in standardize_event: {enumerated_querystring_keys}")
+            event["queryStringParameters"] = deal_with_enumerated_querystring_keys(event["queryStringParameters"])
+        if kwargs.get("log_on_querystring_key_contains") and any(x for x in event["queryStringParameters"].keys() if find_substrings_in_string(x, kwargs['log_on_querystring_key_contains'])):
+            logging.error(f"Malformed querystring key in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
+
         event.update(event["queryStringParameters"])
 
     return standardize_dict(event)
+
+
+# WILL order resulting list values by index in brackets UP TO 9 - 10, 11, etc after will go before 2 because its alphabetical. GPT written code.
+def deal_with_enumerated_querystring_keys(qs_dict):
+    result_dict = {}
+    for key in sorted(list(qs_dict.keys())):
+      match = re.search(r"\[(\d+)\]", key) if isinstance(key, str) else False
+      if match:
+        if key[:match.start()] not in result_dict:
+          result_dict[key[:match.start()]] = []
+        result_dict[key[:match.start()]].append(qs_dict[key])
+      else:
+        result_dict[key] = qs_dict[key]
+    return result_dict
 
 
 # Necessary for API Gateway to return
@@ -149,7 +176,7 @@ def standardize_dict(input_dict):
     return {k.title().strip().replace(" ", "_"):(False if is_none(v) else v) for (k, v) in input_dict.items()}
 
 
-# can this be deprecated? TODO
+# can this be deprecated? TODO [ ] refactor 3 more files to ez_split
 def standardize_str_to_list(input_str):
     if isinstance(input_str, list):
         return input_str
@@ -234,6 +261,11 @@ def ez_recursive_get(json_input, lookup_key):
         for item in json_input:
             yield from ez_recursive_get(item, lookup_key)
 
+def ez_index(input_list, key):
+    try:
+        return input_list.index(key)
+    except ValueError:
+        return None
 
 # Convert iterable (list, set, ndarray) to str
 def ez_join(iterable_input, delimiter, **kwargs):
@@ -259,7 +291,7 @@ def ez_split(str_input, delimiter, return_slice, **kwargs):
         return kwargs.get("fallback_value", str_input)
 
     if kwargs.get("case_insensitive"):
-        output_list = re.split(delimiter, str_input, flags=re.IGNORECASE)
+        output_list = re.split(re.escape(delimiter), str_input, flags=re.IGNORECASE)
     else:
         output_list = str_input.split(delimiter)
 
@@ -278,23 +310,36 @@ def ez_coerce_to_int(input, **kwargs):
         return int(input.strip())
     elif isinstance(input, str) and input.strip().replace(".", "", 1).isdigit(): # replace exactly one '.' to allow floats to trigger the .isdigit()
         return int(float(input.strip()))
+    elif isinstance(input, str) and input.strip().replace(",", "").isdigit(): # long ints with commas
+        return int(input.strip().replace(",", ""))
 
     if not kwargs.get("disable_print"):
         logging.warning(f"Unacceptable input fed to ez_coerce_to_int: {input}, of type: {type(input)}")
 
     return None
 
+
+def ez_coerce_to_float(possible_float):
+    try:
+        return float(possible_float)
+    except:
+        return None
+
 # this exists bc there is a max str length for ast.literal_eval, which is unpublished and possibly variable, above which it will crash and throw a SyntaxError
 def ez_ast_eval(input):
     try:
         return ast.literal_eval(input)
     except Exception as e:
-        logging.error(f"Error thrown by ez_ast_eval - {e}")
+        logging.error(f"Error thrown by ez_ast_eval. Input: {input}; error: {e}")
 
 
 
-# there's no re.find. I named this _find because _match makes more semantic sense than _search, but the .search operator is more useful than the .match operator
-# Note: keep in mind 0-indexing when using group=1, etc. group=1 is the second group.
+"""
+Notes:
+    There's no re.find. I named this _find because _match makes more semantic sense than _search, but the .search operator is more useful than the .match operator
+    Keep in mind 0-indexing when using group=1, etc. group=1 is the second group.
+    For non-capturing groups (?:), you MUST use find_all_captured=True or group=int - otherwise it will be captured 
+"""
 def ez_re_find(pattern, text, **kwargs):
     if isinstance(text, list) or isinstance(text, set):
         text = ez_join(text, " ")
@@ -315,7 +360,7 @@ def ez_re_find(pattern, text, **kwargs):
     elif kwargs.get("group") and isinstance(kwargs["group"], int):
         return possible_match.groups()[kwargs["group"]]
     else:
-        return possible_match.group() # if possible_match else ""
+        return possible_match.group()
 
 
 def ez_remove(iterable, to_remove):
@@ -442,6 +487,40 @@ def ordered_dict_first(ordered_dict):
     return next(iter(ordered_dict))
 
 
+# this probably doesn't handle deep nesting well. or dicts of dicts.
+def convert_item_to_xml(key, value, xml):
+    if isinstance(value, list):
+        xml += f"\t\t<{key}>\n"
+        for subvalue in value:
+            xml = convert_item_to_xml("item", subvalue, xml).replace(">\n\t\t<item",">\n\t\t\t<item")
+        xml += f"\t\t</{key}>\n"
+    elif isinstance(value, bool) or (isinstance(value, str) and value.lower() in ["true", "false"]):
+        # xml += f'\t\t<{key} xs:type="xs:boolean">{str(value).lower()}</{key}>\n'
+        xml += f'\t\t<{key}>{str(value).lower()}</{key}>\n'
+    elif isinstance(value, str):
+        xml += f"\t\t<{key}><![CDATA[ {value} ]]></{key}>\n"
+    elif value is None: # kinda arbitrary to make one xs and one xsi but the docs online are super unclear and conflicting
+        # xml += f'\t\t<{key} xsi:nil="true"/>\n'
+        xml += f'\t\t<{key}/>\n'
+    else: # float, int, etc
+        xml += f"\t\t<{key}>{value}</{key}>\n"
+
+    return xml
+
+
+def convert_lod_to_xml(input_lod, item_name, **kwargs):
+    xml = f'<?xml version="1.0" encoding="utf-8"?>\n<{kwargs.get("root_element", "root")}>\n'
+
+    for row in input_lod:
+        xml += "\t<" + item_name + ">\n"
+        for key, value in row.items():
+            xml += convert_item_to_xml(key, value, "")
+        xml += "\t</" + item_name + ">\n"
+
+    xml += f"</{kwargs.get('root_element', 'root')}>\n"
+    return xml
+
+
 # Case sensitive!
 # only replaces last instance of to_replace. e.g. ("foobarbar", "bar", "qux") -> "foobarqux"
 def endswith_replace(text, to_replace, replace_with, **kwargs):
@@ -456,6 +535,7 @@ def endswith_replace(text, to_replace, replace_with, **kwargs):
     return text
 
 
+# NOT recursive
 def startswith_replace(text, to_replace, replace_with, **kwargs):
     if text and isinstance(text, str) and isinstance(to_replace, str) and text.startswith(to_replace):
         return replace_with + text[len(to_replace):]
@@ -584,12 +664,12 @@ Note: this will return false positives for made up TLDs that contain viable TLDs
 ex: '.ae.com' is a true positive TLD, but the made up '.aee.com' is false positive, as it contains '.com'
 This shouldn't be a problem if your data isn't extremely dirty
 """
-def is_url(potential_url_str, **kwargs):
-    if not potential_url_str:
+def is_url(potential_url, **kwargs):
+    if not potential_url:
         return False
 
     tld_list = kwargs.get("tld_list", get_tld_list())
-    if find_substrings_in_string(potential_url_str, tld_list):
+    if find_substrings_in_string(potential_url, tld_list) and potential_url[0] != ".":
         return True
 
     return False
@@ -598,11 +678,14 @@ def is_url(potential_url_str, **kwargs):
 Keep in mind removals will stack - e.g. remove_tld will remove subsite, port, and trailing slash
 for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time and pass it in to save 1ms per
 Known problem: strings like "lunarcovers.co.ukasdfij" will match .co.uk and return as 'lunarcovers.co.uk'
+[ ] maybe should just return url immediately if float or int? TODO
 """
 def format_url(url, **kwargs):
-
     if not url:
         return url
+    if isinstance(url, float) or isinstance(url, int): # certain ip addresses like 223.117 or simply 1.
+        url = str(url)
+
     # if kwargs.get("check_if_ipv4") and is_ipv4(url): # TODO
     #     return url
 
@@ -621,12 +704,12 @@ def format_url(url, **kwargs):
     if kwargs.get("remove_anchor"):
         url = ez_split(url, "#", 0)
     if kwargs.get("remove_subdomain") and url.count(".") > 1:
-        tld = find_url_tld(url, kwargs["remove_subdomain"])
+        tld = find_url_tld(url.strip(), kwargs["remove_subdomain"])
         if not tld:
             return url.strip()
-        subdomain = url.rsplit(tld, 1)[0]   # only split once, on the right most. This is to prevent e.g. the tld '.net' in 'foo.netflix.net' from splitting the '.netflix' too
-        domain = subdomain[subdomain.rfind(".")+1:]
-        url = domain + tld
+        subdomain_slug = url.rsplit(tld, 1)[0]   # only split once, on the right most. This is to prevent e.g. the tld '.net' in 'foo.netflix.net' from splitting the '.netflix' too
+        domain_slug = subdomain_slug[subdomain_slug.rfind(".")+1:]
+        url = domain_slug + tld + url.rsplit(tld, 1)[1]  # last part adds subsite, if any
 
     if kwargs.get("https"):
         url = "https://" + url
@@ -639,7 +722,10 @@ def format_url(url, **kwargs):
     return url.strip().rstrip("\\").strip("/")
 
 
-# feeding in tld_list is a little dated eventually will deprecate TODO
+"""
+[ ] feeding in tld_list is a little dated eventually will deprecate TODO
+A url with >1 matching TLDs - like foo.bar.co.uk containing ".co", ".co.uk", and ".uk" will correctly select ".co.uk"
+"""
 def find_url_tld(url, tld_list, **kwargs):
     if not url:
         return None
@@ -655,9 +741,9 @@ def find_url_tld(url, tld_list, **kwargs):
 
     if len(tld_list) == 1:
         return tld_list[0]
-    elif len(tld_list) > 1: # use regex to find the longest matching substr (tld) that is immediately followed by the end-of-line token
-        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($)"
-        return ez_re_find(pattern, url)
+    elif len(tld_list) > 1: # use regex to find the longest matching substr (tld) that is immediately followed by the end-of-line token OR start-of-querystrings OR backslash for subsite
+        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?|:)"
+        return ez_re_find(pattern, url, group=0).rstrip("/").rstrip("?")
 
     return tld
 
@@ -674,6 +760,16 @@ def get_tld_list():
             return TLD_list
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Make sure your utility submodule folder is called utility. {e}")
+
+
+def ez_add_utms(text, domain, utms):
+
+    def add_utm(match):
+        if "?" not in match.group(0):
+            return match.group(0) + "?" + utms.lstrip("?")
+        return match.group(0) + "&" + utms.lstrip("?")
+
+    return re.sub(domain.replace(".", "\.") + "[^\s<>]*", add_utm, text)
 
 
 ############################################# ~ Datetime/str handling ~ ##########################################################
@@ -707,19 +803,27 @@ def format_timestamp(timestamp, **kwargs):
 
 # Forces conversion to UTC
 """
-    [ ] "Tue, 11 May 2021 16:00:00 YEKT"   # tried "%a, %d %B %Y %H:%M:%S %Z", didnt work
+    currently preferring month-day-year when amibigous - "%Y-%m-%d", "%Y %m %d", '%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%Y/%m/%d', '%m-%d-%Y', '%d-%m-%Y', %m-%d-%y', '%d-%m-%y', '%d-%b-%Y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y'
+    [ ] kwarg for country, where if country = 'US', then month-day-year, else day-month-year?
+
     [ ] "1.1.7"   # unclear if month or day first, waiting for another example
     [ ] "Avril 2016"   # not English, gonna be hard to support
+    [ ] '17 août 2016','31 janv. 2023'
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
-    [ ] 2019-02-19 19:54:49 -0700 MST # MST not supported by %Z
     [ ] 2021-06-17T11:46:24-05 # needs two trailing 0's
     [ ] 2021-02-08T13:49:46.0000000Z # has one too many 0's
-    [ ] Mon, 27 Jan 2020 12:06:30 EET
-    [ ] Fri, 22 Apr 2022 16:38:25 CEST
-    [ ] Thu, 21 Jul 2022 17:40:25 KST
-    [ ] 18.07.2022
+    [ ] 2019-02-19 19:54:49 -0700 MST # MST not supported by %Z
+    [ ] "Tue, 11 May 2021 16:00:00 YEKT"   # tried "%a, %d %B %Y %H:%M:%S %Z", didnt work
+    [ ] 'Fri, 22 Apr 2022 16:38:25 CEST', 'Thu, 21 Jul 2022 17:40:25 KST', 'Mon, 27 Jan 2020 12:06:30 EET'
+    [ ] Feb 8, 2023 (HK Time)
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
+    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", '%d-%b-%Y', '%Y/%m/%d', "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p', '%b-%d-%Y']
+    if kwargs.get("country") and kwargs['country'] != 'United States':
+        LIST_OF_DT_FORMATS[20:20] = ['%d/%m/%Y', '%m/%d/%Y', '%d/%m/%y', '%m/%d/%y', '%d-%m-%Y', '%m-%d-%Y', '%d-%m-%y', '%m-%d-%y', '%d.%m.%Y', '%m.%d.%Y', '%d.%m.%y', '%m.%d.%y'] # 20:20 notion means insert the new list into the existing list, starting at index 20. this slightly speeds up processing of datetime_strs that match those selectors
+    else:
+        LIST_OF_DT_FORMATS[20:20] = ['%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%m-%d-%Y', '%d-%m-%Y', '%m-%d-%y', '%d-%m-%y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y']
+
     if not datetime_str:
         return kwargs.get("null_value", "")
     elif isinstance(datetime_str, int):
@@ -735,16 +839,17 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if len(datetime_str) == 33 and ez_re_find("\.[0-9]{7}\-", datetime_str): # python datetime can't handle 7 decimals in ms in 2021-03-04T13:17:19.5466667-06:00
         datetime_str = datetime_str[:26] + datetime_str[27:]
 
-    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%Y-%m-%d", "%b %d, %Y", "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y", "%Y %m %d", "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", '%m/%d/%Y', '%Y/%m/%d', '%d-%m-%Y']
+    datetime_str = datetime_str.strip().replace("&#43;", "+").replace('CST', '-0600').replace('CDT', '-0500')
+
     for dt_format in LIST_OF_DT_FORMATS:
         try:
-            dt_str = datetime.strptime(datetime_str.strip().replace("&#43;", "+"), dt_format)
+            dt_str = datetime.strptime(datetime_str, dt_format)
             standard_dt_str = datetime.utctimetuple(dt_str) # convert to UTC
             break
         except:
             if dt_format == LIST_OF_DT_FORMATS[-1]: # if none matched
                 logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
-                return kwargs.get("null_value", "") # returns empty str by default
+                return kwargs.get("null_value", "")
 
     try:
         output_dt = datetime.utcfromtimestamp(calendar.timegm(standard_dt_str)) # convert from time.struct_time to datetime.date
@@ -773,9 +878,9 @@ def deduplicate_lod(input_lod, primary_key):
     return list(output_dict.values())
 
 """ 
-    Zip is at the dict level - if only some of the dicts in a lod have a key, 
-        only resultant dicts with one of their primary_keys will have that given k:v pair
-    When both lods have a given (non-primary) key, the lod_2 value is prioritized.
+Zip is at the dict level - if only some of the dicts in a lod have a key, 
+    only resultant dicts with one of their primary_keys will have that given k:v pair
+When both lods have a given (non-primary) key, the lod_2 value is prioritized.
 """
 def zip_lods(lod_1, lod_2, primary_key, **kwargs):
 
@@ -810,11 +915,19 @@ def combine_lods(main_lod, secondary_lod, primary_key):
 
     return list(output_dict.values()) # convert back to LoD
 
-# from here: https://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-whilst-preserving-order
-def deduplicate_ordered_list(seq):
-    seen = set()
-    seen_add = seen.add
-    return [x for x in seq if not (x in seen or seen_add(x))]
+
+# No current uses
+def combine_dicts(secondary_dict, primary_dict, **kwargs):
+    for k,v in secondary_dict.items():
+        if kwargs.get("drop_falsey_values") and not primary_dict.get(k) and v:
+            primary_dict[k] = v
+        elif not kwargs.get("drop_falsey_values") and k not in primary_dict:
+            primary_dict[k] = v
+
+    if kwargs.get("drop_falsey_values"):
+        primary_dict = {k:v for k,v in primary_dict.items() if v}
+
+    return primary_dict
 
 
 def combine_lists_unique_values(*args):
@@ -823,6 +936,25 @@ def combine_lists_unique_values(*args):
         for item in input_list:
             output_set.add(item)
     return list(output_set)
+
+# from here: https://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-whilst-preserving-order
+def deduplicate_ordered_list(seq):
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]
+
+# return max 1 item case-insensitive, but with its original casing. From here: https://stackoverflow.com/questions/48283295/how-to-remove-case-insensitive-duplicates-from-a-list-while-maintaining-the-ori
+def case_insensitive_deduplicate_list(input_list):
+    output_list = []
+    lowercase_set = set()
+
+    for x in input_list:
+        x_low = x.lower()
+        if x_low not in lowercase_set:   # test presence
+            lowercase_set.add(x_low)
+            output_list.append(x)   # preserve order
+
+    return output_list
 
 
 # e.g. checking if any tld exists in a string
@@ -866,10 +998,10 @@ def increment_counter(counter, *args, **kwargs):
 
 
 # From https://stackoverflow.com/questions/1505454/python-json-loads-chokes-on-escapes
-# Python will by default Abort trap: 6 at depth around 1000
+# Python will by default Abort trap: 6 at depth 1000 by default
 def fix_JSON(json_str, **kwargs):
     if kwargs.get("recursion_depth", 0) > kwargs.get("recursion_limit", 500):
-        logging.warning(f"Exceeded recursion depth trap in fix_JSON - {kwargs.get('recursion_limit', 500)}")
+        logging.debug(f"Exceeded recursion depth trap in fix_JSON - {kwargs.get('recursion_limit', 500)}")
         return None
 
     try:
@@ -878,11 +1010,13 @@ def fix_JSON(json_str, **kwargs):
         idx_to_replace = int(str(e).split(' ')[-1].replace(')', ''))  # Find the offending character index
 
         if idx_to_replace > len(json_str)-1:
-            logging.warning(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
+            logging.debug(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
             return None
 
         if kwargs.get("recursion_depth", 0) == 0: # only log the first instance
-            logging.warning(f"Replacing broken character - {kwargs.get('log_on_error')} - {json_str[idx_to_replace]} - {e}")
+            logging.debug(f"Replacing first broken character - {kwargs.get('log_on_error', '')} - {json_str[idx_to_replace]} - {e}")
+            if len(json_str) > idx_to_replace+5 and idx_to_replace-5 > 0:
+                logging.debug(json_str[idx_to_replace-5:idx_to_replace+5])
 
         if "Expecting ',' delimiter:" in str(e) and json_str[idx_to_replace] in ['"', '{', '['] and lookback_check_string_for_substrings(json_str, ['}', ']', '"'], start_index=idx_to_replace):
             json_str = replace_string_char_by_index(json_str, idx_to_replace, ',' + json_str[idx_to_replace]) # input was missing a comma

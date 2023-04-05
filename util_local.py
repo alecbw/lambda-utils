@@ -134,10 +134,7 @@ def open_local_json():
         sys.exit("Make sure you have downloaded the .json private key from the API Console GUI")
     elif len(json_files) > 1:
         sys.exit("There's more than one JSON. Remove one or write a function referencing its name.")
-
     json_file = json_files[0]
-
-    pwd = os.path.dirname(os.path.abspath(__file__))
-
+    pwd = os.path.dirname(os.path.abspath("__file__"))
     with open(pwd + "/" + json_file) as f_in:
         return(json.load(f_in, strict=False))
