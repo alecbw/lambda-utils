@@ -13,7 +13,8 @@ from urllib.parse import parse_qs, unquote
 try:
     import sentry_sdk
     from sentry_sdk.integrations.aws_lambda import AwsLambdaIntegration
-    sentry_kwargs = {"integrations": [AwsLambdaIntegration()]} if os.getenv("_HANDLER") else {}
+    sentry_kwargs = {"ignore_errors": [KeyboardInterrupt]}
+    sentry_kwargs = {**sentry_kwargs, **{"integrations": [AwsLambdaIntegration()]}} if os.getenv("_HANDLER") else sentry_kwargs
     sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], **sentry_kwargs)
 except (ImportError, KeyError) as e:
     logging.warning(f"Sentry did not init: {e}")
@@ -260,6 +261,11 @@ def ez_recursive_get(json_input, lookup_key):
         for item in json_input:
             yield from ez_recursive_get(item, lookup_key)
 
+def ez_index(input_list, key):
+    try:
+        return input_list.index(key)
+    except ValueError:
+        return None
 
 # Convert iterable (list, set, ndarray) to str
 def ez_join(iterable_input, delimiter, **kwargs):
@@ -328,8 +334,12 @@ def ez_ast_eval(input):
 
 
 
-# there's no re.find. I named this _find because _match makes more semantic sense than _search, but the .search operator is more useful than the .match operator
-# Note: keep in mind 0-indexing when using group=1, etc. group=1 is the second group.
+"""
+Notes:
+    There's no re.find. I named this _find because _match makes more semantic sense than _search, but the .search operator is more useful than the .match operator
+    Keep in mind 0-indexing when using group=1, etc. group=1 is the second group.
+    For non-capturing groups (?:), you MUST use find_all_captured=True or group=int - otherwise it will be captured 
+"""
 def ez_re_find(pattern, text, **kwargs):
     if isinstance(text, list) or isinstance(text, set):
         text = ez_join(text, " ")
@@ -350,7 +360,7 @@ def ez_re_find(pattern, text, **kwargs):
     elif kwargs.get("group") and isinstance(kwargs["group"], int):
         return possible_match.groups()[kwargs["group"]]
     else:
-        return possible_match.group() # if possible_match else ""
+        return possible_match.group()
 
 
 def ez_remove(iterable, to_remove):
@@ -475,6 +485,40 @@ def ordered_dict_first(ordered_dict):
     if not ordered_dict:
         return None
     return next(iter(ordered_dict))
+
+
+# this probably doesn't handle deep nesting well. or dicts of dicts.
+def convert_item_to_xml(key, value, xml):
+    if isinstance(value, list):
+        xml += f"\t\t<{key}>\n"
+        for subvalue in value:
+            xml = convert_item_to_xml("item", subvalue, xml).replace(">\n\t\t<item",">\n\t\t\t<item")
+        xml += f"\t\t</{key}>\n"
+    elif isinstance(value, bool) or (isinstance(value, str) and value.lower() in ["true", "false"]):
+        # xml += f'\t\t<{key} xs:type="xs:boolean">{str(value).lower()}</{key}>\n'
+        xml += f'\t\t<{key}>{str(value).lower()}</{key}>\n'
+    elif isinstance(value, str):
+        xml += f"\t\t<{key}><![CDATA[ {value} ]]></{key}>\n"
+    elif value is None: # kinda arbitrary to make one xs and one xsi but the docs online are super unclear and conflicting
+        # xml += f'\t\t<{key} xsi:nil="true"/>\n'
+        xml += f'\t\t<{key}/>\n'
+    else: # float, int, etc
+        xml += f"\t\t<{key}>{value}</{key}>\n"
+
+    return xml
+
+
+def convert_lod_to_xml(input_lod, item_name, **kwargs):
+    xml = f'<?xml version="1.0" encoding="utf-8"?>\n<{kwargs.get("root_element", "root")}>\n'
+
+    for row in input_lod:
+        xml += "\t<" + item_name + ">\n"
+        for key, value in row.items():
+            xml += convert_item_to_xml(key, value, "")
+        xml += "\t</" + item_name + ">\n"
+
+    xml += f"</{kwargs.get('root_element', 'root')}>\n"
+    return xml
 
 
 # Case sensitive!
@@ -698,7 +742,7 @@ def find_url_tld(url, tld_list, **kwargs):
     if len(tld_list) == 1:
         return tld_list[0]
     elif len(tld_list) > 1: # use regex to find the longest matching substr (tld) that is immediately followed by the end-of-line token OR start-of-querystrings OR backslash for subsite
-        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?)"
+        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?|:)"
         return ez_re_find(pattern, url, group=0).rstrip("/").rstrip("?")
 
     return tld
@@ -759,20 +803,30 @@ def format_timestamp(timestamp, **kwargs):
 
 # Forces conversion to UTC
 """
+    currently preferring month-day-year when amibigous - "%Y-%m-%d", "%Y %m %d", '%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%Y/%m/%d', '%m-%d-%Y', '%d-%m-%Y', %m-%d-%y', '%d-%m-%y', '%d-%b-%Y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y'
+    [ ] kwarg for country, where if country = 'US', then month-day-year, else day-month-year?
+
     [ ] "1.1.7"   # unclear if month or day first, waiting for another example
-    [ ] 18.07.2022
-    [ ] 26/05/2022, 22/08/2020, 17/07/2022, 15/09/2022
     [ ] "Avril 2016"   # not English, gonna be hard to support
+    [ ] '17 août 2016','31 janv. 2023'
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
     [ ] 2021-06-17T11:46:24-05 # needs two trailing 0's
     [ ] 2021-02-08T13:49:46.0000000Z # has one too many 0's
     [ ] 2019-02-19 19:54:49 -0700 MST # MST not supported by %Z
-    [ ] "Tue, 11 May 2021 16:00:00 YEKT"   # tried "%a, %d %B %Y %H:%M:%S %Z", didnt work
-    [ ] 'Fri, 22 Apr 2022 16:38:25 CEST', 'Thu, 21 Jul 2022 17:40:25 KST', 'Mon, 27 Jan 2020 12:06:30 EET'
-    [ ] Fri Jan 14 00:00:00 CST 2022 - should be '%a %d %b %H:%M:%S %Z %Y', not clera why not working
-    [ ] 'Thu Sep 22 00:00:00 CDT 2022' 
+    [ ] Feb 8, 2023 (HK Time)
+    [ ] 2022-09-12T00:21:48.0000000+00:00
+    [ ] 06-06-2022, 9:46:57 AM
+    [ ] 02/16/2023 01:15 PM
+    [ ] does this handle daylight savings? TODO
+    [ ] '23 april 2023', '3 december 2018' case sensitivity 
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
+    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", '%d-%b-%Y', '%Y/%m/%d', "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y']
+    if kwargs.get("country") and kwargs['country'] != 'United States':
+        LIST_OF_DT_FORMATS[20:20] = ['%d/%m/%Y', '%m/%d/%Y', '%d/%m/%y', '%m/%d/%y', '%d-%m-%Y', '%m-%d-%Y', '%d-%m-%y', '%m-%d-%y', '%d.%m.%Y', '%m.%d.%Y', '%d.%m.%y', '%m.%d.%y', '%d/%m/%Y, %H:%M', '%m/%d/%Y, %H:%M'] # 20:20 notion means insert the new list into the existing list, starting at index 20. this slightly speeds up processing of datetime_strs that match those selectors
+    else: 
+        LIST_OF_DT_FORMATS[20:20] = ['%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%m-%d-%Y', '%d-%m-%Y', '%m-%d-%y', '%d-%m-%y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y', '%m/%d/%Y, %H:%M', '%d/%m/%Y, %H:%M']
+
     if not datetime_str:
         return kwargs.get("null_value", "")
     elif isinstance(datetime_str, int):
@@ -788,11 +842,11 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
     if len(datetime_str) == 33 and ez_re_find("\.[0-9]{7}\-", datetime_str): # python datetime can't handle 7 decimals in ms in 2021-03-04T13:17:19.5466667-06:00
         datetime_str = datetime_str[:26] + datetime_str[27:]
 
-    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%Y-%m-%d", "%b %d, %Y", "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y", "%Y %m %d", "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", '%m/%d/%Y', '%Y/%m/%d', '%d-%m-%Y', '%d-%b-%Y', '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y']
+    datetime_str = datetime_str.strip().replace("&#43;", "+").replace('PST', '-0800').replace('MST', '-0700').replace('CST', '-0600').replace('CDT', '-0500').replace('EST', '-0500').replace('CEST', '+0200').replace('EET', '+0200').replace('YEKT', '+0500').replace('KST', "+0900")
+
     for dt_format in LIST_OF_DT_FORMATS:
         try:
-            datetime_str = datetime_str.replace('CST', '-0600')
-            dt_str = datetime.strptime(datetime_str.strip().replace("&#43;", "+"), dt_format)
+            dt_str = datetime.strptime(datetime_str, dt_format)
             standard_dt_str = datetime.utctimetuple(dt_str) # convert to UTC
             break
         except:
@@ -927,6 +981,21 @@ def is_in_list_insensitive(value, list_to_check, **kwargs):
     return any(val for val in list_to_check if val.lower().strip() == value.lower().strip())
 
 
+def insensitive_get_matches_from_list(candidates, list_or_dict_to_check):
+    candidates = [candidates] if isinstance(candidates, str) else candidates
+
+    match_list = []    
+    for candidate in candidates:
+        if isinstance(list_or_dict_to_check, list):
+            match = next((x for x in list_or_dict_to_check if x.lower() == candidate.lower()), None)
+        elif isinstance(list_or_dict_to_check, dict):
+            match = next((k for k in list_or_dict_to_check.keys() if k.lower() == candidate.lower()), None)
+        
+        if match:
+            match_list.append(match)
+    
+    return match_list
+
 # i.e. split a list of len n into x smaller lists of len (n/x)
 def split_list_to_fixed_length_lol(full_list, subsection_size):
     if not len(full_list) > subsection_size:
@@ -950,7 +1019,7 @@ def increment_counter(counter, *args, **kwargs):
 # Python will by default Abort trap: 6 at depth 1000 by default
 def fix_JSON(json_str, **kwargs):
     if kwargs.get("recursion_depth", 0) > kwargs.get("recursion_limit", 500):
-        logging.warning(f"Exceeded recursion depth trap in fix_JSON - {kwargs.get('recursion_limit', 500)}")
+        logging.debug(f"Exceeded recursion depth trap in fix_JSON - {kwargs.get('recursion_limit', 500)}")
         return None
 
     try:
@@ -959,13 +1028,13 @@ def fix_JSON(json_str, **kwargs):
         idx_to_replace = int(str(e).split(' ')[-1].replace(')', ''))  # Find the offending character index
 
         if idx_to_replace > len(json_str)-1:
-            logging.warning(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
+            logging.debug(f"Broke the json_str in trying to fix it - index {idx_to_replace} - str: {json_str}")
             return None
 
         if kwargs.get("recursion_depth", 0) == 0: # only log the first instance
-            logging.warning(f"Replacing first broken character - {kwargs.get('log_on_error', '')} - {json_str[idx_to_replace]} - {e}")
+            logging.debug(f"Replacing first broken character - {kwargs.get('log_on_error', '')} - {json_str[idx_to_replace]} - {e}")
             if len(json_str) > idx_to_replace+5 and idx_to_replace-5 > 0:
-                logging.info(json_str[idx_to_replace-5:idx_to_replace+5])
+                logging.debug(json_str[idx_to_replace-5:idx_to_replace+5])
 
         if "Expecting ',' delimiter:" in str(e) and json_str[idx_to_replace] in ['"', '{', '['] and lookback_check_string_for_substrings(json_str, ['}', ']', '"'], start_index=idx_to_replace):
             json_str = replace_string_char_by_index(json_str, idx_to_replace, ',' + json_str[idx_to_replace]) # input was missing a comma

@@ -1,4 +1,4 @@
-from utility.util import is_none, ez_try_and_get, ez_get, ez_split, startswith_replace
+from utility.util import is_none, ez_try_and_get, ez_get, ez_split, startswith_replace, convert_lod_to_xml
 
 import sys
 import os
@@ -18,8 +18,13 @@ import timeit
 import ast
 from pprint import pprint
 from io import StringIO
-from typing import Callable, Iterator, Union, Optional, List
+from typing import List # Callable, Iterator, Union, Optional,
 from collections import defaultdict
+# from cryptography.hazmat.backends import default_backend
+# from cryptography.hazmat.primitives import hashes
+# from cryptography.hazmat.primitives import serialization
+# from cryptography.hazmat.primitives.asymmetric import padding
+# from botocore.signers import CloudFrontSigner
 
 import boto3
 from botocore.exceptions import ClientError
@@ -350,7 +355,11 @@ def batch_write_dynamodb_items(lod_to_write, table, **kwargs):
                         Item=standard_item,
                     )
                 except Exception as e:
-                    logging.error(f"{e} -- {standard_item}")
+                    if "ProvisionedThroughputExceededException" in str(e):
+                        logging.error(f"ProvisionedThroughputExceededException - {table}")
+                        sleep(0.1)
+                    else:
+                        logging.error(f"{e} -- {standard_item}")
 
     # print(f'{batch.consumed_wcu}')
     # print(f'Response of actual batch write request: {batch.responses}')
@@ -663,6 +672,8 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
             dict_writer.writeheader()
             dict_writer.writerows(file_data)
         file_to_write = open(f'/tmp/{filename}.txt', 'rb')
+    elif file_type == "xml":
+        file_to_write = convert_lod_to_xml(file_data, kwargs.pop("item_name", "dict"), **kwargs)
 
     if not filename.endswith(f".{file_type}"):
         filename = filename + f".{file_type}"
@@ -738,6 +749,13 @@ def delete_s3_file(bucket_name, filename, **kwargs):
         return e
 
 
+# TODO - generalize this more
+def delete_delete_marker(bucket, object_id, all_del_markers, **kwargs):
+    print(object_id)
+    object_to_restore = bucket.Object(object_id)
+    object_to_restore.delete(VersionId=all_del_markers[object_id])
+
+
 def remove_s3_file_and_delete_marker(bucket, del_item, to_delete_dol, all_del_markers, **kwargs):
     if not kwargs.get("disable_print"):
         logging.info(f'Deleting {del_item}')
@@ -790,6 +808,45 @@ def remove_s3_files_with_delete_markers(bucket_name, path, **kwargs):
     else:
         for del_item in to_delete_dol:
             remove_s3_file_and_delete_marker(bucket, del_item, to_delete_dol, all_del_markers, **kwargs)
+
+
+
+def restore_s3_files_from_delete_markers(bucket_name, path, **kwargs):
+    to_restore_dol = defaultdict(list)
+    all_del_markers = {}
+
+    bucket_name = startswith_replace(bucket_name, "s3://", "")
+    bucket = boto3.resource('s3').Bucket(bucket_name)
+    paginator = boto3.client('s3').get_paginator('list_object_versions')
+    pages = paginator.paginate(Bucket=bucket_name, Prefix=path.lstrip("/")) # , MaxKeys=kwargs.get("file_limit", None))
+
+    for page in pages:
+        if not page.get('DeleteMarkers'):
+            continue
+
+        # Get all delete markers where the *marker* is the latest version, i.e. is marked for deletion
+        del_markers = {item['Key']: item['VersionId'] for item in page['DeleteMarkers'] if item['IsLatest'] == True}
+        all_del_markers = {**all_del_markers, **del_markers}
+
+        # Get all version IDs for all objects that have eligible delete markers
+        for item in page.get('Versions', []):
+            if item['Key'] in del_markers.keys():
+                to_restore_dol[item['Key']].append(item['VersionId'])
+
+    if kwargs.get("preview"):
+        logging.info("NOTE: Just listing entries, not deleting.")
+        [logging.info(f"{k} - {v}") for k,v in to_restore_dol.items()]
+        return
+
+    # Remove delete markers by the marker's VersionId
+    if kwargs.get('use_threads'):
+        # http = urllib3.PoolManager(maxsize=kwargs['use_threads']+1, block=True) # TODO - worth implementing?
+        with concurrent.futures.ThreadPoolExecutor(kwargs['use_threads']) as executor:
+            for object_id in to_restore_dol:
+                executor.submit(delete_delete_marker, *[bucket, object_id, all_del_markers])
+    else:
+        for object_id in to_restore_dol:
+            delete_delete_marker(bucket, object_id, all_del_markers)
 
 
 # http://ls.pwd.io/2013/06/parallel-s3-uploads-using-boto-and-threads-in-python/
@@ -878,6 +935,7 @@ def generate_s3_presigned_url(bucket_name, file_name, **kwargs):
         ExpiresIn=kwargs.get("TTL", 60*60*24) # one day
     )
     return url
+
 
 
 ###################### ~ SQS Specific ~ ###################################################
@@ -1359,6 +1417,7 @@ def get_ssm_param(param_name, **kwargs):
             logging.error(e)
 
 
+# BeginsWith will sometimes just not work for reasons I do not understand - TODO
 def search_ssm_params(param_phrase, **kwargs):
     result = boto3.client('ssm').describe_parameters(
         ParameterFilters=[{
@@ -1367,8 +1426,9 @@ def search_ssm_params(param_phrase, **kwargs):
             'Values': [param_phrase],
         }]
     )
-    logging.info(f"There were {len(result.get('Parameters'))} SSM Params found")
+    logging.info(f"There were {len(result.get('Parameters'))} SSM Params found with value {param_phrase}")
     return result.get('Parameters')
+
 
 """
 SSM's Accepted kwargs: 
