@@ -466,7 +466,7 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
     elif kwargs.get("get_onclick"):
         data = [x.get("onclick").strip() if x.get("onclick") else null_value for x in html_tags]
     elif kwargs.get("get_background_image_url"):
-        data = [ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', x.get('style'), group=1) if x.get('style') else null_value for x in html_tags]
+        data = [ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', x.get('style'), group=1).strip('"').strip("'") if x.get('style') else null_value for x in html_tags]
     elif html_type == "meta" and html_tags:
         data = [extract_stripped_string(x.get("content", null_value), null_value=null_value) for x in html_tags]
     else:
@@ -507,7 +507,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             return null_value
 
         # for nesting into child components. Ex: ["a", "p", "time"]
-        for key in kwargs.get("children", []):
+        for key in kwargs.get("children", []): # you can use e.g. children=['parent']
             html_tag = getattr(html_tag, key) if getattr(html_tag, key) else html_tag
 
 
@@ -527,7 +527,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         elif kwargs.get("get_onclick"):
             return html_tag.get("onclick").strip() if html_tag.get("onclick") else null_value
         elif kwargs.get("get_background_image_url"):
-            return ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', html_tag.get('style'), group=1) if html_tag.get('style') else null_value
+            return ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', html_tag.get('style'), group=1).strip('"').strip("'") if html_tag.get('style') else null_value
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
         else:
