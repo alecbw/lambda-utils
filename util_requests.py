@@ -333,7 +333,7 @@ def ez_strip_str(input_str, **kwargs):
     #     input_str = input_str.encode().decode('unicode-escape')
 
 
-    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(r"\u0027", "'").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#39;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").replace('%26', '&').strip()
+    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(r"\u0027", "'").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#39;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").replace('%26', '&').replace('\u200b', '').strip()
 
 
 # TODO replace dumbass implementation of replacing newline chars
@@ -451,7 +451,8 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
     if not html_tags:
         return null_value
 
-    # TODO - children support?
+    for key in kwargs.get("children", []): # you can use e.g. children=['parent']
+        html_tags = [getattr(x, key) if getattr(x, key) else html_tag for x in html_tags]
 
     if kwargs.get("get_link"):
         data = [x.get("href").strip() if x.get("href") else (x.a.get("href", "").strip() if x.a else "") for x in html_tags]
