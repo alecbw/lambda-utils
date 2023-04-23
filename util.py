@@ -301,20 +301,20 @@ def ez_split(str_input, delimiter, return_slice, **kwargs):
         return [x.strip() for x in output_list]
 
 
-def ez_coerce_to_int(input, **kwargs):
-    if isinstance(input, int):
-        return input
-    elif isinstance(input, float): # keep in mind it will round down (e.g. 5.3 -> 5)
-        return int(input)
-    elif isinstance(input, str) and input.strip().isdigit():
-        return int(input.strip())
-    elif isinstance(input, str) and input.strip().replace(".", "", 1).isdigit(): # replace exactly one '.' to allow floats to trigger the .isdigit()
-        return int(float(input.strip()))
-    elif isinstance(input, str) and input.strip().replace(",", "").isdigit(): # long ints with commas
-        return int(input.strip().replace(",", ""))
+def ez_coerce_to_int(input_var, **kwargs):
+    if isinstance(input_var, int):
+        return input_var
+    elif isinstance(input_var, float): # keep in mind it will round down (e.g. 5.3 -> 5)
+        return int(input_var)
+    elif isinstance(input_var, str) and input_var.strip().isdigit():
+        return int(input_var.strip())
+    elif isinstance(input_var, str) and input_var.strip().replace(".", "", 1).isdigit(): # replace exactly one '.' to allow floats to trigger the .isdigit()
+        return int(float(input_var.strip()))
+    elif isinstance(input_var, str) and input_var.strip().replace(",", "").isdigit(): # long ints with commas
+        return int(input_var.strip().replace(",", ""))
 
-    if not kwargs.get("disable_print"):
-        logging.warning(f"Unacceptable input fed to ez_coerce_to_int: {input}, of type: {type(input)}")
+    if not kwargs.get("disable_print") and input_var:
+        logging.warning(f"Unacceptable input_var fed to ez_coerce_to_int: {input_var}, of type: {type(input)}")
 
     return None
 
@@ -769,7 +769,7 @@ def ez_add_utms(text, domain, utms):
             return match.group(0) + "?" + utms.lstrip("?")
         return match.group(0) + "&" + utms.lstrip("?")
 
-    return re.sub(domain.replace(".", "\.") + "[^\s<>]*", add_utm, text)
+    return re.sub(domain.replace(".", "\.") + "[^\?\s\<\>]*", add_utm, text)
 
 
 ############################################# ~ Datetime/str handling ~ ##########################################################
