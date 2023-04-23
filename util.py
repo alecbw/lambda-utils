@@ -769,7 +769,8 @@ def ez_add_utms(text, domain, utms):
             return match.group(0) + "?" + utms.lstrip("?")
         return match.group(0) + "&" + utms.lstrip("?")
 
-    return re.sub(domain.replace(".", "\.") + "[^\?\s\<\>]*", add_utm, text)
+    # finds every url incl querystrings with the domain specificied and appends the new UTMs
+    return re.sub(domain.replace(".", "\.") + "[^\"\s\<\>]*", add_utm, text)
 
 
 ############################################# ~ Datetime/str handling ~ ##########################################################
