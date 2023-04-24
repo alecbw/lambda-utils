@@ -452,7 +452,7 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
         return null_value
 
     for key in kwargs.get("children", []): # you can use e.g. children=['parent']
-        html_tags = [getattr(x, key) if getattr(x, key) else html_tag for x in html_tags]
+        html_tags = [getattr(x, key) if getattr(x, key) else x for x in html_tags]
 
     if kwargs.get("get_link"):
         data = [x.get("href").strip() if x.get("href") else (x.a.get("href", "").strip() if x.a else "") for x in html_tags]
