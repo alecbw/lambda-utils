@@ -462,6 +462,8 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
         data = [x.get("title").strip() if x.get("title") else null_value for x in html_tags]
     elif kwargs.get("get_alt"):
         data = [x.get("alt").strip() if x.get("alt") else null_value for x in html_tags]
+    elif kwargs.get("get_string"):
+        data = [x.string.strip() if x.string else null_value for x in html_tags]
     elif kwargs.get("get_value"):
         data = [x.get("value").strip() if x.get("value") else null_value for x in html_tags]
     elif kwargs.get("get_onclick"):
@@ -523,6 +525,8 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             return html_tag.get("title").strip() if html_tag.get("title") else null_value
         elif kwargs.get("get_alt"):
             return html_tag.get("alt").strip() if html_tag.get("alt") else null_value
+        elif kwargs.get("get_string"):
+            return html_tag.string.strip() if html_tag.string else null_value
         elif kwargs.get("get_value"):
             return html_tag.get("value").strip() if html_tag.get("value") else null_value
         elif kwargs.get("get_onclick"):
