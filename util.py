@@ -321,6 +321,7 @@ def ez_coerce_to_int(input_var, **kwargs):
 
 def ez_coerce_to_float(possible_float):
     try:
+        possible_float = possible_float.replace(',', '') if possible_float and isinstance(possible_float, str) and not ez_re_find(',\d{2}$', possible_float) else possible_float # Avoids potential problem - way europeans handle decimals ('500,00') being passed in and interpreted as 50_000
         return float(possible_float)
     except:
         return None
@@ -663,13 +664,15 @@ def get_ip_address_type(potential_ip_str):
 Note: this will return false positives for made up TLDs that contain viable TLDs
 ex: '.ae.com' is a true positive TLD, but the made up '.aee.com' is false positive, as it contains '.com'
 This shouldn't be a problem if your data isn't extremely dirty
+
+
 """
 def is_url(potential_url, **kwargs):
     if not potential_url:
         return False
 
-    tld_list = kwargs.get("tld_list", get_tld_list())
-    if find_substrings_in_string(potential_url, tld_list) and potential_url[0] != ".":
+    matched_tlds = find_substrings_in_string(potential_url, kwargs.get("tld_list", get_tld_list())) #and potential_url[0] != "."
+    if ez_re_find("(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?|:|#)", potential_url, group=0):
         return True
 
     return False
@@ -742,7 +745,7 @@ def find_url_tld(url, tld_list, **kwargs):
     if len(tld_list) == 1:
         return tld_list[0]
     elif len(tld_list) > 1: # use regex to find the longest matching substr (tld) that is immediately followed by the end-of-line token OR start-of-querystrings OR backslash for subsite
-        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?|:)"
+        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?|:|#)"
         return ez_re_find(pattern, url, group=0).rstrip("/").rstrip("?")
 
     return tld
@@ -821,10 +824,13 @@ def format_timestamp(timestamp, **kwargs):
     [ ] does this handle daylight savings? TODO
     [ ] '23 april 2023', '3 december 2018' case sensitivity 
     [ ] 'Mon, 27 Feb 2023 00:00:00 EST' - EST will be converted
+    [ ] 'Mon, 15 Mar 2021 00:00:00 EDT'
     [ ] 'Wednesday, 29 Mar 2023'
     [ ] 'Monday 17 April, 2023 11:55 PM'
     [ ] 'Apr 12, 2023 01:00 PM'
     [ ] 'Apr 24 2023 11:55 PM'
+    [ ] '16/May/23, 5:59:00 PM'
+    [ ] '02 May 2023 00:00:00 EDT'
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", '%d-%b-%Y', '%Y/%m/%d', "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y']
