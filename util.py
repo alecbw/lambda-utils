@@ -816,6 +816,8 @@ def format_timestamp(timestamp, **kwargs):
     [ ] '16-5 月-2023' - has weird-ass selector
     [ ] '12-май-2023', '26 maj 2023', '21-фев-2023', '31-авг-2022', '05-Nis-2023', '27-Lut-2023', '06-апр-2023', '20-Dic-2022', '22-Ene-2021' - juts need locale
     [ ] '18- Apr-2023' - dumbass internal space
+    [ ] '27. syyskuuta 2022'
+    [ ] '12 januari 2023'
 
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
     [ ] 2021-06-17T11:46:24-05 # needs two trailing 0's
@@ -823,9 +825,8 @@ def format_timestamp(timestamp, **kwargs):
     [ ] 2019-02-19 19:54:49 -0700 MST # MST not supported by %Z
     [ ] Feb 8, 2023 (HK Time)
     [ ] '2022-09-12T00:21:48.0000000+00:00', '2022-09-12T00:21:48.0000000+00:00'
-    [ ] '2023a4m24j'
-
-
+    [ ] '2023a4m24j', '2023a1m23j'
+    [ ] 'Feb 4, 2024 11:55'
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
     LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", '%d-%b-%Y', '%Y/%m/%d', "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y']
@@ -834,9 +835,9 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
     locale.setlocale(locale.LC_TIME, "")
 
     if kwargs.get("country") and kwargs['country'] != 'United States':
-        LIST_OF_DT_FORMATS[20:20] = ['%d/%m/%Y', '%m/%d/%Y', '%d/%m/%y', '%m/%d/%y', '%d-%m-%Y', '%m-%d-%Y', '%d-%m-%y', '%m-%d-%y', '%d.%m.%Y', '%m.%d.%Y', '%d.%m.%y', '%m.%d.%y', '%d/%m/%Y, %H:%M', '%m/%d/%Y, %H:%M', '(%d/%m/%Y)', '(%m/%d/%Y)', '%d/%m/%Y %I:%M %p', '%m/%d/%Y %I:%M %p', '%d-%m-%Y, %I:%M:%S %p', '%m-%d-%Y, %I:%M:%S %p'] # 20:20 notion means insert the new list into the existing list, starting at index 20. this slightly speeds up processing of datetime_strs that match those selectors
+        LIST_OF_DT_FORMATS[20:20] = ['%d/%m/%Y', '%m/%d/%Y', '%d/%m/%y', '%m/%d/%y', '%d-%m-%Y', '%m-%d-%Y', '%d-%m-%y', '%m-%d-%y', '%d.%m.%Y', '%m.%d.%Y', '%d.%m.%y', '%m.%d.%y', '%d/%m/%Y, %H:%M', '%m/%d/%Y, %H:%M', '(%d/%m/%Y)', '(%m/%d/%Y)', '%d/%m/%Y %I:%M %p', '%m/%d/%Y %I:%M %p', '%d-%m-%Y, %I:%M:%S %p', '%m-%d-%Y, %I:%M:%S %p', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%fZ'] # 20:20 notion means insert the new list into the existing list, starting at index 20. this slightly speeds up processing of datetime_strs that match those selectors
     else: 
-        LIST_OF_DT_FORMATS[20:20] = ['%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%m-%d-%Y', '%d-%m-%Y', '%m-%d-%y', '%d-%m-%y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y', '%m/%d/%Y, %H:%M', '%d/%m/%Y, %H:%M', '(%m/%d/%Y)', '(%d/%m/%Y)', '%m/%d/%Y %I:%M %p', '%d/%m/%Y %I:%M %p', '%m-%d-%Y, %I:%M:%S %p', '%d-%m-%Y, %I:%M:%S %p']
+        LIST_OF_DT_FORMATS[20:20] = ['%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%m-%d-%Y', '%d-%m-%Y', '%m-%d-%y', '%d-%m-%y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y', '%m/%d/%Y, %H:%M', '%d/%m/%Y, %H:%M', '(%m/%d/%Y)', '(%d/%m/%Y)', '%m/%d/%Y %I:%M %p', '%d/%m/%Y %I:%M %p', '%m-%d-%Y, %I:%M:%S %p', '%d-%m-%Y, %I:%M:%S %p', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%mT%H:%M:%S.%fZ'] 
 
     if not datetime_str:
         return kwargs.get("null_value", "")
@@ -852,6 +853,8 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
 
     if len(datetime_str) == 33 and ez_re_find("\.[0-9]{7}\-", datetime_str): # python datetime can't handle 7 decimals in ms in 2021-03-04T13:17:19.5466667-06:00
         datetime_str = datetime_str[:26] + datetime_str[27:]
+    elif len(datetime_str) == 27 and ez_re_find("\.[0-9]{7}$", datetime_str): # python datetime can't handle 7 decimals in ms in 2023-05-25T17:15:00.3686477
+        datetime_str = datetime_str[:26]
 
     datetime_str = datetime_str.strip().replace("&#43;", "+").replace('PST', '-0800').replace('MST', '-0700').replace('CST', '-0600').replace('CDT', '-0500').replace('EDT', '-0400').replace('EST', '-0500').replace('CEST', '+0200').replace('EET', '+0200').replace('YEKT', '+0500').replace('KST', "+0900")
 
@@ -861,7 +864,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
             standard_dt_str = datetime.utctimetuple(dt_str) # convert to UTC
             break
         except:
-            if dt_format == LIST_OF_DT_FORMATS[-1] and len(datetime_str) not in [11, 12]: # if none matched
+            if dt_format == LIST_OF_DT_FORMATS[-1] and len(datetime_str) not in [10, 11, 12]: # if none matched
                 logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
                 return kwargs.get("null_value", "")
             elif dt_format == LIST_OF_DT_FORMATS[-1]:
