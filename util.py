@@ -27,6 +27,7 @@ logger.setLevel(logging.INFO)
 
 TLD_list = None # setting up a global for caching IO of get_tld_list()
 
+
 # Allows enforcing of querystrings' presence
 def validate_params(event, required_params, **kwargs):
     event = standardize_event(event, **kwargs)
@@ -806,6 +807,7 @@ def format_timestamp(timestamp, **kwargs):
 
 # Forces conversion to UTC
 """
+    Note: there is no general way to capture ordinal (1st, 2nd), so this must be 4 selectors - '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y'
     currently preferring month-day-year when amibigous - "%Y-%m-%d", "%Y %m %d", '%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%Y/%m/%d', '%m-%d-%Y', '%d-%m-%Y', %m-%d-%y', '%d-%m-%y', '%d-%b-%Y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y'
     [ ] does this handle daylight savings? TODO
 
@@ -821,15 +823,14 @@ def format_timestamp(timestamp, **kwargs):
 
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
     [ ] 2021-06-17T11:46:24-05 # needs two trailing 0's
-    [ ] 2021-02-08T13:49:46.0000000Z # has one too many 0's
     [ ] 2019-02-19 19:54:49 -0700 MST # MST not supported by %Z
     [ ] Feb 8, 2023 (HK Time)
     [ ] '2022-09-12T00:21:48.0000000+00:00', '2022-09-12T00:21:48.0000000+00:00'
     [ ] '2023a4m24j', '2023a1m23j'
-    [ ] 'Feb 4, 2024 11:55'
+    [ ] dumb af, not going to add - '06 Jun 2023 2023 (4:55)'
 """
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
-    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", '%d-%b-%Y', '%Y/%m/%d', "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y']
+    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", '%d-%b-%Y', '%Y/%m/%d', "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y', '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y', '%d %B %Y (%I:%M %p)', '%b %d, %Y %H:%M']
     LIST_OF_LOCALE_FORMATS = ['fr_FR', 'de_DE', 'it_IT', 'pl_PL', 'hr_HR'] # 'zh_CN',
     LIST_OF_LOCALE_DT_FORMATS = ['%d-%B-%Y', '%d-%b-%Y', '%d %B %Y', '%d %b %Y']
     locale.setlocale(locale.LC_TIME, "")
@@ -855,6 +856,8 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
         datetime_str = datetime_str[:26] + datetime_str[27:]
     elif len(datetime_str) == 27 and ez_re_find("\.[0-9]{7}$", datetime_str): # python datetime can't handle 7 decimals in ms in 2023-05-25T17:15:00.3686477
         datetime_str = datetime_str[:26]
+    elif len(datetime_str) == 28 and ez_re_find("\.[0-9]{7}Z$", datetime_str): # python datetime can't handle 7 decimals in ms in 2023-05-25T17:15:00.3686477
+        datetime_str = datetime_str[:26] + datetime_str[27:]
 
     datetime_str = datetime_str.strip().replace("&#43;", "+").replace('PST', '-0800').replace('MST', '-0700').replace('CST', '-0600').replace('CDT', '-0500').replace('EDT', '-0400').replace('EST', '-0500').replace('CEST', '+0200').replace('EET', '+0200').replace('YEKT', '+0500').replace('KST', "+0900")
 
