@@ -817,20 +817,25 @@ def format_timestamp(timestamp, **kwargs):
         [ ] '27. syyskuuta 2022' - 'fi_FI', 18 len
         [ ] '26 maj 2023', - 'sv_SE'
         [ ] '05-Nis-2023' - 'tr_TR'
-        [ ] '16-5 月-2023' - has weird-ass selector. chinese?
+        [ ] '19-Haz-2023' - ?
+        [ ] '21-Jún-2023' - ?
+        [ ] '16-5 月-2023' - has weird selector. chinese?
         [ ] '31 janv. 2023' - must be some other locale? won't work with 'fr_FR' even though it should
     
     [ ] 'Sept. 28, 2022' - the 't' in 'Sept' rather than 'Sep' makes it not match
 
-    [ ] '18- Apr-2023' - dumbass internal space
+    [ ] '12.Jul.23, 11:59:00 PM'
+    [ ] 'Dec 22, 2022 (1:00 PM)'
 
+    [ ] 'May 5 2023 09:00'
+    [ ] '2020-05-23 20:33'
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
     [ ] 2021-06-17T11:46:24-05 # needs two trailing 0's
     [ ] 2019-02-19 19:54:49 -0700 MST # MST not supported by %Z
     [ ] Feb 8, 2023 (HK Time)
     [ ] '2022-09-12T00:21:48.0000000+00:00', '2022-09-12T00:21:48.0000000+00:00'
-    [ ] '2023a4m24j', '2023a1m23j'
-    [ ] dumb af, not going to add - '06 Jun 2023 2023 (4:55)'
+    [ ] '2023a4m24j', '2023a1m23j', 2023a4m24d
+    [ ] dumb af, not going to add - '06 Jun 2023 2023 (4:55)', '18- Apr-2023' - dumbass internal space
 """
 def standardize_dt_str_to_utc(standard_dt_str, **kwargs):
     try:
@@ -882,19 +887,23 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
                 logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
                 return kwargs.get("null_value", "")
             elif dt_format == LIST_OF_DT_FORMATS[-1]:
-                for dt_locale in LIST_OF_LOCALE_FORMATS:
-                    locale.setlocale(locale.LC_TIME, dt_locale)
-                    for dt_format in LIST_OF_LOCALE_DT_FORMATS:
-                        try:
-                            dt_str = datetime.strptime(datetime_str, dt_format)
-                            standard_dt_str = datetime.utctimetuple(dt_str) # convert to UTC
-                            locale.setlocale(locale.LC_TIME, "")
-                            return standardize_dt_str_to_utc(standard_dt_str, **kwargs)
-                        except:
-                            if dt_format == LIST_OF_LOCALE_DT_FORMATS[-1] and dt_locale == LIST_OF_LOCALE_FORMATS[-1]: # if none matched
+                try:
+                    for dt_locale in LIST_OF_LOCALE_FORMATS:
+                        locale.setlocale(locale.LC_TIME, dt_locale)
+                        for dt_format in LIST_OF_LOCALE_DT_FORMATS:
+                            try:
+                                dt_str = datetime.strptime(datetime_str, dt_format)
+                                standard_dt_str = datetime.utctimetuple(dt_str) # convert to UTC
                                 locale.setlocale(locale.LC_TIME, "")
-                                logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
-                                return kwargs.get("null_value", "")
+                                return standardize_dt_str_to_utc(standard_dt_str, **kwargs)
+                            except:
+                                if dt_format == LIST_OF_LOCALE_DT_FORMATS[-1] and dt_locale == LIST_OF_LOCALE_FORMATS[-1]: # if none matched
+                                    locale.setlocale(locale.LC_TIME, "")
+                                    logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
+                                    return kwargs.get("null_value", "")
+                except:
+                    logging.warning(f"Problem loading locales, probably")
+                    return kwargs.get("null_value", "")                    
 
 
     return standardize_dt_str_to_utc(standard_dt_str, **kwargs)

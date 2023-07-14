@@ -471,8 +471,8 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
     elif kwargs.get("get_background_image_url"):
         data = [ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', x.get('style'), group=1).strip('"').strip("'") if x.get('style') else null_value for x in html_tags]
     elif html_type == "meta" and html_tags:
-        data = [extract_stripped_string(x.get("content", null_value), null_value=null_value) for x in html_tags]
-    else:
+        data = [extract_stripped_string(x.get("content", null_value), **kwargs) for x in html_tags]
+    else: # should this use extract_stripped_string? TODO [] 
         data = [x.get_text(separator=kwargs.get("text_sep", " "), strip=True).replace("\n", "").strip() for x in html_tags]
 
     if not data:
@@ -534,9 +534,9 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         elif kwargs.get("get_background_image_url"):
             return ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', html_tag.get('style'), group=1).strip('"').strip("'") if html_tag.get('style') else null_value
         elif html_type == "meta" and html_tag:
-            return extract_stripped_string(html_tag.get("content", null_value), null_value=null_value)#.strip().replace("\n", " ")
+            return extract_stripped_string(html_tag.get("content", null_value), **kwargs)#.strip().replace("\n", " ")
         else:
-            return extract_stripped_string(html_tag, null_value=null_value)
+            return extract_stripped_string(html_tag, **kwargs)
 
     except Exception as e:
         if not kwargs.get('disable_print'):
