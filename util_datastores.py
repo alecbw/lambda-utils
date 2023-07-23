@@ -1365,7 +1365,8 @@ def get_api_gateway_key(key_name_or_id, **kwargs):
             nameQuery=key_name_or_id,
             includeValues=kwargs.get('include_value', False)
         )
-        logging.info(f"Found {len(response['items'])} with the get_api_keys query")
+    
+    logging.info(f"Found {len(response['items'])} with the get_api_keys query")
 
     if kwargs.get("exact") and len(response['items']) != 1:
         return None
