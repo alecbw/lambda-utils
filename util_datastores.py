@@ -1317,11 +1317,45 @@ def assemble_cloudwatch_log_stream_url(client, log_pointer, **kwargs):
     log_stream_url = f"https://console.aws.amazon.com/cloudwatch/home?region={kwargs.get('region', client.meta.region_name)}#logEventViewer:group=/{log_lambda_endpoint};stream={log_stream_id_and_date};start={log_stream_datetime}"
     return log_stream_url
 
+
+# this wrapper doesn't yet support EventPattern
+# def create_cloudwatch_rule(rule_name, trigger, **kwargs)
+#     response = boto3.client('events').put_rule(
+#         Name=rule_name,
+#         RoleArn='IAM_ROLE_ARN',
+#         ScheduleExpression=trigger, # e.g. 'rate(5 minutes)',
+#         State=kwargs.get('state', 'ENABLED'),
+#         Description=f"Created by create_cloudwatch_rule at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}",
+#     )
+#     return response['RuleArn']
+
+
+# def set_cloudwatch_rule_target(rule_name, lambda_arn, **kwargs)
+#     response = boto3.client('events').put_targets(
+#     Rule=rule_name,
+#     Targets=[{
+#             'Arn': lambda_arn,
+#             'Id': 'myCloudWatchEventsTarget',
+#             'Input': input_json
+#         }]
+#     )
+#     print(response)
+
+
+# def grant_lambda_permissions_to_cloudwatch_rule(rule_name, rule_arn, lambda_arn):
+#     lambda_client.add_permission(
+#         FunctionName=lambda_arn,
+#         StatementId=''.join(e for e in rule_name if e.isalnum()),
+#         Action='lambda:InvokeFunction',
+#         Principal='events.amazonaws.com',
+#         SourceArn=rule_arn
+#     )
+
 ########################### ~ API Gateway Specific ~ ###################################################
 
 
 def get_api_gateway_key(key_name_or_id, **kwargs):
-    if len(key_name_or_id) == 11 and "_key" not in key_name_or_id: # by ID
+    if len(key_name_or_id) in [10, 11] and "_key" not in key_name_or_id: # by ID
         response = boto3.client('apigateway').get_api_key(
             apiKey=key_name_or_id,
             includeValue=kwargs.get('include_value', False)
@@ -1360,6 +1394,7 @@ def associate_api_gateway_key_with_usage_plan(key_id, plan_id):
     )
     logging.info(f"Association of API Key id: {key_id} with Usage Plan id: {plan_id} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
     return response
+
 
 # You can't directly associate with an API Gateway Usage Plan at creation
 def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
