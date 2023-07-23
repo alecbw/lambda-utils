@@ -1360,13 +1360,15 @@ def get_api_gateway_key(key_name_or_id, **kwargs):
             apiKey=key_name_or_id,
             includeValue=kwargs.get('include_value', False)
         )
+        logging.info(f"Found {1 if response.get('name') else 0} results with the get_api_keys query")
+        return response
+    
     else: # by user-set name
         response = boto3.client('apigateway').get_api_keys(
             nameQuery=key_name_or_id,
             includeValues=kwargs.get('include_value', False)
         )
-    
-    logging.info(f"Found {len(response['items'])} with the get_api_keys query")
+        logging.info(f"Found {len(response['items'])} with the get_api_keys query")
 
     if kwargs.get("exact") and len(response['items']) != 1:
         return None
