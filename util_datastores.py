@@ -1463,10 +1463,13 @@ def search_ssm_params(param_phrase, **kwargs):
     result = boto3.client('ssm').describe_parameters(
         ParameterFilters=[{
             'Key': kwargs.get("search_field", "Name"),
-            'Option': kwargs.get("search_type", 'BeginsWith'),
+            'Option': kwargs.get("search_type", 'Contains'),
             'Values': [param_phrase],
         }]
     )
+    if kwargs.get("exclude") and result.get('Parameters'): # this is a ridiculous workaround because BeginsWith will not work in places where it should, and there's no way to add an additional NotContains constraint
+        result['Parameters'] = [x for x in result['Parameters'] if kwargs['exclude'] not in x['Name']]
+
     logging.info(f"There were {len(result.get('Parameters'))} SSM Params found with value {param_phrase}")
     return result.get('Parameters')
 
