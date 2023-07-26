@@ -57,12 +57,14 @@ def convert_athena_array_cols(data_lod, **kwargs):
 
 
 def convert_athena_row_types(row, **kwargs):
+    array_cols = kwargs.get("convert_array_cols", []) or []
+
     for k,v in row.items():
-        if k not in kwargs.get("convert_array_cols", []) and v and v.isdigit():
+        if k not in array_cols and v and v.isdigit():
             row[k] = int(v)
-        elif k not in kwargs.get("convert_array_cols", []) and coerce_float(v):
+        elif k not in array_cols and coerce_float(v):
             row[k] = float(v)
-        elif k not in kwargs.get("convert_array_cols", []):
+        elif k not in array_cols:
             continue
         elif v == '[]' or not v:
             row[k] = []
@@ -1319,27 +1321,34 @@ def assemble_cloudwatch_log_stream_url(client, log_pointer, **kwargs):
 
 
 # this wrapper doesn't yet support EventPattern
-# def create_cloudwatch_rule(rule_name, trigger, **kwargs)
-#     response = boto3.client('events').put_rule(
-#         Name=rule_name,
-#         RoleArn='IAM_ROLE_ARN',
-#         ScheduleExpression=trigger, # e.g. 'rate(5 minutes)',
-#         State=kwargs.get('state', 'ENABLED'),
-#         Description=f"Created by create_cloudwatch_rule at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}",
-#     )
-#     return response['RuleArn']
+def create_cloudwatch_rule(rule_name, trigger, rule_arn, **kwargs):
+    if 'arn:aws:iam::' not in rule_arn:
+        rule_arn = f"arn:aws:iam::{os.environ['AWS_ACCOUNT_ID']}:role/{rule_arn}"
+
+    response = boto3.client('events').put_rule(
+        Name=rule_name,
+        RoleArn=rule_arn,
+        ScheduleExpression=trigger, # e.g. 'rate(5 minutes)' or 'cron(30 1 * * ? *)'
+        State=kwargs.get('state', 'ENABLED'),
+        Description=f"Created by create_cloudwatch_rule at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} " + kwargs.get('description', ''),
+    )
+    return response['RuleArn']
 
 
-# def set_cloudwatch_rule_target(rule_name, lambda_arn, **kwargs)
-#     response = boto3.client('events').put_targets(
-#     Rule=rule_name,
-#     Targets=[{
-#             'Arn': lambda_arn,
-#             'Id': 'myCloudWatchEventsTarget',
-#             'Input': input_json
-#         }]
-#     )
-#     print(response)
+def set_cloudwatch_rule_target(rule_name, lambda_arn, **kwargs):
+    client = boto3.client('events')
+    if 'arn:aws:iam::' not in lambda_arn:
+        lambda_arn = f"arn:aws:lambda:{client.meta.region_name}:{os.environ['AWS_ACCOUNT_ID']}:function:{lambda_arn}"
+    
+    response = client.put_targets(
+        Rule=rule_name,
+        Targets=[{
+                'Arn': lambda_arn,
+                'Id': kwargs.get('rule_id', 'myCloudWatchEventsTarget'),
+                'Input': json.dumps(kwargs['data']) if isinstance(kwargs.get('data'), dict) else kwargs.get('data', None),
+            }]
+        )
+    print(response)
 
 
 # def grant_lambda_permissions_to_cloudwatch_rule(rule_name, rule_arn, lambda_arn):

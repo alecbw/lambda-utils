@@ -28,7 +28,7 @@ logger.setLevel(logging.INFO)
 TLD_list = None # setting up a global for caching IO of get_tld_list()
 
 
-# Allows enforcing of querystrings' presence
+# Note: this WILL NOT work as expected with HTTP API Payload v2.0
 def validate_params(event, required_params, **kwargs):
     event = standardize_event(event, **kwargs)
     commom_required_params = get_list_overlap(event, required_params)
@@ -827,6 +827,7 @@ def format_timestamp(timestamp, **kwargs):
     [ ] '11-07-2023 12:12 PM'
     [ ] '12.Jul.23, 11:59:00 PM'
     [ ] 'Dec 22, 2022 (1:00 PM)'
+    [ ] '2022-09-12T00:21:48.0000000+00:00'
 
     [ ] 'May 5 2023 09:00'
     [ ] '2020-05-23 20:33'
