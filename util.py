@@ -682,6 +682,7 @@ Keep in mind removals will stack - e.g. remove_tld will remove subsite, port, an
 for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time and pass it in to save 1ms per
 Known problem: strings like "lunarcovers.co.ukasdfij" will match .co.uk and return as 'lunarcovers.co.uk'
 [ ] maybe should just return url immediately if float or int? TODO
+[ ] should only rstrip '/' ?
 """
 def format_url(url, **kwargs):
     if not url:
@@ -811,7 +812,7 @@ def format_timestamp(timestamp, **kwargs):
     currently preferring month-day-year when amibigous - "%Y-%m-%d", "%Y %m %d", '%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%Y/%m/%d', '%m-%d-%Y', '%d-%m-%Y', %m-%d-%y', '%d-%m-%y', '%d-%b-%Y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y'
     [ ] does this handle daylight savings? TODO
 
-    [ ] "1.1.7"   # unclear if month or day first, waiting for another example
+    [ ] "1.1.7"  # unclear if month or day first, waiting for another example
     
     Haven't bothered with locale and/or len yet:
         [ ] '27. syyskuuta 2022' - 'fi_FI', 18 len
@@ -820,16 +821,18 @@ def format_timestamp(timestamp, **kwargs):
         [ ] '19-Haz-2023' - ?
         [ ] '21-Jún-2023' - ?
         [ ] '16-5 月-2023' - has weird selector. chinese?
-        [ ] '31 janv. 2023' - must be some other locale? won't work with 'fr_FR' even though it should
+        [ ] '31 janv. 2023'  '31 juil. 2023', '17 févr. 2023' - must be some other locale? won't work with 'fr_FR' even though it should. think it's 4 chars vs 3
     
     [ ] 'Sept. 28, 2022' - the 't' in 'Sept' rather than 'Sep' makes it not match
 
+    [ ] '16/08/2023, 20:47:59' - TAL
     [ ] '11-07-2023 12:12 PM'
     [ ] '12.Jul.23, 11:59:00 PM'
     [ ] 'Dec 22, 2022 (1:00 PM)'
     [ ] '2022-09-12T00:21:48.0000000+00:00'
-
+    [ ] '2023-06-30T14:28:32.473144152-07:00'
     [ ] 'May 5 2023 09:00'
+    [ ] 'December 31, 2025 00:00'
     [ ] '2020-05-23 20:33'
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
     [ ] 2021-06-17T11:46:24-05 # needs two trailing 0's
@@ -848,15 +851,15 @@ def standardize_dt_str_to_utc(standard_dt_str, **kwargs):
         return kwargs.get("null_value", "")
 
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
-    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", '%d-%b-%Y', '%Y/%m/%d', "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y', '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y', '%d %B %Y (%I:%M %p)', '%b %d, %Y %H:%M']
+    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", '%d-%b-%Y', '%Y/%m/%d', "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%d %B %y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y', '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y', '%d %B %Y (%I:%M %p)', '%b %d, %Y %H:%M']
     LIST_OF_LOCALE_FORMATS = ['fr_FR', 'de_DE', 'it_IT', 'es_ES', 'nl_NL', 'da_DK', 'ru_RU', 'pl_PL', 'hr_HR'] # 'zh_CN',
     LIST_OF_LOCALE_DT_FORMATS = ['%d-%B-%Y', '%d-%b-%Y', '%d %B %Y', '%d %b %Y', '%d %b. %Y', '%d. %B %Y', '%B %Y']
     locale.setlocale(locale.LC_TIME, "")
 
     if kwargs.get("country") and kwargs['country'] != 'United States':
-        LIST_OF_DT_FORMATS[20:20] = ['%d/%m/%Y', '%m/%d/%Y', '%d/%m/%y', '%m/%d/%y', '%d-%m-%Y', '%m-%d-%Y', '%d-%m-%y', '%m-%d-%y', '%d.%m.%Y', '%m.%d.%Y', '%d.%m.%y', '%m.%d.%y', '%d/%m/%Y, %H:%M', '%m/%d/%Y, %H:%M', '(%d/%m/%Y)', '(%m/%d/%Y)', '%d/%m/%Y %I:%M %p', '%m/%d/%Y %I:%M %p', '%d-%m-%Y, %I:%M:%S %p', '%m-%d-%Y, %I:%M:%S %p', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%m, %I:%M:%S %p', '%Y-%m-%d, %I:%M:%S %p'] # 20:20 notion means insert the new list into the existing list, starting at index 20. this slightly speeds up processing of datetime_strs that match those selectors
+        LIST_OF_DT_FORMATS[20:20] = ['%d/%m/%Y', '%m/%d/%Y', '%d/%m/%y', '%m/%d/%y', '%d-%m-%Y', '%m-%d-%Y', '%d-%m-%y', '%m-%d-%y', '%d.%m.%Y', '%m.%d.%Y', '%d.%m.%y', '%m.%d.%y', '%d/%m/%Y, %H:%M', '%m/%d/%Y, %H:%M', '(%d/%m/%Y)', '(%m/%d/%Y)', '%d/%m/%Y %I:%M %p', '%m/%d/%Y %I:%M %p', '%d-%m-%Y, %I:%M:%S %p', '%m-%d-%Y, %I:%M:%S %p', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%m, %I:%M:%S %p', '%Y-%m-%d, %I:%M:%S %p', '%d/%m/%Y, %H:%M:%S', '%m/%d/%Y, %H:%M:%S'] # 20:20 notion means insert the new list into the existing list, starting at index 20. this slightly speeds up processing of datetime_strs that match those selectors
     else: 
-        LIST_OF_DT_FORMATS[20:20] = ['%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%m-%d-%Y', '%d-%m-%Y', '%m-%d-%y', '%d-%m-%y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y', '%m/%d/%Y, %H:%M', '%d/%m/%Y, %H:%M', '(%m/%d/%Y)', '(%d/%m/%Y)', '%m/%d/%Y %I:%M %p', '%d/%m/%Y %I:%M %p', '%m-%d-%Y, %I:%M:%S %p', '%d-%m-%Y, %I:%M:%S %p', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%d, %I:%M:%S %p', '%Y-%d-%m, %I:%M:%S %p'] 
+        LIST_OF_DT_FORMATS[20:20] = ['%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%m-%d-%Y', '%d-%m-%Y', '%m-%d-%y', '%d-%m-%y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y', '%m/%d/%Y, %H:%M', '%d/%m/%Y, %H:%M', '(%m/%d/%Y)', '(%d/%m/%Y)', '%m/%d/%Y %I:%M %p', '%d/%m/%Y %I:%M %p', '%m-%d-%Y, %I:%M:%S %p', '%d-%m-%Y, %I:%M:%S %p', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%d, %I:%M:%S %p', '%Y-%d-%m, %I:%M:%S %p', '%m/%d/%Y, %H:%M:%S', '%d/%m/%Y, %H:%M:%S'] 
 
     if not datetime_str:
         return kwargs.get("null_value", "")

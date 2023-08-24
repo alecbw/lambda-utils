@@ -265,7 +265,7 @@ def site_request(url, proxy, wait, **kwargs):
         headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
 
     try:
-        approved_request_kwargs = ["prevent_redirects", "timeout", "hooks"]
+        approved_request_kwargs = ["prevent_redirects", "timeout", "hooks", "verify"]
         request_kwargs = {k:v for k,v in kwargs.items() if k in approved_request_kwargs}
         request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True # TODO refactor this out
 
@@ -370,8 +370,8 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
                 if kwargs.get("always_escape_quote"):
                     script_string = script_string.replace('&quot;', r'\"')
                 script_string = unescape(script_string)
-                if r'\u' in script_string: # there's unicode characters in an otherwise UTF string
-                    logging.debug("there's unicode characters in an otherwise UTF string")
+                # if r'\u' in script_string: # there's unicode characters in an otherwise UTF string
+                    # logging.debug("there's unicode characters in an otherwise UTF string")
                     # logging.debug(script_string)
                     # logging.debug(script_string.encode().decode('unicode-escape').encode('latin-1').decode('utf-8'))
                     # script_string = script_string.encode().decode('unicode-escape')
@@ -533,6 +533,8 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             return html_tag.get("onclick").strip() if html_tag.get("onclick") else null_value
         elif kwargs.get("get_background_image_url"):
             return ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', html_tag.get('style'), group=1).strip('"').strip("'") if html_tag.get('style') else null_value
+        elif kwargs.get("get_classes"):
+            return html_tag['class'] if html_tag.get('class') else null_value
         elif html_type == "meta" and html_tag:
             return extract_stripped_string(html_tag.get("content", null_value), **kwargs)#.strip().replace("\n", " ")
         else:
@@ -556,9 +558,10 @@ def safely_encode_text(parsed, **kwargs):
             text = parsed
         else:
             text = parsed.get_text(separator=" ", strip=True)                           # extract_full_site_text(parsed, drop_duplicates=True)
+        
         _ = text.encode('utf-8') # to trigger error - eg "UnicodeEncodeError: 'utf-8' codec can't encode characters in position 2435-2436: surrogates not allowed"
 
-        text = text[:truncate_at].replace("<br>", " ") # truncate to 1,000,000 characters to avoid Size of a 'single row or its columns cannot exceed 32 MB' Athena error
+        text = text[:truncate_at].replace("<br>", " ") # .replace("�", "") # truncate to 1,000,000 characters to avoid Size of a 'single row or its columns cannot exceed 32 MB' Athena error
         encoding = 'utf-8'
     except UnicodeEncodeError as e:
         if isinstance(parsed, str):
