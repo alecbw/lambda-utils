@@ -277,7 +277,11 @@ def site_request(url, proxy, wait, **kwargs):
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
 
         logging.debug(f"Now requesting {url}")
-        response = requests.get(url, headers=headers, **request_kwargs)
+        
+        if request_kwargs.pop('method', '') == 'POST':
+            response = requests.post(url, headers=headers, **request_kwargs)
+        else:
+            response = requests.get(url, headers=headers, **request_kwargs)
 
     except Exception as e:
         message, applied_status_code = handle_request_exception(e, proxy, url, kwargs.get("disable_error_messages"))
@@ -469,7 +473,7 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
     elif kwargs.get("get_onclick"):
         data = [x.get("onclick").strip() if x.get("onclick") else null_value for x in html_tags]
     elif kwargs.get("get_background_image_url"):
-        data = [ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', x.get('style'), group=1).strip('"').strip("'") if x.get('style') else null_value for x in html_tags]
+        data = [ez_re_find('(background-image\:\s?url\(\"?)(.*?)(\"?\))', x.get('style'), group=1).strip('"').strip("'") if x.get('style') else null_value for x in html_tags]
     elif html_type == "meta" and html_tags:
         data = [extract_stripped_string(x.get("content", null_value), **kwargs) for x in html_tags]
     else: # should this use extract_stripped_string? TODO [] 
@@ -552,7 +556,7 @@ def safely_encode_text(parsed, **kwargs):
     if not parsed:
         return "", None
 
-    truncate_at = kwargs.get('truncate_at', 1_000_000)
+    truncate_at = kwargs.get('truncate_at', 1_000_000) # truncate to 1,000,000 characters to avoid Size of a 'single row or its columns cannot exceed 32 MB' Athena error
     try:
         if isinstance(parsed, str):
             text = parsed
@@ -561,14 +565,23 @@ def safely_encode_text(parsed, **kwargs):
         
         _ = text.encode('utf-8') # to trigger error - eg "UnicodeEncodeError: 'utf-8' codec can't encode characters in position 2435-2436: surrogates not allowed"
 
-        text = text[:truncate_at].replace("<br>", " ") # .replace("�", "") # truncate to 1,000,000 characters to avoid Size of a 'single row or its columns cannot exceed 32 MB' Athena error
-        encoding = 'utf-8'
+        text = text[:truncate_at].replace("<br>", " ") # .replace("�", "") 
+
+        if '\x00' in text:
+            text = text.replace('\x00', '')
+            encoding = 'utf-8 - WITH NUL BYTE' # most problematic - breaks CSV reads, which Athena needs
+        elif any(x for x in ['\x02', '\x03', '\x1d'] if x in text):
+            text = text.replace('\x02', '').replace('\x03', '').replace('\x1d', '')
+            encoding = 'utf-8 - WITH CONTROL CHAR'
+        else: 
+            encoding = 'utf-8'
+
     except UnicodeEncodeError as e:
         if isinstance(parsed, str):
             text = parsed.encode('utf-8', errors='replace').decode('utf-8')
         else:
             text = parsed.get_text(separator=" ", strip=True).encode('utf-8', errors='replace').decode('utf-8') # into bytes and back to str
-        encoding = f"BROKE_UTF8 {kwargs.get('encoding', '')}".strip()
+        encoding = f"{kwargs.get('encoding', '')} - BROKE UTF8".strip()
         logging.warning(e)
         logging.warning(f"The site {kwargs.get('url')} broke text encoding. Provided encoding: {kwargs.get('encoding')}")
 

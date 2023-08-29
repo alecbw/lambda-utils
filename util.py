@@ -825,7 +825,7 @@ def format_timestamp(timestamp, **kwargs):
     
     [ ] 'Sept. 28, 2022' - the 't' in 'Sept' rather than 'Sep' makes it not match
 
-    [ ] '16/08/2023, 20:47:59' - TAL
+    [ ] '02/08/2023 10:40:00'
     [ ] '11-07-2023 12:12 PM'
     [ ] '12.Jul.23, 11:59:00 PM'
     [ ] 'Dec 22, 2022 (1:00 PM)'
