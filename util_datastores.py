@@ -16,8 +16,10 @@ import string
 import csv
 import timeit
 import ast
+import gzip
+
 from pprint import pprint
-from io import StringIO
+from io import StringIO, BytesIO, TextIOWrapper
 from typing import List # Callable, Iterator, Union, Optional,
 from collections import defaultdict
 # from cryptography.hazmat.backends import default_backend
@@ -664,22 +666,7 @@ def stream_s3_file(bucket_name, filename, **kwargs):
     return s3_object.get()['Body'] #body returns streaming string
 
 
-def write_s3_file(bucket_name, filename, file_data, **kwargs):
-    file_type = kwargs.get("file_type", "json")
-    if file_type == "json":
-        file_to_write = bytes(json.dumps(file_data).encode("UTF-8"))
-    elif file_type == "csv": # TODO
-        with open(f"/tmp/{filename}.txt", 'w') as output_file:
-            dict_writer = csv.DictWriter(output_file, file_data[0].keys())
-            dict_writer.writeheader()
-            dict_writer.writerows(file_data)
-        file_to_write = open(f'/tmp/{filename}.txt', 'rb')
-    elif file_type == "xml":
-        file_to_write = convert_lod_to_xml(file_data, kwargs.pop("item_name", "dict"), **kwargs)
-
-    if not filename.endswith(f".{file_type}"):
-        filename = filename + f".{file_type}"
-
+def execute_s3_write(bucket_name, filename, file_to_write, **kwargs):
     try:
         s3_object = boto3.resource("s3").Object(bucket_name, filename)
         response = s3_object.put(Body=(file_to_write))
@@ -688,6 +675,35 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         return status_code
     except Exception as e:
         logging.error(e, bucket_name, filename)
+
+def write_s3_file(bucket_name, filename, file_data, **kwargs):
+    file_type = kwargs.get("file_type", "json").replace('json_gzip', 'json.gz')
+    
+    if not filename.endswith(f".{file_type}"):
+        filename = filename + f".{file_type}"
+
+    if file_type == "json":
+        file_to_write = bytes(json.dumps(file_data).encode("UTF-8"))
+    
+    elif file_type == "json.gz":
+        in_memory_obj = BytesIO()
+        with gzip.GzipFile(fileobj=in_memory_obj, mode='wb') as fh:
+            with TextIOWrapper(fh, encoding='utf-8') as wrapper:
+                wrapper.write(json.dumps(file_data, ensure_ascii=False, default=None))
+        in_memory_obj.seek(0)
+        return execute_s3_write(bucket_name, filename, in_memory_obj, **kwargs)
+    
+    elif file_type == "csv": # TODO
+        with open(f"/tmp/{filename}.txt", 'w') as output_file:
+            dict_writer = csv.DictWriter(output_file, file_data[0].keys())
+            dict_writer.writeheader()
+            dict_writer.writerows(file_data)
+        file_to_write = open(f'/tmp/{filename}.txt', 'rb') # TODO - move to immediately return execute_s3_write while open handler still active
+    
+    elif file_type == "xml":
+        file_to_write = convert_lod_to_xml(file_data, kwargs.pop("item_name", "dict"), **kwargs)
+
+    return execute_s3_write(bucket_name, filename, file_to_write, **kwargs)
 
 
 def get_s3_files_that_match_prefix(bucket_name, path, file_limit, **kwargs):
