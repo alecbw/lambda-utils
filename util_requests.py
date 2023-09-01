@@ -336,8 +336,10 @@ def ez_strip_str(input_str, **kwargs):
     #     logging.debug(f"there's unicode characters in an otherwise UTF string in ez_strip_str - {input_str}")
     #     input_str = input_str.encode().decode('unicode-escape')
 
-
-    return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(r"\u0027", "'").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#39;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").replace('%26', '&').replace('\u200b', '').strip()
+    if kwargs.get('always_escape_quote'):
+        return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(r"\u0027", "'").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#39;", "'").replace("&#8217;", "'").replace("u0022", r'\"').replace("&quot;", r'\"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").replace('%26', '&').replace('\u200b', '').strip()
+    else:
+        return input_str.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace(r"\\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(r"\u0027", "'").replace(u'\xa0', ' ').replace("&nbsp", " ").replace("•", " ").replace("%20", " ").replace(r"\ufeff", " ").replace("&amp;", "&").replace("&#038;", "&").replace(r"\u0026", "&").replace("&#039;", "'").replace("&#39;", "'").replace("&#8217;", "'").replace("u0022", '"').replace("&quot;", '"').replace("&#8211;", "-").replace("&ndash;", "-").replace(r"\u003c", "<").replace("&lt;", "<").replace(r"\u003e", ">").replace("&gt;", ">").replace('&#91;', '[').replace('&#93;', ']').replace('&#64;', '@').replace("&#46;", ".").replace('%26', '&').replace('\u200b', '').strip()
 
 
 # TODO replace dumbass implementation of replacing newline chars
@@ -383,7 +385,6 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             if kwargs.get("return_string"):
                 return script_string.strip().rstrip(",")
 
-
             while '“' in script_string or '”' in script_string or "&quot;" in script_string: # TODO maybe this logic should be in fix_JSON
                 char_index = next((script_string.find(x) for x in ['“', '”', '&quot;'] if script_string.find(x) != -1), None)
                 if not char_index:
@@ -396,7 +397,7 @@ def get_script_json_by_contained_phrase(parsed, phrase_str, **kwargs):
             script_string = startswith_replace(script_string, ["// <![CDATA[", "//<![CDATA[", "/*<![CDATA[*/", "/* <![CDATA[  */", "execOnReady(function(){", "setTimeout(function(){"], "") # some sites include comments that break json.load, so we remove them before trying to load
             script_string = endswith_replace(script_string, ["// ]]>", "//]]>", "/*]]>*/", "/*  ]]> */", "});", "},3000);"], "")
 
-            json_dict = fix_JSON(ez_strip_str(script_string.rstrip(",").rstrip(";")), recursion_limit=200, log_on_error=kwargs.get('url')) or {}
+            json_dict = fix_JSON(ez_strip_str(script_string.rstrip(",").rstrip(";"), **kwargs), recursion_limit=200, log_on_error=kwargs.get('url')) or {}
 
             if json_dict:
                 return json_dict
