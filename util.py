@@ -524,100 +524,100 @@ def convert_lod_to_xml(input_lod, item_name, **kwargs):
     return xml
 
 
-def _emit(key, value, content_handler,
-          attr_prefix='@',
-          cdata_key='#text',
-          depth=0,
-          preprocessor=None,
-          pretty=False,
-          newl='\n',
-          indent='\t',
-          namespace_separator=':',
-          namespaces=None,
-          full_document=True,
-          expand_iter=None):
-    key = _process_namespace(key, namespaces, namespace_separator, attr_prefix)
-    # if preprocessor is not None:
-        # result = preprocessor(key, value)
-        # if result is None:
-            # return
-        # key, value = result
-    if (not hasattr(value, '__iter__')
-            or isinstance(value, _basestring)
-            or isinstance(value, dict)):
-        value = [value]
-    for index, v in enumerate(value):
-        # if full_document and depth == 0 and index > 0:
-            # raise ValueError('document with multiple roots')
-        if v is None:
-            v = {}
-        # elif isinstance(v, bool):
-            # if v:
-                # v = _unicode('true')
-            # else:
-                # v = _unicode('false')
-        elif not isinstance(v, dict):
-            if expand_iter and hasattr(v, '__iter__') and not isinstance(v, _basestring):
-                v = _dict(((expand_iter, v),))
-            else:
-                v = _unicode(v)
-        if isinstance(v, _basestring):
-            v = _dict(((cdata_key, v),))
-        cdata = None
-        attrs = _dict()
-        children = []
-        for ik, iv in v.items():
-            if ik == cdata_key:
-                cdata = iv
-                continue
-            if ik.startswith(attr_prefix):
-                ik = _process_namespace(ik, namespaces, namespace_separator,
-                                        attr_prefix)
-                if ik == '@xmlns' and isinstance(iv, dict):
-                    for k, v in iv.items():
-                        attr = 'xmlns{}'.format(':{}'.format(k) if k else '')
-                        attrs[attr] = _unicode(v)
-                    continue
-                if not isinstance(iv, _unicode):
-                    iv = _unicode(iv)
-                attrs[ik[len(attr_prefix):]] = iv
-                continue
-            children.append((ik, iv))
-        if type(indent) is int:
-            indent = ' ' * indent
-        if pretty:
-            content_handler.ignorableWhitespace(depth * indent)
-        content_handler.startElement(key, AttributesImpl(attrs))
-        if pretty and children:
-            content_handler.ignorableWhitespace(newl)
-        for child_key, child_value in children:
-            _emit(child_key, child_value, content_handler,
-                  attr_prefix, cdata_key, depth+1, preprocessor,
-                  pretty, newl, indent, namespaces=namespaces,
-                  namespace_separator=namespace_separator,
-                  expand_iter=expand_iter)
-        if cdata is not None:
-            content_handler.characters(cdata)
-        if pretty and children:
-            content_handler.ignorableWhitespace(depth * indent)
-        content_handler.endElement(key)
-        if pretty and depth:
-            content_handler.ignorableWhitespace(newl)
+# def _emit(key, value, content_handler,
+#           attr_prefix='@',
+#           cdata_key='#text',
+#           depth=0,
+#           preprocessor=None,
+#           pretty=False,
+#           newl='\n',
+#           indent='\t',
+#           namespace_separator=':',
+#           namespaces=None,
+#           full_document=True,
+#           expand_iter=None):
+#     key = _process_namespace(key, namespaces, namespace_separator, attr_prefix)
+#     # if preprocessor is not None:
+#         # result = preprocessor(key, value)
+#         # if result is None:
+#             # return
+#         # key, value = result
+#     if (not hasattr(value, '__iter__')
+#             or isinstance(value, _basestring)
+#             or isinstance(value, dict)):
+#         value = [value]
+#     for index, v in enumerate(value):
+#         # if full_document and depth == 0 and index > 0:
+#             # raise ValueError('document with multiple roots')
+#         if v is None:
+#             v = {}
+#         # elif isinstance(v, bool):
+#             # if v:
+#                 # v = _unicode('true')
+#             # else:
+#                 # v = _unicode('false')
+#         elif not isinstance(v, dict):
+#             if expand_iter and hasattr(v, '__iter__') and not isinstance(v, _basestring):
+#                 v = _dict(((expand_iter, v),))
+#             else:
+#                 v = _unicode(v)
+#         if isinstance(v, _basestring):
+#             v = _dict(((cdata_key, v),))
+#         cdata = None
+#         attrs = _dict()
+#         children = []
+#         for ik, iv in v.items():
+#             if ik == cdata_key:
+#                 cdata = iv
+#                 continue
+#             if ik.startswith(attr_prefix):
+#                 ik = _process_namespace(ik, namespaces, namespace_separator,
+#                                         attr_prefix)
+#                 if ik == '@xmlns' and isinstance(iv, dict):
+#                     for k, v in iv.items():
+#                         attr = 'xmlns{}'.format(':{}'.format(k) if k else '')
+#                         attrs[attr] = _unicode(v)
+#                     continue
+#                 if not isinstance(iv, _unicode):
+#                     iv = _unicode(iv)
+#                 attrs[ik[len(attr_prefix):]] = iv
+#                 continue
+#             children.append((ik, iv))
+#         if type(indent) is int:
+#             indent = ' ' * indent
+#         if pretty:
+#             content_handler.ignorableWhitespace(depth * indent)
+#         content_handler.startElement(key, AttributesImpl(attrs))
+#         if pretty and children:
+#             content_handler.ignorableWhitespace(newl)
+#         for child_key, child_value in children:
+#             _emit(child_key, child_value, content_handler,
+#                   attr_prefix, cdata_key, depth+1, preprocessor,
+#                   pretty, newl, indent, namespaces=namespaces,
+#                   namespace_separator=namespace_separator,
+#                   expand_iter=expand_iter)
+#         if cdata is not None:
+#             content_handler.characters(cdata)
+#         if pretty and children:
+#             content_handler.ignorableWhitespace(depth * indent)
+#         content_handler.endElement(key)
+#         if pretty and depth:
+#             content_handler.ignorableWhitespace(newl)
 
 
-def _process_namespace(name, namespaces, ns_sep=':', attr_prefix='@'):
-    if not namespaces:
-        return name
-    try:
-        ns, name = name.rsplit(ns_sep, 1)
-    except ValueError:
-        pass
-    else:
-        ns_res = namespaces.get(ns.strip(attr_prefix))
-        name = '{}{}{}{}'.format(
-            attr_prefix if ns.startswith(attr_prefix) else '',
-            ns_res, ns_sep, name) if ns_res else name
-    return name
+# def _process_namespace(name, namespaces, ns_sep=':', attr_prefix='@'):
+#     if not namespaces:
+#         return name
+#     try:
+#         ns, name = name.rsplit(ns_sep, 1)
+#     except ValueError:
+#         pass
+#     else:
+#         ns_res = namespaces.get(ns.strip(attr_prefix))
+#         name = '{}{}{}{}'.format(
+#             attr_prefix if ns.startswith(attr_prefix) else '',
+#             ns_res, ns_sep, name) if ns_res else name
+#     return name
 
 # Case sensitive!
 # only replaces last instance of to_replace. e.g. ("foobarbar", "bar", "qux") -> "foobarqux"
