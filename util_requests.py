@@ -263,9 +263,13 @@ def site_request(url, proxy, wait, **kwargs):
         headers = {}
     if not kwargs.get("http_proxy"):
         headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
+    if kwargs.get("origin"):
+        headers['origin'] = kwargs.pop('origin')
+    if kwargs.get("content-type"):
+        headers['content-type'] = kwargs.pop('content-type')
 
     try:
-        approved_request_kwargs = ["prevent_redirects", "timeout", "hooks", "verify"]
+        approved_request_kwargs = ["prevent_redirects", "timeout", "hooks", "verify", 'method', 'data']
         request_kwargs = {k:v for k,v in kwargs.items() if k in approved_request_kwargs}
         request_kwargs["allow_redirects"] = False if request_kwargs.pop("prevent_redirects", None) else True # TODO refactor this out
 
@@ -352,6 +356,9 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
 
     elif isinstance(html_tag_or_str, str):
         return ez_strip_str(html_tag_or_str)
+
+    elif isinstance(html_tag_or_str, Tag) and kwargs.get('recursive') == False: # default is True
+        return ez_strip_str(html_tag_or_str.find(text=True, recursive=False))
 
     elif isinstance(html_tag_or_str, Tag):
         return ez_strip_str(html_tag_or_str.get_text(separator=kwargs.get("text_sep", " "), strip=True))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
@@ -571,8 +578,8 @@ def safely_encode_text(parsed, **kwargs):
         if '\x00' in text:
             text = text.replace('\x00', '')
             encoding = 'utf-8 - WITH NUL BYTE' # most problematic - breaks CSV reads, which Athena needs
-        elif any(x for x in ['\x01', '\x02', '\x03', '\x1d', '\x1f'] if x in text):
-            text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x1d', '').replace('\x1f', '') # x01 -> '•' ?
+        elif any(x for x in ['\x01', '\x02', '\x03', '\x07', '\x08', '\x1a', '\x1d', '\x1f'] if x in text): # \x1f may not appear in text
+            text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x07', '').replace('\x08', '').replace('\x1d', '').replace('\x1a', '').replace('\x1f', '') # x01 -> '•' ?
             encoding = 'utf-8 - WITH CONTROL CHAR'
         else: 
             encoding = 'utf-8'
