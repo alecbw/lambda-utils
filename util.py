@@ -530,7 +530,7 @@ def convert_lod_to_xml(input_lod, item_name, **kwargs):
         for key, value in item.items():
             sub_element = ET.SubElement(data_item, key)
             if isinstance(value, str) and value and key in kwargs.get("cdata_keys", []):
-                sub_element.text = "<![CDATA[ " + value + "]]>"
+                sub_element.text = "<![CDATA[ " + value + " ]]>"
             elif isinstance(value, list):
                 for val in value:
                     child_sub_element = ET.SubElement(sub_element, 'item')
