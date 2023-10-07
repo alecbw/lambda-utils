@@ -321,7 +321,7 @@ def ez_coerce_to_int(input_var, **kwargs):
     return None
 
 
-def ez_coerce_to_float(possible_float):
+def ez_coerce_to_float(possible_float, **kwargs):
     try:
         possible_float = possible_float.replace(',', '') if possible_float and isinstance(possible_float, str) and not ez_re_find(',\d{2}$', possible_float) else possible_float # Avoids potential problem - way europeans handle decimals ('500,00') being passed in and interpreted as 50_000
         return float(possible_float)
@@ -524,6 +524,101 @@ def convert_lod_to_xml(input_lod, item_name, **kwargs):
     return xml
 
 
+# def _emit(key, value, content_handler,
+#           attr_prefix='@',
+#           cdata_key='#text',
+#           depth=0,
+#           preprocessor=None,
+#           pretty=False,
+#           newl='\n',
+#           indent='\t',
+#           namespace_separator=':',
+#           namespaces=None,
+#           full_document=True,
+#           expand_iter=None):
+#     key = _process_namespace(key, namespaces, namespace_separator, attr_prefix)
+#     # if preprocessor is not None:
+#         # result = preprocessor(key, value)
+#         # if result is None:
+#             # return
+#         # key, value = result
+#     if (not hasattr(value, '__iter__')
+#             or isinstance(value, _basestring)
+#             or isinstance(value, dict)):
+#         value = [value]
+#     for index, v in enumerate(value):
+#         # if full_document and depth == 0 and index > 0:
+#             # raise ValueError('document with multiple roots')
+#         if v is None:
+#             v = {}
+#         # elif isinstance(v, bool):
+#             # if v:
+#                 # v = _unicode('true')
+#             # else:
+#                 # v = _unicode('false')
+#         elif not isinstance(v, dict):
+#             if expand_iter and hasattr(v, '__iter__') and not isinstance(v, _basestring):
+#                 v = _dict(((expand_iter, v),))
+#             else:
+#                 v = _unicode(v)
+#         if isinstance(v, _basestring):
+#             v = _dict(((cdata_key, v),))
+#         cdata = None
+#         attrs = _dict()
+#         children = []
+#         for ik, iv in v.items():
+#             if ik == cdata_key:
+#                 cdata = iv
+#                 continue
+#             if ik.startswith(attr_prefix):
+#                 ik = _process_namespace(ik, namespaces, namespace_separator,
+#                                         attr_prefix)
+#                 if ik == '@xmlns' and isinstance(iv, dict):
+#                     for k, v in iv.items():
+#                         attr = 'xmlns{}'.format(':{}'.format(k) if k else '')
+#                         attrs[attr] = _unicode(v)
+#                     continue
+#                 if not isinstance(iv, _unicode):
+#                     iv = _unicode(iv)
+#                 attrs[ik[len(attr_prefix):]] = iv
+#                 continue
+#             children.append((ik, iv))
+#         if type(indent) is int:
+#             indent = ' ' * indent
+#         if pretty:
+#             content_handler.ignorableWhitespace(depth * indent)
+#         content_handler.startElement(key, AttributesImpl(attrs))
+#         if pretty and children:
+#             content_handler.ignorableWhitespace(newl)
+#         for child_key, child_value in children:
+#             _emit(child_key, child_value, content_handler,
+#                   attr_prefix, cdata_key, depth+1, preprocessor,
+#                   pretty, newl, indent, namespaces=namespaces,
+#                   namespace_separator=namespace_separator,
+#                   expand_iter=expand_iter)
+#         if cdata is not None:
+#             content_handler.characters(cdata)
+#         if pretty and children:
+#             content_handler.ignorableWhitespace(depth * indent)
+#         content_handler.endElement(key)
+#         if pretty and depth:
+#             content_handler.ignorableWhitespace(newl)
+
+
+# def _process_namespace(name, namespaces, ns_sep=':', attr_prefix='@'):
+#     if not namespaces:
+#         return name
+#     try:
+#         ns, name = name.rsplit(ns_sep, 1)
+#     except ValueError:
+#         pass
+#     else:
+#         ns_res = namespaces.get(ns.strip(attr_prefix))
+#         name = '{}{}{}{}'.format(
+#             attr_prefix if ns.startswith(attr_prefix) else '',
+#             ns_res, ns_sep, name) if ns_res else name
+#     return name
+
 # Case sensitive!
 # only replaces last instance of to_replace. e.g. ("foobarbar", "bar", "qux") -> "foobarqux"
 def endswith_replace(text, to_replace, replace_with, **kwargs):
@@ -591,11 +686,11 @@ def colored_log(log_level, text, color):
     message = color_dict[color.title()] + text + color_dict[color.title()] + color_dict['White']
 
     if log_level.lower() == "info":
-        logger.info(message)
+        logging.info(message)
     elif log_level.lower() in ["warn", "warning"]:
-        logger.warning(message)
+        logging.warning(message)
     elif log_level.lower() == "error":
-        logger.error(message)
+        logging.error(message)
 
 # Note: this is dumb and hacky and also unfinished
 # def get_variable_name(variable):
@@ -812,35 +907,30 @@ def format_timestamp(timestamp, **kwargs):
     currently preferring month-day-year when amibigous - "%Y-%m-%d", "%Y %m %d", '%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%Y/%m/%d', '%m-%d-%Y', '%d-%m-%Y', %m-%d-%y', '%d-%m-%y', '%d-%b-%Y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y'
     [ ] does this handle daylight savings? TODO
 
-    [ ] "1.1.7"  # unclear if month or day first, waiting for another example
-    
     Haven't bothered with locale and/or len yet:
         [ ] '27. syyskuuta 2022' - 'fi_FI', 18 len
         [ ] '26 maj 2023', - 'sv_SE'
         [ ] '05-Nis-2023' - 'tr_TR'
         [ ] '19-Haz-2023' - ?
         [ ] '21-Jún-2023' - ?
+        [ ] '30-Ağu-2023'
         [ ] '16-5 月-2023' - has weird selector. chinese?
         [ ] '31 janv. 2023'  '31 juil. 2023', '17 févr. 2023' - must be some other locale? won't work with 'fr_FR' even though it should. think it's 4 chars vs 3
-    
-    [ ] 'Sept. 28, 2022' - the 't' in 'Sept' rather than 'Sep' makes it not match
+        [ ] '24 augusti 2023'
 
-    [ ] '02/08/2023 10:40:00'
-    [ ] '11-07-2023 12:12 PM'
-    [ ] '12.Jul.23, 11:59:00 PM'
-    [ ] 'Dec 22, 2022 (1:00 PM)'
-    [ ] '2022-09-12T00:21:48.0000000+00:00'
+    [ ] '09/05/2023 at 11:59 pm' - only seen one instance
+    [ ] '15 Sep', '08 Sep' - '%d %b' matches built will set year = 1900
+        [ ] '15.august'
+
+    [ ] 'Sept. 28, 2022' - the 't' in 'Sept' rather than 'Sep' makes it not match
+    [ ] '2022-09-12T00:21:48.0000000+00:00' - python can't handle 7 digit ms
     [ ] '2023-06-30T14:28:32.473144152-07:00'
-    [ ] 'May 5 2023 09:00'
-    [ ] 'December 31, 2025 00:00'
-    [ ] '2020-05-23 20:33'
     [ ] "Mon May 10 2021 18:24:31 GMT+0000 (Coordinated Universal Time)"   # tried  "%a %B %d %Y %H:%M:%S %Z%z", didnt work. don't know how to handle (Coordinated Universal Time)
     [ ] 2021-06-17T11:46:24-05 # needs two trailing 0's
     [ ] 2019-02-19 19:54:49 -0700 MST # MST not supported by %Z
     [ ] Feb 8, 2023 (HK Time)
     [ ] '2022-09-12T00:21:48.0000000+00:00', '2022-09-12T00:21:48.0000000+00:00'
-    [ ] '2023a4m24j', '2023a1m23j', 2023a4m24d
-    [ ] dumb af, not going to add - '06 Jun 2023 2023 (4:55)', '18- Apr-2023' - dumbass internal space
+    [ ] dumb, not going to add - '06 Jun 2023 2023 (4:55)', '01 Sep 2023 2023',  '18- Apr-2023' - dumbass internal space
 """
 def standardize_dt_str_to_utc(standard_dt_str, **kwargs):
     try:
@@ -851,15 +941,15 @@ def standardize_dt_str_to_utc(standard_dt_str, **kwargs):
         return kwargs.get("null_value", "")
 
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
-    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", '%d-%b-%Y', '%Y/%m/%d', "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%d %B %y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y', '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y', '%d %B %Y (%I:%M %p)', '%b %d, %Y %H:%M']
+    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", '%d-%b-%Y', '%Y/%m/%d', "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%d %B %y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y', '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y', '%d %B %Y (%I:%M %p)', '%b %d, %Y %H:%M', '%d.%b.%y, %I:%M:%S %p', '%b %d, %Y (%I:%M %p)', '%b %d %Y %H:%M', '%B %d, %Y %H:%M', '%Y-%m-%d %H:%M', '%Y.%m.%d', '%Ya%mm%dd', '%Ya%mm%dj']
     LIST_OF_LOCALE_FORMATS = ['fr_FR', 'de_DE', 'it_IT', 'es_ES', 'nl_NL', 'da_DK', 'ru_RU', 'pl_PL', 'hr_HR'] # 'zh_CN',
     LIST_OF_LOCALE_DT_FORMATS = ['%d-%B-%Y', '%d-%b-%Y', '%d %B %Y', '%d %b %Y', '%d %b. %Y', '%d. %B %Y', '%B %Y']
     locale.setlocale(locale.LC_TIME, "")
 
     if kwargs.get("country") and kwargs['country'] != 'United States':
-        LIST_OF_DT_FORMATS[20:20] = ['%d/%m/%Y', '%m/%d/%Y', '%d/%m/%y', '%m/%d/%y', '%d-%m-%Y', '%m-%d-%Y', '%d-%m-%y', '%m-%d-%y', '%d.%m.%Y', '%m.%d.%Y', '%d.%m.%y', '%m.%d.%y', '%d/%m/%Y, %H:%M', '%m/%d/%Y, %H:%M', '(%d/%m/%Y)', '(%m/%d/%Y)', '%d/%m/%Y %I:%M %p', '%m/%d/%Y %I:%M %p', '%d-%m-%Y, %I:%M:%S %p', '%m-%d-%Y, %I:%M:%S %p', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%m, %I:%M:%S %p', '%Y-%m-%d, %I:%M:%S %p', '%d/%m/%Y, %H:%M:%S', '%m/%d/%Y, %H:%M:%S'] # 20:20 notion means insert the new list into the existing list, starting at index 20. this slightly speeds up processing of datetime_strs that match those selectors
+        LIST_OF_DT_FORMATS[20:20] = ['%d/%m/%Y', '%m/%d/%Y', '%d/%m/%y', '%m/%d/%y', '%d-%m-%Y', '%m-%d-%Y', '%d-%m-%y', '%m-%d-%y', '%d.%m.%Y', '%m.%d.%Y', '%d.%m.%y', '%m.%d.%y', '%d/%m/%Y, %H:%M', '%m/%d/%Y, %H:%M', '(%d/%m/%Y)', '(%m/%d/%Y)', '%d/%m/%Y %I:%M %p', '%m/%d/%Y %I:%M %p', '%d-%m-%Y, %I:%M:%S %p', '%m-%d-%Y, %I:%M:%S %p', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%m, %I:%M:%S %p', '%Y-%m-%d, %I:%M:%S %p', '%d/%m/%Y, %H:%M:%S', '%m/%d/%Y, %H:%M:%S', '%d/%m/%Y %H:%M:%S', '%m/%d/%Y %H:%M:%S', '%d-%m-%Y %I:%M %p', '%m-%d-%Y %I:%M %p', '%d/%m/%Y %I:%M%p', '%m/%d/%Y %I:%M%p'] # 20:20 notion means insert the new list into the existing list, starting at index 20. this slightly speeds up processing of datetime_strs that match those selectors
     else: 
-        LIST_OF_DT_FORMATS[20:20] = ['%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%m-%d-%Y', '%d-%m-%Y', '%m-%d-%y', '%d-%m-%y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y', '%m/%d/%Y, %H:%M', '%d/%m/%Y, %H:%M', '(%m/%d/%Y)', '(%d/%m/%Y)', '%m/%d/%Y %I:%M %p', '%d/%m/%Y %I:%M %p', '%m-%d-%Y, %I:%M:%S %p', '%d-%m-%Y, %I:%M:%S %p', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%d, %I:%M:%S %p', '%Y-%d-%m, %I:%M:%S %p', '%m/%d/%Y, %H:%M:%S', '%d/%m/%Y, %H:%M:%S'] 
+        LIST_OF_DT_FORMATS[20:20] = ['%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%m-%d-%Y', '%d-%m-%Y', '%m-%d-%y', '%d-%m-%y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y', '%m/%d/%Y, %H:%M', '%d/%m/%Y, %H:%M', '(%m/%d/%Y)', '(%d/%m/%Y)', '%m/%d/%Y %I:%M %p', '%d/%m/%Y %I:%M %p', '%m-%d-%Y, %I:%M:%S %p', '%d-%m-%Y, %I:%M:%S %p', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%d, %I:%M:%S %p', '%Y-%d-%m, %I:%M:%S %p', '%m/%d/%Y, %H:%M:%S', '%d/%m/%Y, %H:%M:%S', '%m/%d/%Y %H:%M:%S', '%d/%m/%Y %H:%M:%S', '%m-%d-%Y %I:%M %p', '%d-%m-%Y %I:%M %p', '%m/%d/%Y %I:%M%p', '%d/%m/%Y %I:%M%p'] 
 
     if not datetime_str:
         return kwargs.get("null_value", "")
@@ -880,7 +970,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
     elif len(datetime_str) == 28 and ez_re_find("\.[0-9]{7}Z$", datetime_str): # python datetime can't handle 7 decimals in ms in 2023-05-25T17:15:00.3686477
         datetime_str = datetime_str[:26] + datetime_str[27:]
 
-    datetime_str = datetime_str.strip().replace("&#43;", "+").replace('PST', '-0800').replace('MST', '-0700').replace('CST', '-0600').replace('CDT', '-0500').replace('EDT', '-0400').replace('EST', '-0500').replace('CEST', '+0200').replace('EET', '+0200').replace('YEKT', '+0500').replace('KST', "+0900")
+    datetime_str = datetime_str.strip().rstrip('.').replace("&#43;", "+").replace('PST', '-0800').replace('MST', '-0700').replace('CST', '-0600').replace('CDT', '-0500').replace('EDT', '-0400').replace('EST', '-0500').replace('CEST', '+0200').replace('EET', '+0200').replace('YEKT', '+0500').replace('KST', "+0900")
 
     for dt_format in LIST_OF_DT_FORMATS:
         try:
@@ -1077,7 +1167,7 @@ def fix_JSON(json_str, **kwargs):
 
     try:
         return json.loads(json_str, strict=False)
-    except ValueError as e:
+    except (ValueError, json.decoder.JSONDecodeError) as e:
         idx_to_replace = int(str(e).split(' ')[-1].replace(')', ''))  # Find the offending character index
 
         if idx_to_replace > len(json_str)-1:
@@ -1091,6 +1181,8 @@ def fix_JSON(json_str, **kwargs):
 
         if "Expecting ',' delimiter:" in str(e) and json_str[idx_to_replace] in ['"', '{', '['] and lookback_check_string_for_substrings(json_str, ['}', ']', '"'], start_index=idx_to_replace):
             json_str = replace_string_char_by_index(json_str, idx_to_replace, ',' + json_str[idx_to_replace]) # input was missing a comma
+        elif "Expecting property name enclosed in double quotes:" in str(e) and ( json_str.endswith('", }') or json_str.endswith('",}') ): 
+            json_str = json_str[:json_str.rindex('"')+1] + '}'
         else:
             json_str = replace_string_char_by_index(json_str, idx_to_replace, ' ')
 
