@@ -703,23 +703,9 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         file_to_write = open(f'/tmp/{filename}.txt', 'rb') # TODO - move to immediately return execute_s3_write while open handler still active
     
     elif file_type == "xml":
-        import timeit
-        start_time = timeit.default_timer()
+        # import timeit
+        # start_time = timeit.default_timer()
         tree = convert_lod_to_xml(input_lod, item_name, **kwargs)
-        # root = ET.Element("jobs")
-        # for item in file_data:
-        #     data_item = ET.SubElement(root, "job")
-        #     for key, value in item.items():
-        #         sub_element = ET.SubElement(data_item, key)
-        #         if isinstance(value, str) and value and key in kwargs.get("cdata_keys", []):
-        #             sub_element.text = "<![CDATA[ " + value + "]]>"
-        #         elif isinstance(value, list):
-        #             for val in value:
-        #                 child_sub_element = ET.SubElement(sub_element, 'item')
-        #                 child_sub_element.text = val
-                # else:
-                    # sub_element.text = str(value) if value else None
-    
         file_to_write = BytesIO()
         tree.write(file_to_write, encoding="utf-8", xml_declaration=True)
         file_to_write.seek(0)
