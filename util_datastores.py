@@ -703,12 +703,13 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         file_to_write = open(f'/tmp/{filename}.txt', 'rb') # TODO - move to immediately return execute_s3_write while open handler still active
     
     elif file_type == "xml":
-        # import timeit
-        # start_time = timeit.default_timer()
-        tree = convert_lod_to_xml(input_lod, item_name, **kwargs)
+        import timeit
+        start_time = timeit.default_timer()
+        tree = convert_lod_to_xml(file_data, kwargs.pop("item_name", "item"), **kwargs)
         file_to_write = BytesIO()
         tree.write(file_to_write, encoding="utf-8", xml_declaration=True)
         file_to_write.seek(0)
+        print(timeit.default_timer() - start_time)
 
     # elif file_type == "xml":
     #     import timeit
