@@ -10,6 +10,7 @@ import logging
 from collections import Counter, defaultdict
 from string import hexdigits
 from urllib.parse import parse_qs, unquote
+import xml.etree.ElementTree as ET
 
 try:
     import sentry_sdk
@@ -491,38 +492,54 @@ def ordered_dict_first(ordered_dict):
 
 
 # this probably doesn't handle deep nesting well. or dicts of dicts.
-def convert_item_to_xml(key, value, xml):
-    if isinstance(value, list):
-        xml += f"\t\t<{key}>\n"
-        for subvalue in value:
-            xml = convert_item_to_xml("item", subvalue, xml).replace(">\n\t\t<item",">\n\t\t\t<item")
-        xml += f"\t\t</{key}>\n"
-    elif isinstance(value, bool) or (isinstance(value, str) and value.lower() in ["true", "false"]):
-        # xml += f'\t\t<{key} xs:type="xs:boolean">{str(value).lower()}</{key}>\n'
-        xml += f'\t\t<{key}>{str(value).lower()}</{key}>\n'
-    elif isinstance(value, str):
-        xml += f"\t\t<{key}><![CDATA[ {value} ]]></{key}>\n"
-    elif value is None: # kinda arbitrary to make one xs and one xsi but the docs online are super unclear and conflicting
-        # xml += f'\t\t<{key} xsi:nil="true"/>\n'
-        xml += f'\t\t<{key}/>\n'
-    else: # float, int, etc
-        xml += f"\t\t<{key}>{value}</{key}>\n"
+# def convert_item_to_xml(key, value, xml):
+#     if isinstance(value, list):
+#         xml += f"\t\t<{key}>\n"
+#         for subvalue in value:
+#             xml = convert_item_to_xml("item", subvalue, xml).replace(">\n\t\t<item",">\n\t\t\t<item")
+#         xml += f"\t\t</{key}>\n"
+#     elif isinstance(value, bool) or (isinstance(value, str) and value.lower() in ["true", "false"]):
+#         xml += f'\t\t<{key}>{str(value).lower()}</{key}>\n'
+#     elif isinstance(value, str) and value:
+#         xml += f"\t\t<{key}><![CDATA[ {value} ]]></{key}>\n"
+#     elif not value:
+#         xml += f'\t\t<{key}/>\n'
+#     else: # float, int, etc
+#         xml += f"\t\t<{key}>{value}</{key}>\n"
 
-    return xml
+#     return xml
+
+
+# def convert_lod_to_xml(input_lod, item_name, **kwargs):
+#     xml = f'<?xml version="1.0" encoding="utf-8"?>\n<{kwargs.get("root_element", "root")}>\n'
+
+#     for row in input_lod:
+#         xml += "\t<" + item_name + ">\n"
+#         for key, value in row.items():
+#             xml += convert_item_to_xml(key, value, "")
+#         xml += "\t</" + item_name + ">\n"
+
+#     xml += f"</{kwargs.get('root_element', 'root')}>\n"
+#     return xml
 
 
 def convert_lod_to_xml(input_lod, item_name, **kwargs):
-    xml = f'<?xml version="1.0" encoding="utf-8"?>\n<{kwargs.get("root_element", "root")}>\n'
+    root = ET.Element(kwargs.get('root_element', 'root'))
+    for item in file_data:
+        data_item = ET.SubElement(root, item_name)
+        for key, value in item.items():
+            sub_element = ET.SubElement(data_item, key)
+            if isinstance(value, str) and value and key in kwargs.get("cdata_keys", []):
+                sub_element.text = "<![CDATA[ " + value + "]]>"
+            elif isinstance(value, list):
+                for val in value:
+                    child_sub_element = ET.SubElement(sub_element, 'item')
+                    child_sub_element.text = val
+            else:
+                sub_element.text = str(value) if value else None
 
-    for row in input_lod:
-        xml += "\t<" + item_name + ">\n"
-        for key, value in row.items():
-            xml += convert_item_to_xml(key, value, "")
-        xml += "\t</" + item_name + ">\n"
-
-    xml += f"</{kwargs.get('root_element', 'root')}>\n"
-    return xml
-
+    tree = ET.ElementTree(root)
+    return tree
 
 # def _emit(key, value, content_handler,
 #           attr_prefix='@',
