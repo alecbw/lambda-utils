@@ -22,6 +22,8 @@ from pprint import pprint
 from io import StringIO, BytesIO, TextIOWrapper
 from typing import List # Callable, Iterator, Union, Optional,
 from collections import defaultdict
+# import xml.etree.ElementTree as ET
+
 # from cryptography.hazmat.backends import default_backend
 # from cryptography.hazmat.primitives import hashes
 # from cryptography.hazmat.primitives import serialization
@@ -701,7 +703,32 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         file_to_write = open(f'/tmp/{filename}.txt', 'rb') # TODO - move to immediately return execute_s3_write while open handler still active
     
     elif file_type == "xml":
-        file_to_write = convert_lod_to_xml(file_data, kwargs.pop("item_name", "dict"), **kwargs)
+        import timeit
+        start_time = timeit.default_timer()
+        tree = convert_lod_to_xml(input_lod, item_name, **kwargs)
+        # root = ET.Element("jobs")
+        # for item in file_data:
+        #     data_item = ET.SubElement(root, "job")
+        #     for key, value in item.items():
+        #         sub_element = ET.SubElement(data_item, key)
+        #         if isinstance(value, str) and value and key in kwargs.get("cdata_keys", []):
+        #             sub_element.text = "<![CDATA[ " + value + "]]>"
+        #         elif isinstance(value, list):
+        #             for val in value:
+        #                 child_sub_element = ET.SubElement(sub_element, 'item')
+        #                 child_sub_element.text = val
+                # else:
+                    # sub_element.text = str(value) if value else None
+    
+        file_to_write = BytesIO()
+        tree.write(file_to_write, encoding="utf-8", xml_declaration=True)
+        file_to_write.seek(0)
+
+    # elif file_type == "xml":
+    #     import timeit
+    #     start_time = timeit.default_timer()
+    #     file_to_write = convert_lod_to_xml(file_data, kwargs.pop("item_name", "dict"), **kwargs)
+    #     print(timeit.default_timer() - start_time)
 
     return execute_s3_write(bucket_name, filename, file_to_write, **kwargs)
 
@@ -954,6 +981,28 @@ def generate_s3_presigned_url(bucket_name, file_name, **kwargs):
     )
     return url
 
+
+########################### ~ CloudFront Specific ~ ###################################################
+
+
+def create_cloudfront_invalidation(distribution_id, filenames, **kwargs):
+    invalidation_batch = {
+        'Paths': {
+            'Quantity': len(filenames),
+            'Items': ['/' + x if not x.startswith('/') else x for x in filenames],
+        },
+        'CallerReference': ''.join(random.SystemRandom().choice(string.ascii_lowercase + string.digits) for _ in range(6))
+    }
+
+    # Create the invalidation
+    response = boto3.client('cloudfront').create_invalidation(
+        DistributionId=distribution_id,
+        InvalidationBatch=invalidation_batch,
+    )
+
+    if not kwargs.get("disable_print"):
+        logging.info(f"Invalidation created with ID: {response['Invalidation']['Id']}")
+    return response['Invalidation']['Id']
 
 
 ###################### ~ SQS Specific ~ ###################################################
