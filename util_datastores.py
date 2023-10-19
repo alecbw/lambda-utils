@@ -1418,7 +1418,9 @@ def grant_lambda_permissions_to_cloudwatch_rule(lambda_name_or_arn, rule_name, r
         Principal='events.amazonaws.com',
         SourceArn=rule_arn,
     )
-    print(response)
+    if not kwargs.get("disable_print"): 
+        logging.info(f"Successfully created a Lambda Resource-based policy statement creation to allow it to be invoked by the CloudWatch Rule")
+
 
 ########################### ~ API Gateway Specific ~ ###################################################
 
