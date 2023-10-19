@@ -22,7 +22,6 @@ from pprint import pprint
 from io import StringIO, BytesIO, TextIOWrapper
 from typing import List # Callable, Iterator, Union, Optional,
 from collections import defaultdict
-# import xml.etree.ElementTree as ET
 
 # from cryptography.hazmat.backends import default_backend
 # from cryptography.hazmat.primitives import hashes
@@ -1320,6 +1319,7 @@ def delete_glue_partition(db, table, partition_values_as_a_list):
 
 ########################### ~ CloudWatch Specific ~ ###################################################
 
+
 # query = "fields @timestamp, @message | parse @message \"username: * ClinicID: * nodename: *\" as username, ClinicID, nodename | filter ClinicID = 7667 and username='simran+test@abc.com'"
 # log_group = '/aws/lambda/NAME_OF_YOUR_LAMBDA_FUNCTION'
 def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
@@ -1373,44 +1373,52 @@ def assemble_cloudwatch_log_stream_url(client, log_pointer, **kwargs):
 
 
 # this wrapper doesn't yet support EventPattern
-def create_cloudwatch_rule(rule_name, trigger, rule_arn, **kwargs):
-    if 'arn:aws:iam::' not in rule_arn:
-        rule_arn = f"arn:aws:iam::{os.environ['AWS_ACCOUNT_ID']}:role/{rule_arn}"
+def create_cloudwatch_rule(rule_name, trigger, iam_role_arn, **kwargs):
+    if 'arn:aws:iam::' not in iam_role_arn:
+        iam_role_arn = f"arn:aws:iam::{os.environ['AWS_ACCOUNT_ID']}:role/{iam_role_arn}"
 
     response = boto3.client('events').put_rule(
         Name=rule_name,
-        RoleArn=rule_arn,
+        RoleArn=iam_role_arn,
         ScheduleExpression=trigger, # e.g. 'rate(5 minutes)' or 'cron(30 1 * * ? *)'
         State=kwargs.get('state', 'ENABLED'),
         Description=f"Created by create_cloudwatch_rule at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} " + kwargs.get('description', ''),
     )
+    if not kwargs.get("disable_print"): 
+        logging.info(f"Successfully did a CloudWatch Rule creation for {rule_name}")
+
     return response['RuleArn']
 
 
-def set_cloudwatch_rule_target(rule_name, lambda_arn, **kwargs):
+def set_cloudwatch_rule_target(rule_name, target_arn, **kwargs):
     client = boto3.client('events')
-    if 'arn:aws:iam::' not in lambda_arn:
-        lambda_arn = f"arn:aws:lambda:{client.meta.region_name}:{os.environ['AWS_ACCOUNT_ID']}:function:{lambda_arn}"
-    
+    if 'arn:aws:iam::' not in target_arn:
+        target_arn = f"arn:aws:lambda:{client.meta.region_name}:{os.environ['AWS_ACCOUNT_ID']}:function:{target_arn}"
+
     response = client.put_targets(
         Rule=rule_name,
         Targets=[{
-                'Arn': lambda_arn,
-                'Id': kwargs.get('rule_id', 'myCloudWatchEventsTarget'),
+                'Id': 'foobarbaz', # kwargs.get('rule_id', 'myCloudWatchEventsTarget'), # What you're naming this target
+                'Arn': target_arn, # for Lambda and SNS, AWS uses resource-based policies, and this kwarg is all you need
+                # 'RoleArn': '',   # RoleArn ONLY applies for EC2 instances, Kinesis Data Streams, Step Functions state machines, API Gateway APIs, EventBridge
                 'Input': json.dumps(kwargs['data']) if isinstance(kwargs.get('data'), dict) else kwargs.get('data', None),
             }]
         )
+    if response.get('FailedEntryCount') != 0:
+        logging.error(f"Some error in set_cloudwatch_rule_target - {response.get('FailedEntries')}")
+    elif not kwargs.get("disable_print"): 
+        logging.info(f"Successfully did a CloudWatch Rule Target Association for {rule_name}")
+
+
+def grant_lambda_permissions_to_cloudwatch_rule(lambda_name_or_arn, rule_name, rule_arn):
+    response = boto3.client('lambda').add_permission(
+        FunctionName=lambda_name_or_arn,
+        StatementId='AllowCWRuleToInvokeLambda_' + rule_name,
+        Action='lambda:InvokeFunction',
+        Principal='events.amazonaws.com',
+        SourceArn=rule_arn,
+    )
     print(response)
-
-
-# def grant_lambda_permissions_to_cloudwatch_rule(rule_name, rule_arn, lambda_arn):
-#     lambda_client.add_permission(
-#         FunctionName=lambda_arn,
-#         StatementId=''.join(e for e in rule_name if e.isalnum()),
-#         Action='lambda:InvokeFunction',
-#         Principal='events.amazonaws.com',
-#         SourceArn=rule_arn
-#     )
 
 ########################### ~ API Gateway Specific ~ ###################################################
 

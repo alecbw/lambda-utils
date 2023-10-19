@@ -491,7 +491,6 @@ def ordered_dict_first(ordered_dict):
     return next(iter(ordered_dict))
 
 
-# this probably doesn't handle deep nesting well. or dicts of dicts.
 # def convert_item_to_xml(key, value, xml):
 #     if isinstance(value, list):
 #         xml += f"\t\t<{key}>\n"
@@ -537,8 +536,17 @@ def convert_lod_to_xml(input_lod, item_name, **kwargs):
                     child_sub_element.text = val
             else:
                 sub_element.text = str(value) if value else None
+        
+            # if kwargs.get('prettify') and sub_element.text:
+                # sub_element.text = "\n\t" + sub_element.text + "\n"
+        
+        # if kwargs.get('prettify'):
+            # data_item.tail = "\n\tbar"
 
     tree = ET.ElementTree(root)
+    # if kwargs.get('prettify'):
+        # ET.indent(tree, space="\t", level=0)
+
     return tree
 
 
