@@ -1374,16 +1374,24 @@ def assemble_cloudwatch_log_stream_url(client, log_pointer, **kwargs):
 
 # this wrapper doesn't yet support EventPattern
 def create_cloudwatch_rule(rule_name, trigger, iam_role_arn, **kwargs):
+    client = boto3.client('events')
     if 'arn:aws:iam::' not in iam_role_arn:
         iam_role_arn = f"arn:aws:iam::{os.environ['AWS_ACCOUNT_ID']}:role/{iam_role_arn}"
 
-    response = boto3.client('events').put_rule(
+    response = client.put_rule(
         Name=rule_name,
         RoleArn=iam_role_arn,
         ScheduleExpression=trigger, # e.g. 'rate(5 minutes)' or 'cron(30 1 * * ? *)'
         State=kwargs.get('state', 'ENABLED'),
         Description=f"Created by create_cloudwatch_rule at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} " + kwargs.get('description', ''),
     )
+
+    if kwargs.get('tags') and isinstance(kwargs['tags'], list) and isinstance(kwargs['tags'][0], dict) and "Key" in kwargs['tags'][0]:
+        _ = client.tag_resource(
+        ResourceARN=response['RuleArn'],
+        Tags=kwargs['tags']
+    )
+
     if not kwargs.get("disable_print"): 
         logging.info(f"Successfully did a CloudWatch Rule creation for {rule_name}")
 
@@ -1410,7 +1418,7 @@ def set_cloudwatch_rule_target(rule_name, target_arn, **kwargs):
         logging.info(f"Successfully did a CloudWatch Rule Target Association for {rule_name}")
 
 
-def grant_lambda_permissions_to_cloudwatch_rule(lambda_name_or_arn, rule_name, rule_arn):
+def grant_lambda_permissions_to_cloudwatch_rule(lambda_name_or_arn, rule_name, rule_arn, **kwargs):
     response = boto3.client('lambda').add_permission(
         FunctionName=lambda_name_or_arn,
         StatementId='AllowCWRuleToInvokeLambda_' + rule_name,
