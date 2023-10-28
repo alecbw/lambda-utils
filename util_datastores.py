@@ -23,12 +23,6 @@ from io import StringIO, BytesIO, TextIOWrapper
 from typing import List # Callable, Iterator, Union, Optional,
 from collections import defaultdict
 
-# from cryptography.hazmat.backends import default_backend
-# from cryptography.hazmat.primitives import hashes
-# from cryptography.hazmat.primitives import serialization
-# from cryptography.hazmat.primitives.asymmetric import padding
-# from botocore.signers import CloudFrontSigner
-
 import boto3
 from botocore.exceptions import ClientError
 from botocore.client import Config
