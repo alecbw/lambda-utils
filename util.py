@@ -836,6 +836,7 @@ def format_timestamp(timestamp, **kwargs):
 # Forces conversion to UTC
 """
     Note: there is no general way to capture ordinal (1st, 2nd), so this must be 4 selectors - '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y'
+    Note: output_format=timestamp doesn't work if the input is a timestamp
     currently preferring month-day-year when amibigous - "%Y-%m-%d", "%Y %m %d", '%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%Y/%m/%d', '%m-%d-%Y', '%d-%m-%Y', %m-%d-%y', '%d-%m-%y', '%d-%b-%Y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y'
     [ ] does this handle daylight savings? TODO
 
@@ -867,9 +868,12 @@ def format_timestamp(timestamp, **kwargs):
 def standardize_dt_str_to_utc(standard_dt_str, **kwargs):
     try:
         output_dt = datetime.utcfromtimestamp(calendar.timegm(standard_dt_str)) # convert from time.struct_time to datetime.date
-        return datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
-    except:
-        logging.warning("Some error while trying to standardize datetime_str to UTC - {standard_dt_str}")
+        if kwargs.get("output_format") == 'timestamp':
+            return calendar.timegm(standard_dt_str)
+        else:
+            return datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
+    except Exception as e:
+        logging.warning(f"{e} -- while trying to standardize datetime_str to UTC -- {standard_dt_str}")
         return kwargs.get("null_value", "")
 
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
