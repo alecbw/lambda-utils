@@ -23,8 +23,8 @@ except (ImportError, KeyError) as e:
 
 import boto3
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger = logging.getLogger().setLevel(logging.INFO)
+# logging.getLogger('botocore').setLevel(logging.INFO) # prevent e.g. logging of 'botocore.credentials:Found credentials in shared credentials file'
 
 TLD_list = None # setting up a global for caching IO of get_tld_list()
 
