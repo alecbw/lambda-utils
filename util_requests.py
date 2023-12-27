@@ -212,6 +212,9 @@ def handle_request_exception(e, proxy, url, disable_error_messages):
     elif "Tunnel connection failed: 403 Forbidden" in str(e): # this MAY be a proxy problem and it may be a true 403 from the domain. Only happens with a proxy.
         warning = f'-----> ERROR. Url: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Request Threw: OSError Error. {e}<-----'
         status_code = 403
+    elif "Tunnel connection failed: 407 Unauthorized" in str(e): # this MAY be a proxy problem and it may be a true 403 from the domain. Only happens with a proxy.
+        warning = f'-----> ERROR. Url: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Check proxy auth settings {e}<-----'
+        status_code = 407
     elif "Connection refused" in str(e) or "Connection reset by peer" in str(e): # or "Remote end closed connection" in str(e):
         warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Proxy refusing traffic {e} <-----'
         status_code = 602
