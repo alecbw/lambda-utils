@@ -1231,7 +1231,6 @@ def change_glue_table_s3_location(db, table, full_bucket_folder_path, **kwargs):
 
 # Dropping a glue table DOES NOT DELETE the underlying data; you have to do so separately
 def drop_glue_table(db, table):
-
     drop_table_sql_query = f"DROP TABLE IF EXISTS `{db}.{table}`"
     query_athena_table(drop_table_sql_query, db)
     logging.info(f"The {table} drop appears to have been successful")
