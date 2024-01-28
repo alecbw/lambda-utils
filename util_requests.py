@@ -190,8 +190,6 @@ def prioritize_proxy(proxies, location):
 
 ################################# ~ Outbound Requests ~ ####################################
 
-# Your proxy appears to only use HTTP and not HTTPS, try changing your proxy URL to be HTTP
-
 def handle_request_exception(e, proxy, url, disable_error_messages):
     if any(x for x in ["Caused by SSLError(SSLCertVerificationError", "SSL: WRONG_VERSION_NUMBER", "[Errno 65] No route to host", "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired", 'Caused by SSLError(CertificateError("hostname'] if x in str(e)):  # CertificateError -> downgrade to HTTP
         warning = f'-----> ERROR. URL: {url}. Proxy: {proxy}. Request Threw: Certificate Error. {e}<-----'
@@ -214,10 +212,16 @@ def handle_request_exception(e, proxy, url, disable_error_messages):
     elif "Tunnel connection failed: 403 Forbidden" in str(e): # this MAY be a proxy problem and it may be a true 403 from the domain. Only happens with a proxy.
         warning = f'-----> ERROR. Url: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Request Threw: OSError Error. {e}<-----'
         status_code = 403
+    elif "Tunnel connection failed: 407 Unauthorized" in str(e): # this MAY be a proxy problem and it may be a true 403 from the domain. Only happens with a proxy.
+        warning = f'-----> ERROR. Url: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Check proxy auth settings {e}<-----'
+        status_code = 407
     elif "Connection refused" in str(e) or "Connection reset by peer" in str(e): # or "Remote end closed connection" in str(e):
         warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Proxy refusing traffic {e} <-----'
         status_code = 602
-    elif any(x for x in ["HTTPConnectionPool", "MaxRetryError" "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)):
+    elif "RemoteDisconnected" in str(e):
+        warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. Probably destination server but maybe proxy refusing traffic {e} <-----'
+        status_code = 604 # it's usually a 404 if the destination server sends it but mark as 604 and retry
+    elif any(x for x in ["HTTPConnectionPool", "MaxRetryError", "ProxyError", "SSLError", "ProtocolError", "ConnectionError", "HTTPError", "Timeout"] if x in str(e)): # [ ] TODO - Too broad. Break apart. 
         warning = f'-----> ERROR. URL: {url}. ROTATE YOUR PROXY. Proxy: {proxy}. {e}<-----'
         status_code = 601
     elif any(x for x in ["UnicodeError"] if x in str(e)):

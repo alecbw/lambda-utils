@@ -23,8 +23,8 @@ except (ImportError, KeyError) as e:
 
 import boto3
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger = logging.getLogger().setLevel(logging.INFO)
+# logging.getLogger('botocore').setLevel(logging.INFO) # prevent e.g. logging of 'botocore.credentials:Found credentials in shared credentials file'
 
 TLD_list = None # setting up a global for caching IO of get_tld_list()
 
@@ -214,6 +214,7 @@ def get_dict_key_by_value(input_dict, value, **kwargs):
 
     return kwargs.get("null_value", None)
 
+
 def get_dict_key_by_longest_value(input_dict):
     if input_dict:
         return max(input_dict.keys(), key=lambda k: len(input_dict[k]))
@@ -264,11 +265,13 @@ def ez_recursive_get(json_input, lookup_key):
         for item in json_input:
             yield from ez_recursive_get(item, lookup_key)
 
+
 def ez_index(input_list, key):
     try:
         return input_list.index(key)
     except ValueError:
         return None
+
 
 # Convert iterable (list, set, ndarray) to str
 def ez_join(iterable_input, delimiter, **kwargs):
@@ -372,6 +375,7 @@ def ez_remove(iterable, to_remove):
         iterable.remove(to_remove)
 
     return iterable
+
 
 def ez_remove_substrings(string, substring_list):
     if not string:
@@ -600,6 +604,7 @@ def lookback_check_string_for_substrings(string, substring_list, **kwargs):
         start_index -= 1
 
     return False
+
 
 # Print/log to the terminal in color!
 def colored_log(log_level, text, color):
@@ -915,7 +920,7 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
             break
         except:
             if dt_format == LIST_OF_DT_FORMATS[-1] and len(datetime_str) not in [10, 11, 12, 13, 14, 15, 16]: # if none matched
-                logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
+                if not kwargs.get('disable_print'): logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
                 return kwargs.get("null_value", "")
             elif dt_format == LIST_OF_DT_FORMATS[-1]:
                 try:
@@ -930,10 +935,10 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
                             except:
                                 if dt_format == LIST_OF_LOCALE_DT_FORMATS[-1] and dt_locale == LIST_OF_LOCALE_FORMATS[-1]: # if none matched
                                     locale.setlocale(locale.LC_TIME, "")
-                                    logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
+                                    if not kwargs.get('disable_print'): logging.warning(f"The datetime_str {datetime_str} (len {len(datetime_str)}, type {type(datetime_str)}) did not match any pattern")
                                     return kwargs.get("null_value", "")
                 except:
-                    logging.warning(f"Problem loading locales, probably")
+                    if not kwargs.get('disable_print'): logging.warning(f"Problem loading locales, probably")
                     return kwargs.get("null_value", "")                    
 
 
