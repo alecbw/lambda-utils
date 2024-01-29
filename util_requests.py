@@ -548,7 +548,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         elif kwargs.get("get_onclick"):
             return html_tag.get("onclick").strip() if html_tag.get("onclick") else null_value
         elif kwargs.get("get_background_image_url"):
-            return ez_re_find('(background-image\: url\(\"?)(.*?)(\"?\))', html_tag.get('style'), group=1).strip('"').strip("'") if html_tag.get('style') else null_value
+            return ez_re_find('(background-image\:\s?url\(\"?)(.*?)(\"?\))', html_tag.get('style'), group=1).strip('"').strip("'") if html_tag.get('style') else null_value
         elif kwargs.get("get_classes"):
             return html_tag['class'] if html_tag.get('class') else null_value
         elif html_type == "meta" and html_tag:
