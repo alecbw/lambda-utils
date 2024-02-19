@@ -11,6 +11,7 @@ import re
 from urllib.parse import urlencode
 from html import unescape
 from datetime import datetime, timedelta
+from pprint import pprint
 
 from bs4 import BeautifulSoup, element, NavigableString, Tag
 import requests
@@ -265,12 +266,12 @@ def site_request(url, proxy, wait, **kwargs):
     }
     if kwargs.get("no_headers"):
         headers = {}
-    if not kwargs.get("http_proxy"):
+    elif not kwargs.get("http_proxy"):
         headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
-    if kwargs.get("origin"):
-        headers['origin'] = kwargs.pop('origin')
-    if kwargs.get("content-type"):
-        headers['content-type'] = kwargs.pop('content-type')
+    
+    for header_kwarg in ['origin', 'host', 'content-type', 'authorization']: # must be in headers, not separate k=v
+      if kwargs.get(header_kwarg):
+        headers[header_kwarg] = kwargs.pop(header_kwarg)
 
     try:
         approved_request_kwargs = ["prevent_redirects", "timeout", "hooks", "verify", 'method', 'data']
@@ -285,7 +286,7 @@ def site_request(url, proxy, wait, **kwargs):
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
 
         logging.debug(f"Now requesting {url}")
-        
+
         if request_kwargs.pop('method', '') == 'POST':
             response = requests.post(url, headers=headers, **request_kwargs)
         else:
