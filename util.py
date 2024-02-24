@@ -726,6 +726,7 @@ def format_url(url, **kwargs):
     #     return url
 
     url = ez_split(url, "://", 1)
+    url = ez_split(url, ":/", 1) # for mis-spelled 'https:/'
     url = ez_split(url, "www.", 1)
 
     if kwargs.get("remove_subsite"):
