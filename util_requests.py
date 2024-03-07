@@ -583,8 +583,8 @@ def safely_encode_text(parsed, **kwargs):
         if '\x00' in text:
             text = text.replace('\x00', '')
             encoding = 'utf-8 - WITH NUL BYTE' # most problematic - breaks CSV reads, which Athena needs
-        elif any(x for x in ['\x01', '\x02', '\x03', '\x07', '\x08', '\x1a', '\x1d', '\x1f'] if x in text): # \x1f may not appear in text
-            text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x07', '').replace('\x08', '').replace('\x1d', '').replace('\x1a', '').replace('\x1f', '') # x01 -> '•' ?
+        elif any(x for x in ['\x01', '\x02', '\x03', '\x07', '\x08', '\x0c', '\x1a', '\x1d', '\x1f'] if x in text): # \x1f may not appear in text
+            text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x07', '').replace('\x08', '').replace('\x0c', '').replace('\x1a', '').replace('\x1d', '').replace('\x1f', '') # x01 -> '•' ?
             encoding = 'utf-8 - WITH CONTROL CHAR'
         else: 
             encoding = 'utf-8'
