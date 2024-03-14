@@ -357,16 +357,16 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
         return kwargs.get("null_value", html_tag_or_str)
 
     elif isinstance(html_tag_or_str, NavigableString) and str(html_tag_or_str):
-        return ez_strip_str(str(html_tag_or_str))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').strip()
+        return ez_strip_str(str(html_tag_or_str), **kwargs)#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ').strip()
 
     elif isinstance(html_tag_or_str, str):
-        return ez_strip_str(html_tag_or_str)
+        return ez_strip_str(html_tag_or_str, **kwargs)
 
     elif isinstance(html_tag_or_str, Tag) and kwargs.get('recursive') == False: # default is True
-        return ez_strip_str(html_tag_or_str.find(text=True, recursive=False))
+        return ez_strip_str(html_tag_or_str.find(text=True, recursive=False), **kwargs)
 
     elif isinstance(html_tag_or_str, Tag):
-        return ez_strip_str(html_tag_or_str.get_text(separator=kwargs.get("text_sep", " "), strip=True))#.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
+        return ez_strip_str(html_tag_or_str.get_text(separator=kwargs.get("text_sep", " "), strip=True), **kwargs) #.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
 
     return kwargs.get("null_value", html_tag_or_str)
 
