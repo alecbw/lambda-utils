@@ -260,7 +260,7 @@ def site_request(url, proxy, wait, **kwargs):
         'referer': kwargs.get("referer", rotate_referer()),          # Note: this is intentionally a misspelling of referrer
         'accept-encoding': rotate_encoding(),
         'accept-language': rotate_language(),
-        'accept': rotate_accept(),
+        'accept': kwargs.get('accept', rotate_accept()),
         'cache-control': "no-cache",
         'DNT': "1",                                              # Ask the server to not be tracked (lol)
     }
@@ -270,8 +270,8 @@ def site_request(url, proxy, wait, **kwargs):
         headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
     
     for header_kwarg in ['origin', 'host', 'content-type', 'authorization']: # must be in headers, not separate k=v
-      if kwargs.get(header_kwarg):
-        headers[header_kwarg] = kwargs.pop(header_kwarg)
+        if kwargs.get(header_kwarg):
+            headers[header_kwarg] = kwargs.pop(header_kwarg)
 
     try:
         approved_request_kwargs = ["prevent_redirects", "timeout", "hooks", "verify", 'method', 'data']
