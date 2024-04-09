@@ -856,6 +856,7 @@ def format_timestamp(timestamp, **kwargs):
         [ ] '31 janv. 2023'  '31 juil. 2023', '17 févr. 2023' - must be some other locale? won't work with 'fr_FR' even though it should. think it's 4 chars vs 3
         [ ] '24 augusti 2023'
 
+[ ] '10 Aug 2023 (9:00 AM) '
     [ ] '09/05/2023 at 11:59 pm' - only seen one instance
     [ ] '15 Sep', '08 Sep' - '%d %b' matches built will set year = 1900
         [ ] '15.august'
