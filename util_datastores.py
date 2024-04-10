@@ -1387,19 +1387,22 @@ def create_cloudwatch_rule(rule_name, trigger, iam_role_arn, **kwargs):
     # 'MaximumEventAgeInSeconds': 123
 def set_cloudwatch_rule_target(rule_name, target_arn, **kwargs):
     if 'arn:aws:lambda:' in target_arn:
-        targets_kwargs = {'Arn': target_arn} # for Lambda and SNS, AWS uses resource-based policies
-    elif 'arn:aws:iam:':
-        targets_kwargs = {'RoleArn': target_arn} # RoleArn applies for EC2 instances, Kinesis Data Streams, Step Functions state machines, API Gateway APIs
+        targets_kwargs = {}
+    elif kwargs.get('RoleArn'):
+        targets_kwargs = {'RoleArn': kwargs['RoleArn']} # RoleArn applies for EC2 instances, Kinesis Data Streams, Step Functions state machines, API Gateway APIs
     else:
-        raise ValueError("You must provide the full ARN (Lambda/SNS or IAM) for the target_arn arg of set_cloudwatch_rule_target")
+        raise ValueError("You must provide the ARN of the Lambda/SNS or (IAM + resource itself) for set_cloudwatch_rule_target")
 
-    targets_kwargs = {**targets_kwargs, **{k:v for k,v in kwargs if k in ['EcsParameters']}}
+    targets_kwargs = {**targets_kwargs, **{k:v for k,v in kwargs.items() if k in ['EcsParameters']}}
+    if isinstance(kwargs.get('data'), dict):
+        targets_kwargs =  { **targets_kwargs, **{'Input': json.dumps(kwargs['data'])} }
+    
     client = boto3.client('events')
     response = client.put_targets(
         Rule=rule_name,
         Targets=[{**targets_kwargs, **{
+                'Arn': target_arn, # for Lambda and SNS, AWS uses resource-based policies, so this is all you need
                 'Id': ''.join(random.SystemRandom().choice(string.ascii_lowercase + string.digits) for _ in range(8)), # kwargs.get('rule_id', 'myCloudWatchEventsTarget'), # What you're naming this target
-                'Input': json.dumps(kwargs['data']) if isinstance(kwargs.get('data'), dict) else kwargs.get('data', None),
             }}]
         )
     if response.get('FailedEntryCount') != 0:
