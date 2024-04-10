@@ -1382,19 +1382,25 @@ def create_cloudwatch_rule(rule_name, trigger, iam_role_arn, **kwargs):
     return response['RuleArn']
 
 
+# 'RetryPolicy': {
+    # 'MaximumRetryAttempts': 123,
+    # 'MaximumEventAgeInSeconds': 123
 def set_cloudwatch_rule_target(rule_name, target_arn, **kwargs):
-    client = boto3.client('events')
-    if 'arn:aws:iam::' not in target_arn:
-        target_arn = f"arn:aws:lambda:{client.meta.region_name}:{os.environ['AWS_ACCOUNT_ID']}:function:{target_arn}"
+    if 'arn:aws:lambda:' in target_arn:
+        targets_kwargs = {'Arn': target_arn} # for Lambda and SNS, AWS uses resource-based policies
+    elif 'arn:aws:iam:':
+        targets_kwargs = {'RoleArn': target_arn} # RoleArn applies for EC2 instances, Kinesis Data Streams, Step Functions state machines, API Gateway APIs
+    else:
+        raise ValueError("You must provide the full ARN (Lambda/SNS or IAM) for the target_arn arg of set_cloudwatch_rule_target")
 
+    targets_kwargs = {**targets_kwargs, **{k:v for k,v in kwargs if k in ['EcsParameters']}}
+    client = boto3.client('events')
     response = client.put_targets(
         Rule=rule_name,
-        Targets=[{
-                'Id': 'foobarbaz', # kwargs.get('rule_id', 'myCloudWatchEventsTarget'), # What you're naming this target
-                'Arn': target_arn, # for Lambda and SNS, AWS uses resource-based policies, and this kwarg is all you need
-                # 'RoleArn': '',   # RoleArn ONLY applies for EC2 instances, Kinesis Data Streams, Step Functions state machines, API Gateway APIs, EventBridge
+        Targets=[{**targets_kwargs, **{
+                'Id': ''.join(random.SystemRandom().choice(string.ascii_lowercase + string.digits) for _ in range(8)), # kwargs.get('rule_id', 'myCloudWatchEventsTarget'), # What you're naming this target
                 'Input': json.dumps(kwargs['data']) if isinstance(kwargs.get('data'), dict) else kwargs.get('data', None),
-            }]
+            }}]
         )
     if response.get('FailedEntryCount') != 0:
         logging.error(f"Some error in set_cloudwatch_rule_target - {response.get('FailedEntries')}")
