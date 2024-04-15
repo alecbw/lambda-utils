@@ -1396,19 +1396,20 @@ def set_cloudwatch_rule_target(rule_name, target_arn, **kwargs):
     targets_kwargs = {**targets_kwargs, **{k:v for k,v in kwargs.items() if k in ['EcsParameters']}}
     if isinstance(kwargs.get('data'), dict):
         targets_kwargs =  { **targets_kwargs, **{'Input': json.dumps(kwargs['data'])} }
-    
+
+    rule_target_id = ''.join(random.SystemRandom().choice(string.ascii_lowercase + string.digits) for _ in range(8))
     client = boto3.client('events')
     response = client.put_targets(
         Rule=rule_name,
         Targets=[{**targets_kwargs, **{
                 'Arn': target_arn, # for Lambda and SNS, AWS uses resource-based policies, so this is all you need
-                'Id': ''.join(random.SystemRandom().choice(string.ascii_lowercase + string.digits) for _ in range(8)), # kwargs.get('rule_id', 'myCloudWatchEventsTarget'), # What you're naming this target
+                'Id': rule_target_id
             }}]
         )
     if response.get('FailedEntryCount') != 0:
         logging.error(f"Some error in set_cloudwatch_rule_target - {response.get('FailedEntries')}")
     elif not kwargs.get("disable_print"): 
-        logging.info(f"Successfully did a CloudWatch Rule Target Association for {rule_name}")
+        logging.info(f"Successfully did a CloudWatch Rule Target Association for {rule_name} with rule_target_id of {rule_target_id}")
 
 
 def grant_lambda_permissions_to_cloudwatch_rule(lambda_name_or_arn, rule_name, rule_arn, **kwargs):
