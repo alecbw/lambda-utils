@@ -1393,7 +1393,7 @@ def set_cloudwatch_rule_target(rule_name, target_arn, **kwargs):
     else:
         raise ValueError("You must provide the ARN of the Lambda/SNS or (IAM + resource itself) for set_cloudwatch_rule_target")
 
-    targets_kwargs = {**targets_kwargs, **{k:v for k,v in kwargs.items() if k in ['EcsParameters']}}
+    targets_kwargs = {**targets_kwargs, **{k:v for k,v in kwargs.items() if k in ['EcsParameters', 'InputTransformer']}}
     if isinstance(kwargs.get('data'), dict):
         targets_kwargs =  { **targets_kwargs, **{'Input': json.dumps(kwargs['data'])} }
     
