@@ -1367,7 +1367,7 @@ def create_cloudwatch_rule(rule_name, trigger, iam_role_arn, **kwargs):
         RoleArn=iam_role_arn,
         ScheduleExpression=trigger, # e.g. 'rate(5 minutes)' or 'cron(30 1 * * ? *)'
         State=kwargs.get('state', 'ENABLED'),
-        Description=f"Created by create_cloudwatch_rule at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} " + kwargs.get('description', ''),
+        Description=f"{kwargs.get('description', '')} Created by create_cloudwatch_rule at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}",
     )
 
     if kwargs.get('tags') and isinstance(kwargs['tags'], list) and isinstance(kwargs['tags'][0], dict) and "Key" in kwargs['tags'][0]:
