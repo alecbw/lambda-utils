@@ -854,13 +854,20 @@ def format_timestamp(timestamp, **kwargs):
         [ ] '30-Ağu-2023'
         [ ] '16-5 月-2023' - has weird selector. chinese?
         [ ] '31 janv. 2023'  '31 juil. 2023', '17 févr. 2023' - must be some other locale? won't work with 'fr_FR' even though it should. think it's 4 chars vs 3
-        [ ] '24 augusti 2023'
+        [ ] '24 augusti 2023', '21 septembre 2023'
+        [ ] '11. Mai 2024'
+        [ ] 'vrijdag 12 april 2024'
+        [ ] 'mardi 2 avril 2024'
+        [ ] '27/ott/2015'
+        [ ] '03 مايو, 2024'
+        [ ] 'jueves, 26 de octubre de 2023'
+        [ ] '2024년 5월 6일 월요일'
 
-[ ] '10 Aug 2023 (9:00 AM) '
     [ ] '09/05/2023 at 11:59 pm' - only seen one instance
     [ ] '15 Sep', '08 Sep' - '%d %b' matches built will set year = 1900
         [ ] '15.august'
 
+    [ ] '10/01/2024, 11:59PM ET' - ET not in supported timezone .replace()
     [ ] 'Sept. 28, 2022' - the 't' in 'Sept' rather than 'Sep' makes it not match
     [ ] '2022-09-12T00:21:48.0000000+00:00' - python can't handle 7 digit ms
     [ ] '2023-06-30T14:28:32.473144152-07:00'
@@ -870,6 +877,7 @@ def format_timestamp(timestamp, **kwargs):
     [ ] Feb 8, 2023 (HK Time)
     [ ] '2022-09-12T00:21:48.0000000+00:00', '2022-09-12T00:21:48.0000000+00:00'
     [ ] dumb, not going to add - '06 Jun 2023 2023 (4:55)', '01 Sep 2023 2023',  '18- Apr-2023' - dumbass internal space
+    [ ] Various without year - [ 'Friday 10th May', ]
 """
 def standardize_dt_str_to_utc(standard_dt_str, **kwargs):
     try:
@@ -883,7 +891,7 @@ def standardize_dt_str_to_utc(standard_dt_str, **kwargs):
         return kwargs.get("null_value", "")
 
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
-    LIST_OF_DT_FORMATS = ['%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%SZ', '%Y-%m-%d %H:%M:%S %Z', '%Y-%m-%d %H:%M:%ST%z', '%Y-%m-%d %H:%M:%S %z %Z', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f%z', '%a, %d %b %Y %H:%M:%S %Z', '%a %b %d, %Y', '%m/%d/%Y %H:%M:%S %p', '%A, %B %d, %Y, %H:%M %p',  '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S.SSSZ', '%a %b %d %Y %H:%M:%S %Z%z', '%b %d, %Y', '%d-%b-%Y', '%Y/%m/%d', '%Y-%m-%dT%H:%M:%S %Z', '%a, %m/%d/%Y - %H:%M', '%B, %Y',  '%Y-%m-%d %H:%M:%S %z', '%a, %d %b %Y %H:%M:%S %z', '%a, %d %b %Y %H:%M:%S', '%B %d, %Y', '%B %Y', '%Y-%m', '%Y-%m-%dT%H:%M:%ST%z', '%A, %d-%B-%Y %H:%M:%S %Z', '%Y', '%Y-%m-%d @ %H:%M:%S %Z', '%Y-%m-%dT%H:%M%z', '%Y-%m-%d %H:%M:%S %z %Z', '%a, %d %b %Y %H:%M:%S%Z', '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', '%Y-%m-%d T %H:%M:%S %z', '%Y-%m-%d %H:%M:%S.%f', '%m/%d/%y %H:%M',  '%a %d %b %H:%M', '%Y-%m-%dT%H:%M', '%b %d %Y %H:%M:%S', '%A, %B %d, %Y %H:%M %p', '%Y-%m-%d@%H:%M:%S %Z', '%m/%d/%Y %H:%M %p %Z', '%a, %b %d', '%A, %B %d, %Y', '%Y-%m-%d', '%Y %m %d', '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%d %B %y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%dst %b, %Y', '%dnd %b, %Y', '%drd %b, %Y', '%dth %b, %Y',  '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%A, %d %B %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y', '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y', '%d %B %Y (%I:%M %p)', '%b %d, %Y %H:%M', '%d.%b.%y, %I:%M:%S %p', '%b %d, %Y (%I:%M %p)', '%b %d %Y %H:%M', '%B %d, %Y %H:%M', '%Y-%m-%d %H:%M', '%Y.%m.%d', '%Ya%mm%dd', '%Ya%mm%dj', '%Y/%m/%d %H:%M:%S', '%Y%m%d', '%dst %B %Y', '%dnd %B %Y', '%drd %B %Y', '%dth %B %Y', '%dst %B %Y %I:%M %p', '%dnd %B %Y %I:%M %p', '%drd %B %Y %I:%M %p', '%dth %B %Y %I:%M %p']
+    LIST_OF_DT_FORMATS = ['%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%SZ', '%Y-%m-%d %H:%M:%S %Z', '%Y-%m-%d %H:%M:%ST%z', '%Y-%m-%d %H:%M:%S %z %Z', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f%z', '%a, %d %b %Y %H:%M:%S %Z', '%a %b %d, %Y', '%m/%d/%Y %H:%M:%S %p', '%A, %B %d, %Y, %H:%M %p',  '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S.SSSZ', '%a %b %d %Y %H:%M:%S %Z%z', '%b %d, %Y', '%d-%b-%Y', '%Y/%m/%d', '%Y-%m-%dT%H:%M:%S %Z', '%a, %m/%d/%Y - %H:%M', '%B, %Y',  '%Y-%m-%d %H:%M:%S %z', '%a, %d %b %Y %H:%M:%S %z', '%a, %d %b %Y %H:%M:%S', '%B %d, %Y', '%B %Y', '%Y-%m', '%Y-%m-%dT%H:%M:%ST%z', '%A, %d-%B-%Y %H:%M:%S %Z', '%Y', '%Y-%m-%d @ %H:%M:%S %Z', '%Y-%m-%dT%H:%M%z', '%Y-%m-%d %H:%M:%S %z %Z', '%a, %d %b %Y %H:%M:%S%Z', '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', '%Y-%m-%d T %H:%M:%S %z', '%Y-%m-%d %H:%M:%S.%f', '%m/%d/%y %H:%M',  '%a %d %b %H:%M', '%Y-%m-%dT%H:%M', '%b %d %Y %H:%M:%S', '%A, %B %d, %Y %H:%M %p', '%Y-%m-%d@%H:%M:%S %Z', '%m/%d/%Y %H:%M %p %Z', '%a, %b %d', '%A, %B %d, %Y', '%Y-%m-%d', '%Y %m %d', '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%d %B %y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%dst %b, %Y', '%dnd %b, %Y', '%drd %b, %Y', '%dth %b, %Y',  '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%A, %d %B %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y', '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y', '%d %B %Y (%I:%M %p)', '%b %d, %Y %H:%M', '%d.%b.%y, %I:%M:%S %p', '%b %d, %Y (%I:%M %p)', '%b %d %Y %H:%M', '%B %d, %Y %H:%M', '%Y-%m-%d %H:%M', '%Y.%m.%d', '%Ya%mm%dd', '%Ya%mm%dj', '%Y/%m/%d %H:%M:%S', '%Y%m%d', '%dst %B %Y', '%dnd %B %Y', '%drd %B %Y', '%dth %B %Y', '%dst %B %Y %I:%M %p', '%dnd %B %Y %I:%M %p', '%drd %B %Y %I:%M %p', '%dth %B %Y %I:%M %p', '%d %b %Y (%I:%M %p)']
     LIST_OF_LOCALE_FORMATS = ['fr_FR', 'de_DE', 'it_IT', 'es_ES', 'nl_NL', 'da_DK', 'ru_RU', 'pl_PL', 'hr_HR'] # 'zh_CN',
     LIST_OF_LOCALE_DT_FORMATS = ['%d-%B-%Y', '%d-%b-%Y', '%d %B %Y', '%d %b %Y', '%d %b. %Y', '%d. %B %Y', '%B %Y']
     locale.setlocale(locale.LC_TIME, '')
