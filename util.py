@@ -864,9 +864,6 @@ def format_timestamp(timestamp, **kwargs):
         [ ] '2024년 5월 6일 월요일'
 
     [ ] '09/05/2023 at 11:59 pm' - only seen one instance
-    [ ] '15 Sep', '08 Sep' - '%d %b' matches built will set year = 1900
-        [ ] '15.august'
-
     [ ] '10/01/2024, 11:59PM ET' - ET not in supported timezone .replace()
     [ ] 'Sept. 28, 2022' - the 't' in 'Sept' rather than 'Sep' makes it not match
     [ ] '2022-09-12T00:21:48.0000000+00:00' - python can't handle 7 digit ms
@@ -877,7 +874,7 @@ def format_timestamp(timestamp, **kwargs):
     [ ] Feb 8, 2023 (HK Time)
     [ ] '2022-09-12T00:21:48.0000000+00:00', '2022-09-12T00:21:48.0000000+00:00'
     [ ] dumb, not going to add - '06 Jun 2023 2023 (4:55)', '01 Sep 2023 2023',  '18- Apr-2023' - dumbass internal space
-    [ ] Various without year - [ 'Friday 10th May', ]
+    [ ] Various without year - [ 'Friday 10th May', '15 Sep', '15.august']
 """
 def standardize_dt_str_to_utc(standard_dt_str, **kwargs):
     try:
