@@ -862,6 +862,8 @@ def format_timestamp(timestamp, **kwargs):
         [ ] '03 مايو, 2024'
         [ ] 'jueves, 26 de octubre de 2023'
         [ ] '2024년 5월 6일 월요일'
+        [ ] '22/mag/2024'
+        [ ] '7 февраля 2023 г'
 
     [ ] '09/05/2023 at 11:59 pm' - only seen one instance
     [ ] '10/01/2024, 11:59PM ET' - ET not in supported timezone .replace()
