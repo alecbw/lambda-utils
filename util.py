@@ -1036,11 +1036,13 @@ def combine_lists_unique_values(*args):
             output_set.add(item)
     return list(output_set)
 
+
 # from here: https://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-whilst-preserving-order
 def deduplicate_ordered_list(seq):
     seen = set()
     seen_add = seen.add
     return [x for x in seq if not (x in seen or seen_add(x))]
+
 
 # return max 1 item case-insensitive, but with its original casing. From here: https://stackoverflow.com/questions/48283295/how-to-remove-case-insensitive-duplicates-from-a-list-while-maintaining-the-ori
 def case_insensitive_deduplicate_list(input_list):
