@@ -703,11 +703,15 @@ def is_url(potential_url, **kwargs):
     if not potential_url:
         return False
 
-    matched_tlds = find_substrings_in_string(potential_url, kwargs.get("tld_list", get_tld_list())) #and potential_url[0] != "."
+    potential_url = potential_url.lower()
+
+    matched_tlds = [sub_str for sub_str in kwargs.get("tld_list", get_tld_list()) if sub_str in potential_url]
+
     if ez_re_find("(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?|:|#)", potential_url, group=0):
         return True
 
     return False
+
 
 """
 Keep in mind removals will stack - e.g. remove_tld will remove subsite, port, and trailing slash
@@ -1032,11 +1036,13 @@ def combine_lists_unique_values(*args):
             output_set.add(item)
     return list(output_set)
 
+
 # from here: https://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-whilst-preserving-order
 def deduplicate_ordered_list(seq):
     seen = set()
     seen_add = seen.add
     return [x for x in seq if not (x in seen or seen_add(x))]
+
 
 # return max 1 item case-insensitive, but with its original casing. From here: https://stackoverflow.com/questions/48283295/how-to-remove-case-insensitive-duplicates-from-a-list-while-maintaining-the-ori
 def case_insensitive_deduplicate_list(input_list):
