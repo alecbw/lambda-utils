@@ -705,15 +705,12 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         file_to_write.seek(0)
     
         if file_type == "xml.gz":
-            _file_to_write = copy.deepcopy(file_to_write)
+            _file_to_write = copy.deepcopy(file_to_write) # specifically to avoid var name collision
             file_to_write = BytesIO()
             with gzip.GzipFile(fileobj=file_to_write, mode='wb') as fh:
                 fh.write(_file_to_write.getvalue())
 
-            # with gzip.GzipFile(fileobj=file_to_write, mode='wb') as fh:
-                # fh.write(file_to_write.getvalue()) # write arg must be str and this is bytestr
-        
-
+            file_to_write.seek(0) # have to run again
 
     return execute_s3_write(bucket_name, filename, file_to_write, **kwargs)
 
