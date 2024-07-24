@@ -649,7 +649,7 @@ def get_s3_file(bucket_name, filename, **kwargs):
         elif kwargs.get("convert_json"):
             return json.loads(s3_obj.read().decode('utf-8'))
         elif kwargs.get("convert_jsonl"):
-            return [json.loads(line) for line in s3_obj.read().decode('utf-8')]
+            return [json.loads(line) for line in s3_obj.read().splitlines(True)] # not sure why .decode('utf-8') is breaking here but it is
         else:
             return s3_obj.read().decode('utf-8')
 
