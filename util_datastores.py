@@ -706,7 +706,7 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
     
         if file_type == "xml.gz":
             _file_to_write = copy.deepcopy(file_to_write)
-            file_to_write = io.BytesIO()
+            file_to_write = BytesIO()
             with gzip.GzipFile(fileobj=file_to_write, mode='wb') as fh:
                 fh.write(_file_to_write.getvalue())
 
