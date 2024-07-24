@@ -17,6 +17,7 @@ import csv
 import timeit
 import ast
 import gzip
+import copy
 
 from pprint import pprint
 from io import StringIO, BytesIO, TextIOWrapper
@@ -704,8 +705,13 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         file_to_write.seek(0)
     
         if file_type == "xml.gz":
+            _file_to_write = copy.deepcopy(file_to_write)
+            file_to_write = io.BytesIO()
             with gzip.GzipFile(fileobj=file_to_write, mode='wb') as fh:
-                fh.write(file_to_write.getvalue()) # write arg must be str and this is bytestr
+                fh.write(_file_to_write.getvalue())
+
+            # with gzip.GzipFile(fileobj=file_to_write, mode='wb') as fh:
+                # fh.write(file_to_write.getvalue()) # write arg must be str and this is bytestr
         
 
 
