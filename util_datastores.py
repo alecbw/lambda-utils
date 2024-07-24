@@ -671,6 +671,7 @@ def execute_s3_write(bucket_name, filename, file_to_write, **kwargs):
     except Exception as e:
         logging.error(e, bucket_name, filename)
 
+
 def write_s3_file(bucket_name, filename, file_data, **kwargs):
     file_type = kwargs.get("file_type", "json").replace('json_gzip', 'json.gz')
     
@@ -704,10 +705,10 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
     elif file_type == "xml.gz":
         tree = convert_lod_to_xml(file_data, kwargs.pop("item_name", "item"), **kwargs)
         in_memory_obj = BytesIO()
-        tree.write(in_memory_obj, encoding="utf-8", xml_declaration=True)
         with gzip.GzipFile(fileobj=in_memory_obj, mode='wb') as fh:
             with TextIOWrapper(fh, encoding='utf-8') as wrapper:
-                wrapper.write(in_memory_obj)
+                wrapper.write(tree.tostring(root, encoding='utf-8', method='xml'))
+        
         in_memory_obj.seek(0)        
         return execute_s3_write(bucket_name, filename, in_memory_obj, **kwargs)
 
