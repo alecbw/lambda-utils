@@ -22,6 +22,7 @@ from pprint import pprint
 from io import StringIO, BytesIO, TextIOWrapper
 from typing import List # Callable, Iterator, Union, Optional,
 from collections import defaultdict
+import xml.etree.ElementTree as ET
 
 import boto3
 from botocore.exceptions import ClientError
@@ -707,7 +708,7 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         in_memory_obj = BytesIO()
         with gzip.GzipFile(fileobj=in_memory_obj, mode='wb') as fh:
             with TextIOWrapper(fh, encoding='utf-8') as wrapper:
-                wrapper.write(tree.tostring(root, encoding='utf-8', method='xml'))
+                wrapper.write(ET.tostring(tree, encoding='utf-8', method='xml'))
         
         in_memory_obj.seek(0)        
         return execute_s3_write(bucket_name, filename, in_memory_obj, **kwargs)
