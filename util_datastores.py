@@ -697,7 +697,7 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
             dict_writer.writerows(file_data)
         file_to_write = open(f'/tmp/{filename}.txt', 'rb') # TODO - move to immediately return execute_s3_write while open handler still active
     
-    elif file_type == "xml":
+    elif file_type in ["xml", "xml.gz"]:
         tree = convert_lod_to_xml(file_data, kwargs.pop("item_name", "item"), **kwargs)
         file_to_write = BytesIO()
         tree.write(file_to_write, encoding="utf-8", xml_declaration=True)
