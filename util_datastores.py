@@ -703,15 +703,12 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         tree.write(file_to_write, encoding="utf-8", xml_declaration=True)
         file_to_write.seek(0)
     
-    elif file_type == "xml.gz":
-        tree = convert_lod_to_xml(file_data, kwargs.pop("item_name", "item"), **kwargs)
-        in_memory_obj = BytesIO()
-        with gzip.GzipFile(fileobj=in_memory_obj, mode='wb') as fh:
-            with TextIOWrapper(fh, encoding='utf-8') as wrapper:
-                wrapper.write(ET.tostring(tree, encoding='utf-8', method='xml'))
+        if file_type == "xml.gz":
+            with gzip.GzipFile(fileobj=file_to_write, mode='wb') as fh:
+                with TextIOWrapper(fh, encoding='utf-8') as wrapper:
+                    wrapper.write(file_to_write.getvalue())
         
-        in_memory_obj.seek(0)        
-        return execute_s3_write(bucket_name, filename, in_memory_obj, **kwargs)
+
 
     return execute_s3_write(bucket_name, filename, file_to_write, **kwargs)
 
