@@ -648,6 +648,8 @@ def get_s3_file(bucket_name, filename, **kwargs):
             # return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
         elif kwargs.get("convert_json"):
             return json.loads(s3_obj.read().decode('utf-8'))
+        elif kwargs.get("convert_jsonl"):
+            return [json.loads(line) for line in s3_obj.read().decode('utf-8')]
         else:
             return s3_obj.read().decode('utf-8')
 
