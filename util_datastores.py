@@ -705,8 +705,7 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
     
         if file_type == "xml.gz":
             with gzip.GzipFile(fileobj=file_to_write, mode='wb') as fh:
-                with TextIOWrapper(fh, encoding='utf-8') as wrapper:
-                    wrapper.write(file_to_write.getvalue())
+                fh.write(file_to_write.getvalue()) # write arg must be str and this is bytestr
         
 
 
