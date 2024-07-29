@@ -131,7 +131,7 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
  
 # Note: Athena SQL queries have a limit of 262144 bytes for the text of the SQL-to-be-run
 def query_athena_table(sql_query, database, **kwargs):
-    if database not in sql_query:
+    if database and database not in sql_query:
         logging.warning(f"The provided database ({database}) is not in your provided SQL query")
 
     if kwargs.get("time_it"): start_time = timeit.default_timer()
@@ -139,7 +139,7 @@ def query_athena_table(sql_query, database, **kwargs):
     client = boto3.client('athena')
     query_started = client.start_query_execution(
         QueryString=sql_query,
-        QueryExecutionContext={'Database': database},
+        QueryExecutionContext={'Database': database} if database else {},
         ResultConfiguration={"OutputLocation": kwargs.get("output_bucket", f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/")}
     )
 
