@@ -136,7 +136,7 @@ def query_athena_table(sql_query, database, **kwargs):
     client = boto3.client('athena')
     query_started = client.start_query_execution(
         QueryString=sql_query,
-        QueryExecutionContext={'Database': database} if database else {},
+        QueryExecutionContext={'Database': database} if database else {'Catalog': kwargs.get('catalog', 'AwsDataCatalog')},
         ResultConfiguration={"OutputLocation": kwargs.get("output_bucket", f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/")}
     )
 
