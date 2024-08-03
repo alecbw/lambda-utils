@@ -569,7 +569,7 @@ def safely_encode_text(parsed, **kwargs):
     if not parsed:
         return "", None
 
-    truncate_at = kwargs.get('truncate_at', 1_000_000) # truncate to 1,000,000 characters to avoid Size of a 'single row or its columns cannot exceed 32 MB' Athena error
+    truncate_at = kwargs.get('truncate_at', 1_000_000) # truncate to 1,000,000 characters to avoid 'Size of a single row or its columns cannot exceed 32 MB' Athena error
     try:
         if isinstance(parsed, str):
             text = parsed
@@ -583,9 +583,9 @@ def safely_encode_text(parsed, **kwargs):
         if '\x00' in text:
             text = text.replace('\x00', '')
             encoding = 'utf-8 - WITH NUL BYTE' # most problematic - breaks CSV reads, which Athena needs
-        elif any(x for x in ['\x01', '\x02', '\x03', '\x07', '\x08', '\x0c', '\x1a', '\x1d', '\x1f'] if x in text): # \x1f may not appear in text
-            text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x07', '').replace('\x08', '').replace('\x0c', '').replace('\x1a', '').replace('\x1d', '').replace('\x1f', '') # x01 -> '•' ?
-            encoding = 'utf-8 - WITH CONTROL CHAR'
+        elif any(x for x in ['\x01', '\x02', '\x03', '\x07', '\x08', '\x0b', '\x0c', '\x1a', '\x1d', '\x1e', '\x1f', '\uf0e8', '', '￾'] if x in text): # \x1f may not appear in text
+            text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x07', '').replace('\x08', '').replace('\x0b', '').replace('\x0c', '').replace('\x1a', '').replace('\x1d', '').replace('\x1e', '').replace('\x1f', '').replace('\uf0e8', '').replace('', '').replace('￾', '')  # x01 -> '•' ?
+            encoding = 'utf-8 - WITH CONTROL CHAR' # breaks XML outputs
         else: 
             encoding = 'utf-8'
 
