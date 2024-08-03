@@ -495,35 +495,6 @@ def ordered_dict_first(ordered_dict):
     return next(iter(ordered_dict))
 
 
-# def convert_item_to_xml(key, value, xml):
-#     if isinstance(value, list):
-#         xml += f"\t\t<{key}>\n"
-#         for subvalue in value:
-#             xml = convert_item_to_xml("item", subvalue, xml).replace(">\n\t\t<item",">\n\t\t\t<item")
-#         xml += f"\t\t</{key}>\n"
-#     elif isinstance(value, bool) or (isinstance(value, str) and value.lower() in ["true", "false"]):
-#         xml += f'\t\t<{key}>{str(value).lower()}</{key}>\n'
-#     elif isinstance(value, str) and value:
-#         xml += f"\t\t<{key}><![CDATA[ {value} ]]></{key}>\n"
-#     elif not value:
-#         xml += f'\t\t<{key}/>\n'
-#     else: # float, int, etc
-#         xml += f"\t\t<{key}>{value}</{key}>\n"
-
-#     return xml
-
-
-# def convert_lod_to_xml(input_lod, item_name, **kwargs):
-#     xml = f'<?xml version="1.0" encoding="utf-8"?>\n<{kwargs.get("root_element", "root")}>\n'
-
-#     for row in input_lod:
-#         xml += "\t<" + item_name + ">\n"
-#         for key, value in row.items():
-#             xml += convert_item_to_xml(key, value, "")
-#         xml += "\t</" + item_name + ">\n"
-
-#     xml += f"</{kwargs.get('root_element', 'root')}>\n"
-#     return xml
 
 
 def convert_lod_to_xml(input_lod, item_name, **kwargs):

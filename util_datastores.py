@@ -17,6 +17,7 @@ import csv
 import timeit
 import ast
 import gzip
+import copy
 
 from pprint import pprint
 from io import StringIO, BytesIO, TextIOWrapper
@@ -130,15 +131,12 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
  
 # Note: Athena SQL queries have a limit of 262144 bytes for the text of the SQL-to-be-run
 def query_athena_table(sql_query, database, **kwargs):
-    if database not in sql_query:
-        logging.warning(f"The provided database ({database}) is not in your provided SQL query")
-
     if kwargs.get("time_it"): start_time = timeit.default_timer()
 
     client = boto3.client('athena')
     query_started = client.start_query_execution(
         QueryString=sql_query,
-        QueryExecutionContext={'Database': database},
+        QueryExecutionContext={'Database': database} if database else {'Catalog': kwargs.get('catalog', 'AwsDataCatalog')},
         ResultConfiguration={"OutputLocation": kwargs.get("output_bucket", f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/")}
     )
 
@@ -647,6 +645,8 @@ def get_s3_file(bucket_name, filename, **kwargs):
             # return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
         elif kwargs.get("convert_json"):
             return json.loads(s3_obj.read().decode('utf-8'))
+        elif kwargs.get("convert_jsonl"):
+            return [json.loads(line) for line in s3_obj.read().splitlines(True)] # not sure why .decode('utf-8') is breaking here but it is
         else:
             return s3_obj.read().decode('utf-8')
 
@@ -697,21 +697,19 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
             dict_writer.writerows(file_data)
         file_to_write = open(f'/tmp/{filename}.txt', 'rb') # TODO - move to immediately return execute_s3_write while open handler still active
     
-    elif file_type == "xml":
+    elif file_type in ["xml", "xml.gz"]:
         tree = convert_lod_to_xml(file_data, kwargs.pop("item_name", "item"), **kwargs)
         file_to_write = BytesIO()
         tree.write(file_to_write, encoding="utf-8", xml_declaration=True)
         file_to_write.seek(0)
     
-    elif file_type == "xml.gz":
-        tree = convert_lod_to_xml(file_data, kwargs.pop("item_name", "item"), **kwargs)
-        in_memory_obj = BytesIO()
-        with gzip.GzipFile(fileobj=in_memory_obj, mode='wb') as fh:
-            with TextIOWrapper(fh, encoding='utf-8') as wrapper:
-                wrapper.write(ET.tostring(tree, encoding='utf-8', method='xml'))
-        
-        in_memory_obj.seek(0)        
-        return execute_s3_write(bucket_name, filename, in_memory_obj, **kwargs)
+        if file_type == "xml.gz":
+            _file_to_write = copy.deepcopy(file_to_write) # specifically to avoid var name collision
+            file_to_write = BytesIO()
+            with gzip.GzipFile(fileobj=file_to_write, mode='wb') as fh:
+                fh.write(_file_to_write.getvalue())
+
+            file_to_write.seek(0) # have to run again
 
     return execute_s3_write(bucket_name, filename, file_to_write, **kwargs)
 
