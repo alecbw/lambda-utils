@@ -571,10 +571,10 @@ def safely_encode_text(parsed, **kwargs):
 
     truncate_at = kwargs.get('truncate_at', 1_000_000) # truncate to 1,000,000 characters to avoid 'Size of a single row or its columns cannot exceed 32 MB' Athena error
     try:
-        if isinstance(parsed, str):
-            text = parsed
-        elif isinstance(parsed, int) or isinstance(parsed, float):
+        if isinstance(parsed, int) or isinstance(parsed, float):
             return parsed, None
+        elif isinstance(parsed, str):
+            text = parsed
         else:
             text = parsed.get_text(separator=" ", strip=True)                           # extract_full_site_text(parsed, drop_duplicates=True)
         
