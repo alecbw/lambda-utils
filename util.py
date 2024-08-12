@@ -80,7 +80,7 @@ def standardize_event(event, **kwargs):
         logging.info(f"All found querystrings (not including body): {event['queryStringParameters'].keys()}")
 
         if any(x for x in list(event["queryStringParameters"].keys()) if x in event and event[x] != event["queryStringParameters"][x]):
-            logging.error(f"Key collision of queryStringParameters with body keys and/or default API Gateway keys in standardize_event: {[ {k: [v, event[k]] } for k,v in event['queryStringParameters'].items() if x in event]}")
+            logging.error(f"Key collision of queryStringParameters with body keys and/or default API Gateway keys in standardize_event: {[ {k: [v, event[k]] } for k,v in event['queryStringParameters'].items() if k in event]}")
         if event.get("multiValueQueryStringParameters") and any(k for k,v in event["queryStringParameters"].items() if isinstance(v, str) and len(v.split(",")) != len(event["multiValueQueryStringParameters"][k]) and len(event["multiValueQueryStringParameters"][k]) > 1):
             logging.info({k:v for k,v in event.items() if k in ["queryStringParameters", "multiValueQueryStringParameters", "body", "httpMethod"]}) # throw out other k:vs to prevent logging API key
             logging.error(f"Key duplicates in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
