@@ -160,7 +160,7 @@ def cache_proxy_list(**kwargs):
         os.environ["_LAST_FETCHED_PROXIES"] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         return proxy_list
     else:
-        print('loading from cache')
+        logging.info('loading from cache')
         return json.loads(os.environ["_PROXY_LIST"])
 
 
@@ -366,7 +366,7 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
         return ez_strip_str(html_tag_or_str.find(text=True, recursive=False), **kwargs)
 
     elif isinstance(html_tag_or_str, Tag):
-        return ez_strip_str(html_tag_or_str.get_text(separator=kwargs.get("text_sep", " "), strip=True), **kwargs) #.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
+        return ez_strip_str(html_tag_or_str.get_text(separator=kwargs.get("text_sep", " "), strip=True), **kwargs)
 
     return kwargs.get("null_value", html_tag_or_str)
 
@@ -565,6 +565,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
     return null_value
 
 
+# OK to ignore -  '', - '\uf0b7', 
 def safely_encode_text(parsed, **kwargs):
     if not parsed:
         return "", None
@@ -585,7 +586,7 @@ def safely_encode_text(parsed, **kwargs):
         if '\x00' in text:
             text = text.replace('\x00', '')
             encoding = 'utf-8 - WITH NUL BYTE' # most problematic - breaks CSV reads, which Athena needs
-        elif any(x for x in ['\x01', '\x02', '\x03', '\x07', '\x08', '\x0b', '\x0c', '\x1a', '\x1d', '\x1e', '\x1f', '\x16', '\uf0e8', '', '￾'] if x in text): # \x1f may not appear in text
+        elif any(x for x in ['\x01', '\x02', '\x03', '\x07', '\x08', '\x0b', '\x0c', '\x1a', '\x1d', '\x1e', '\x1f', '\x16', '\uf0e8', '￾'] if x in text): # \x1f may not appear in text. The question mark boxes are '\U+FFFE''
             text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x07', '').replace('\x08', '').replace('\x0b', '').replace('\x0c', '').replace('\x1a', '').replace('\x1d', '').replace('\x1e', '').replace('\x1f', '').replace('\x16', '').replace('\uf0e8', '').replace('', '').replace('￾', '')  # x01 -> '•' ?
             encoding = 'utf-8 - WITH CONTROL CHAR' # breaks XML outputs
         else: 
