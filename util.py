@@ -829,16 +829,16 @@ def format_timestamp(timestamp, **kwargs):
         [ ] '30-Ağu-2023'
         [ ] '16-5 月-2023' - has weird selector. chinese?
         [ ] '31 janv. 2023'  '31 juil. 2023', '17 févr. 2023' - must be some other locale? won't work with 'fr_FR' even though it should. think it's 4 chars vs 3
+        [ ] '11. Mai 2024' - the same but uppercase?
         [ ] '24 augusti 2023', '21 septembre 2023'
-        [ ] '11. Mai 2024'
         [ ] 'vrijdag 12 april 2024'
         [ ] 'mardi 2 avril 2024'
-        [ ] '27/ott/2015'
         [ ] '03 مايو, 2024'
         [ ] 'jueves, 26 de octubre de 2023'
         [ ] '2024년 5월 6일 월요일'
-        [ ] '22/mag/2024'
+        [ ] '22/mag/2024', '27/ott/2015'
         [ ] '7 февраля 2023 г'
+        [ ] 'woensdag 31 juli 2024'
 
     [ ] '09/05/2023 at 11:59 pm' - only seen one instance
     [ ] '10/01/2024, 11:59PM ET' - ET not in supported timezone .replace()
