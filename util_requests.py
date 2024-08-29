@@ -269,7 +269,7 @@ def site_request(url, proxy, wait, **kwargs):
     elif not kwargs.get("http_proxy"):
         headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
     
-    for header_kwarg in ['origin', 'host', 'content-type', 'authorization']: # must be in headers, not separate k=v
+    for header_kwarg in ['origin', 'host', 'content-type', 'authorization', 'x-requested-with']: # must be in headers, not separate k=v
         if kwargs.get(header_kwarg):
             headers[header_kwarg] = kwargs.pop(header_kwarg)
 

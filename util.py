@@ -366,6 +366,8 @@ def ez_re_find(pattern, text, **kwargs):
         return ""
     elif isinstance(kwargs.get("group"), int):
         return possible_match.groups()[kwargs["group"]]
+    elif kwargs.get("groups"):
+        return possible_match.groups()
     else:
         return possible_match.group()
 
