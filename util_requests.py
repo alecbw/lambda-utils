@@ -286,7 +286,6 @@ def site_request(url, proxy, wait, **kwargs):
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
 
         logging.debug(f"Now requesting {url}")
-
         if request_kwargs.pop('method', '') == 'POST':
             response = requests.post(url, headers=headers, **request_kwargs)
         else:
@@ -586,8 +585,8 @@ def safely_encode_text(parsed, **kwargs):
         if '\x00' in text:
             text = text.replace('\x00', '')
             encoding = 'utf-8 - WITH NUL BYTE' # most problematic - breaks CSV reads, which Athena needs
-        elif any(x for x in ['\x01', '\x02', '\x03', '\x07', '\x08', '\x0b', '\x0c', '\x1a', '\x1d', '\x1e', '\x1f', '\x16', '\uf0e8', '￾'] if x in text): # \x1f may not appear in text. The question mark boxes are '\U+FFFE''
-            text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x07', '').replace('\x08', '').replace('\x0b', '').replace('\x0c', '').replace('\x1a', '').replace('\x1d', '').replace('\x1e', '').replace('\x1f', '').replace('\x16', '').replace('\uf0e8', '').replace('', '').replace('￾', '')  # x01 -> '•' ?
+        elif any(x for x in ['\x01', '\x02', '\x03', '\x07', '\x08', '\x10', '\x13', '\x16', '\x17', '\x19', '\x0b', '\x0c', '\x1a', '\x1d', '\x1e', '\x1f', '\uf0e8', '￾', '￿'] if x in text): # \x1f may not appear in text. The question mark boxes are '\U+FFFE''
+            text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x07', '').replace('\x08', '').replace('\x10', '').replace('\x13', '').replace('\x16', '').replace('\x17', '').replace('\x19', '').replace('\x0b', '').replace('\x0c', '').replace('\x1a', '').replace('\x1d', '').replace('\x1e', '').replace('\x1f', '').replace('\uf0e8', '').replace('￾', '').replace('￿', '')  # x01 -> '•' ?
             encoding = 'utf-8 - WITH CONTROL CHAR' # breaks XML outputs
         else: 
             encoding = 'utf-8'
