@@ -564,7 +564,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
     return null_value
 
 
-# OK to ignore -  '', - '\uf0b7', 
+# OK to ignore -  '', - '\uf0b7', 0x09, 0x0a, 0x0d
 def safely_encode_text(parsed, **kwargs):
     if not parsed:
         return "", None
@@ -585,8 +585,8 @@ def safely_encode_text(parsed, **kwargs):
         if '\x00' in text:
             text = text.replace('\x00', '')
             encoding = 'utf-8 - WITH NUL BYTE' # most problematic - breaks CSV reads, which Athena needs
-        elif any(x for x in ['\x01', '\x02', '\x03', '\x07', '\x08', '\x10', '\x13', '\x16', '\x17', '\x19', '\x0b', '\x0c', '\x1a', '\x1d', '\x1e', '\x1f', '\uf0e8', '￾', '￿'] if x in text): # \x1f may not appear in text. The question mark boxes are '\U+FFFE''
-            text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x07', '').replace('\x08', '').replace('\x10', '').replace('\x13', '').replace('\x16', '').replace('\x17', '').replace('\x19', '').replace('\x0b', '').replace('\x0c', '').replace('\x1a', '').replace('\x1d', '').replace('\x1e', '').replace('\x1f', '').replace('\uf0e8', '').replace('￾', '').replace('￿', '')  # x01 -> '•' ?
+        elif any(x for x in ['\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', '\x08', '\x10', '\x11', '\x12', '\x13', '\x14', '\x15', '\x16', '\x17', '\x18', '\x19', '\x0b', '\x0c', '\x0e', '\x0f', '\x1a', '\x1b', '\x1c', '\x1d', '\x1e', '\x1f', '\uf0e8', '￾', '￿'] if x in text): # The question mark boxes are '\U+FFFE'
+            text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x04', '').replace('\x05', '').replace('\x06', '').replace('\x07', '').replace('\x08', '').replace('\x10', '').replace('\x11', '').replace('\x12', '').replace('\x13', '').replace('\x14', '').replace('\x15', '').replace('\x16', '').replace('\x17', '').replace('\x18', '').replace('\x19', '').replace('\x0b', '').replace('\x0c', '').replace('\x0e', '').replace('\x0f', '').replace('\x1a', '').replace9('\x1b', '').replace('\x1c', '').replace('\x1d', '').replace('\x1e', '').replace('\x1f', '').replace('\uf0e8', '').replace('￾', '').replace('￿', '')  # x01 -> '•' ?
             encoding = 'utf-8 - WITH CONTROL CHAR' # breaks XML outputs
         else: 
             encoding = 'utf-8'
