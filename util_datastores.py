@@ -1322,7 +1322,7 @@ def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
         "startTime": int((datetime.today() - timedelta(hours=lookback_hours)).timestamp()),
         "endTime": int(datetime.now().timestamp()),
         "queryString": query,
-        "limit": kwargs.pop("limit", 1000),
+        "limit": kwargs.pop("limit", 10_000),
     }
     if isinstance(log_group, str):
         params_dict["logGroupName"] = log_group
@@ -1333,7 +1333,7 @@ def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
 
     response = None
     while response == None or response['status'] == 'Running':
-        sleep(0.15)
+        sleep(0.10)
         response = client.get_query_results(
             queryId=start_query_response['queryId']
         )
