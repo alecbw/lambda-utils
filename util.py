@@ -842,6 +842,7 @@ def format_timestamp(timestamp, **kwargs):
         [ ] '7 февраля 2023 г'
         [ ] 'woensdag 31 juli 2024'
 
+    [ ] '2024. 06. 05' 
     [ ] '09/05/2023 at 11:59 pm' - only seen one instance
     [ ] '10/01/2024, 11:59PM ET' - ET not in supported timezone .replace()
     [ ] 'Sept. 28, 2022' - the 't' in 'Sept' rather than 'Sep' makes it not match
