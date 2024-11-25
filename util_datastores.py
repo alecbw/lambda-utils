@@ -662,7 +662,7 @@ def stream_s3_file(bucket_name, filename, **kwargs):
     return s3_object.get()['Body'] #body returns streaming string
 
 
-def execute_s3_write(bucket_name, filename, file_to_write, **kwargs):
+def _execute_s3_write(bucket_name, filename, file_to_write, **kwargs):
     try:
         s3_object = boto3.resource("s3").Object(bucket_name, filename)
         response = s3_object.put(Body=(file_to_write))
@@ -671,6 +671,31 @@ def execute_s3_write(bucket_name, filename, file_to_write, **kwargs):
         return status_code
     except Exception as e:
         logging.error(e, bucket_name, filename)
+
+
+ET._original_serialize_xml = ET._serialize_xml
+def _serialize_xml(write, elem, qnames, namespaces, short_empty_elements, **kwargs):
+    if elem.tag in kwargs.get("cdata_keys", []):
+        text = node.text.encode(encoding)
+        file.write( "<![CDATA[ " + value + " ]]>")
+        # file.write("\n<![CDATA[%s]]>\n" % text)
+    # if elem.tag == '![CDATA[':
+    #     write("\n<{}{}]]>\n".format(elem.tag, elem.text))
+    #     if elem.tail:
+    #         write(_escape_cdata(elem.tail))
+    else:
+        return ElementTree._original_serialize_xml(write, elem, qnames, namespaces,short_empty_elements, **kwargs)
+#             ET._write(self, file, node, encoding, namespaces)
+
+# class ElementTreeCDATA(ET):
+#     def _write(self, file, node, encoding, namespaces):
+#         print(node.tag)
+#         if node.tag in kwargs.get("cdata_keys", []):
+#             text = node.text.encode(encoding)
+#             file.write( "<![CDATA[ " + value + " ]]>")
+#             # file.write("\n<![CDATA[%s]]>\n" % text)
+#         else:
+#             ET._write(self, file, node, encoding, namespaces)
 
 
 def write_s3_file(bucket_name, filename, file_data, **kwargs):
@@ -688,19 +713,25 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
             with TextIOWrapper(fh, encoding='utf-8') as wrapper:
                 wrapper.write(json.dumps(file_data, ensure_ascii=False, default=None))
         in_memory_obj.seek(0)
-        return execute_s3_write(bucket_name, filename, in_memory_obj, **kwargs)
+        return _execute_s3_write(bucket_name, filename, in_memory_obj, **kwargs)
     
     elif file_type == "csv": # TODO
         with open(f"/tmp/{filename}.txt", 'w') as output_file:
             dict_writer = csv.DictWriter(output_file, file_data[0].keys())
             dict_writer.writeheader()
             dict_writer.writerows(file_data)
-        file_to_write = open(f'/tmp/{filename}.txt', 'rb') # TODO - move to immediately return execute_s3_write while open handler still active
+        file_to_write = open(f'/tmp/{filename}.txt', 'rb') # TODO - move to immediately return _execute_s3_write while open handler still active
     
     elif file_type in ["xml", "xml.gz"]:
+        kwargs['cdata_keys'] = ['post_html']
         tree = convert_lod_to_xml(file_data, kwargs.pop("item_name", "item"), **kwargs)
         file_to_write = BytesIO()
-        tree.write(file_to_write, encoding="utf-8", xml_declaration=True)
+        if kwargs.get('cdata_keys'):
+            pass
+            # ET._serialize_xml = ET._serialize['xml'] = _serialize_xml
+            # tree.write(file_to_write, encoding="utf-8", xml_declaration=True, **{k:v for k,v in kwargs.items() if k == 'cdata_keys'})
+        else:
+            tree.write(file_to_write, encoding="utf-8", xml_declaration=True)
         file_to_write.seek(0)
     
         if file_type == "xml.gz":
@@ -711,7 +742,7 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
 
             file_to_write.seek(0) # have to run again
 
-    return execute_s3_write(bucket_name, filename, file_to_write, **kwargs)
+    return _execute_s3_write(bucket_name, filename, file_to_write, **kwargs)
 
 
 def get_s3_files_that_match_prefix(bucket_name, path, file_limit, **kwargs):

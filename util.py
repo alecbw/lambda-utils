@@ -488,15 +488,9 @@ def append_or_create_list(input_potential_list, item):
 
 
 def ordered_dict_first(ordered_dict):
-    '''Return the first element from an ordered collection
-       or an arbitrary element from an unordered collection.
-       Raise StopIteration if the collection is empty.
-    '''
     if not ordered_dict:
         return None
     return next(iter(ordered_dict))
-
-
 
 
 def convert_lod_to_xml(input_lod, item_name, **kwargs):
@@ -505,9 +499,9 @@ def convert_lod_to_xml(input_lod, item_name, **kwargs):
         data_item = ET.SubElement(root, item_name)
         for key, value in item.items():
             sub_element = ET.SubElement(data_item, key)
-            if isinstance(value, str) and value and key in kwargs.get("cdata_keys", []):
-                sub_element.text = "<![CDATA[ " + value + " ]]>"
-            elif isinstance(value, list):
+            # if isinstance(value, str) and value and key in kwargs.get("cdata_keys", []):
+                # sub_element.text = "<![CDATA[ " + value + " ]]>"
+            if isinstance(value, list):
                 for val in value:
                     child_sub_element = ET.SubElement(sub_element, 'item')
                     child_sub_element.text = val
