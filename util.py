@@ -526,12 +526,12 @@ def _serialize_xml(write, elem, qnames, namespaces, short_empty_elements, **kwar
                             ET._escape_attrib(v)
                             ))
                 for k, v in items:
-                    if isinstance(k, QName):
+                    if isinstance(k, ET.QName):
                         k = k.text
-                    if isinstance(v, QName):
+                    if isinstance(v, ET.QName):
                         v = qnames[v.text]
                     else:
-                        v = _escape_attrib(v)
+                        v = ET._escape_attrib(v)
                     write(" %s=\"%s\"" % (qnames[k], v))
             if text or len(elem) or not short_empty_elements:
                 write(">")
