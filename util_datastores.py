@@ -673,31 +673,6 @@ def _execute_s3_write(bucket_name, filename, file_to_write, **kwargs):
         logging.error(e, bucket_name, filename)
 
 
-ET._original_serialize_xml = ET._serialize_xml
-def _serialize_xml(write, elem, qnames, namespaces, short_empty_elements, **kwargs):
-    if elem.tag in kwargs.get("cdata_keys", []):
-        text = node.text.encode(encoding)
-        file.write( "<![CDATA[ " + value + " ]]>")
-        # file.write("\n<![CDATA[%s]]>\n" % text)
-    # if elem.tag == '![CDATA[':
-    #     write("\n<{}{}]]>\n".format(elem.tag, elem.text))
-    #     if elem.tail:
-    #         write(_escape_cdata(elem.tail))
-    else:
-        return ElementTree._original_serialize_xml(write, elem, qnames, namespaces,short_empty_elements, **kwargs)
-#             ET._write(self, file, node, encoding, namespaces)
-
-# class ElementTreeCDATA(ET):
-#     def _write(self, file, node, encoding, namespaces):
-#         print(node.tag)
-#         if node.tag in kwargs.get("cdata_keys", []):
-#             text = node.text.encode(encoding)
-#             file.write( "<![CDATA[ " + value + " ]]>")
-#             # file.write("\n<![CDATA[%s]]>\n" % text)
-#         else:
-#             ET._write(self, file, node, encoding, namespaces)
-
-
 def write_s3_file(bucket_name, filename, file_data, **kwargs):
     file_type = kwargs.get("file_type", "json").replace('json_gzip', 'json.gz')
     
@@ -726,12 +701,10 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         kwargs['cdata_keys'] = ['post_html']
         tree = convert_lod_to_xml(file_data, kwargs.pop("item_name", "item"), **kwargs)
         file_to_write = BytesIO()
-        if kwargs.get('cdata_keys'):
-            pass
-            # ET._serialize_xml = ET._serialize['xml'] = _serialize_xml
-            # tree.write(file_to_write, encoding="utf-8", xml_declaration=True, **{k:v for k,v in kwargs.items() if k == 'cdata_keys'})
-        else:
-            tree.write(file_to_write, encoding="utf-8", xml_declaration=True)
+        
+        # if kwargs.get('cdata_keys'):
+            # tree = ElementTreeCDATA(tree)
+        tree.write(file_to_write, encoding="utf-8", xml_declaration=True)
         file_to_write.seek(0)
     
         if file_type == "xml.gz":

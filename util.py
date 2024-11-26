@@ -11,6 +11,8 @@ from collections import Counter, defaultdict
 from string import hexdigits
 from urllib.parse import parse_qs, unquote
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import XMLGenerator
+from io import StringIO
 
 try:
     import sentry_sdk
@@ -492,6 +494,53 @@ def ordered_dict_first(ordered_dict):
         return None
     return next(iter(ordered_dict))
 
+# class _CDATA(str):
+    # pass
+
+# def CDATA(text=None):
+#     element = ET.Element(CDATA)
+#     element.text = text
+#     return element
+
+# class _ElementTreeCDATA(ET.ElementTree):
+#     def _write(self, file, node, encoding, namespaces):
+#         if isinstance(node, _CDATA):
+#             print('caught node')
+#             text = node.text.encode(encoding)
+#             file.write( "<![CDATA[ " + value + " ]]>")
+#         else:
+            # ET.ElementTree._write(self, file, node, encoding, namespaces)
+
+# class ElementTreeCDATA(etree.ElementTree):
+#     def _write(self, file, node, encoding, namespaces):
+#         if node.tag is CDATA:
+#             text = node.text.encode(encoding)
+#             file.write("\n<![CDATA[%s]]>\n" % text)
+#         else:
+#             etree.ElementTree._write(self, file, node, encoding, namespaces)
+
+class CDATAXMLGenerator(XMLGenerator):
+    def __init__(self, out, encoding="utf-8"):
+        super().__init__(out, encoding)
+
+    def characters(self, content):
+        # Override the characters method to handle CDATA sections
+        if isinstance(content, CDATA):
+            print("CDAD")
+            self._write(f"<![CDATA[{content}]]>")
+        else:
+            super().characters(content)
+
+# Define a CDATA wrapper class
+class CDATA(str):
+    pass
+
+# Function to write the XML with CDATA values
+def write_xml_with_cdata(root_element):
+    output = StringIO()
+    generator = CDATAXMLGenerator(output, encoding="unicode")
+    ET.ElementTree(root_element).write(output, encoding="unicode", xml_declaration=False, default_namespace=None, method="xml", short_empty_elements=True)
+    return output.getvalue()
 
 def convert_lod_to_xml(input_lod, item_name, **kwargs):
     root = ET.Element(kwargs.get('root_element', 'root'))
@@ -499,7 +548,8 @@ def convert_lod_to_xml(input_lod, item_name, **kwargs):
         data_item = ET.SubElement(root, item_name)
         for key, value in item.items():
             sub_element = ET.SubElement(data_item, key)
-            # if isinstance(value, str) and value and key in kwargs.get("cdata_keys", []):
+            if value and isinstance(value, str) and key in kwargs.get("cdata_keys", []):
+                sub_element.text = CDATA(value)
                 # sub_element.text = "<![CDATA[ " + value + " ]]>"
             if isinstance(value, list):
                 for val in value:
@@ -514,10 +564,16 @@ def convert_lod_to_xml(input_lod, item_name, **kwargs):
         # if kwargs.get('prettify'):
             # data_item.tail = "\n\tbar"
 
-    tree = ET.ElementTree(root)
+    # if kwargs.get("cdata_keys", []):
+        # tree = ElementTreeCDATA(root)
+    # else:
+    # tree = ET.ElementTree(root)
+    tree = write_xml_with_cdata(root)
+    print(tree)
+
     # if kwargs.get('prettify'):
         # ET.indent(tree, space="\t", level=0)
-
+    
     return tree
 
 
