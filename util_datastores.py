@@ -698,12 +698,8 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
         file_to_write = open(f'/tmp/{filename}.txt', 'rb') # TODO - move to immediately return _execute_s3_write while open handler still active
     
     elif file_type in ["xml", "xml.gz"]:
-        kwargs['cdata_keys'] = ['post_html']
         tree = convert_lod_to_xml(file_data, kwargs.pop("item_name", "item"), **kwargs)
         file_to_write = BytesIO()
-        
-        # if kwargs.get('cdata_keys'):
-            # tree = ElementTreeCDATA(tree)
         tree.write(file_to_write, encoding="utf-8", xml_declaration=True)
         file_to_write.seek(0)
     

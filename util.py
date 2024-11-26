@@ -504,7 +504,7 @@ def _serialize_xml(write, elem, qnames, namespaces, short_empty_elements, **kwar
         write("<!--%s-->" % text)
     elif tag is ET.ProcessingInstruction:
         write("<?%s?>" % text)
-    elif text and text.startswith('<![CDATA['): # tag == 'post_html': #text and text.startswith('<![CDATA['): # isinstance(tag, _CDATA): # tag == 'post_html': # tag is CDATA:
+    elif text and text.startswith('<![CDATA['):
         write(text) # without escaping it
     else:
         tag = qnames[tag]
@@ -551,8 +551,6 @@ ET._serialize_xml = ET._serialize['xml'] = _serialize_xml
 #     element = ET.Element(CDATA)
 #     element.text = text
 #     return element
-
-
 
 
 # class _ElementTreeCDATA(ET.ElementTree):
