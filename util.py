@@ -11,8 +11,7 @@ from collections import Counter, defaultdict
 from string import hexdigits
 from urllib.parse import parse_qs, unquote
 import xml.etree.ElementTree as ET
-from xml.sax.saxutils import XMLGenerator
-from io import StringIO
+# import xml.etree.ElementTree as ET
 
 try:
     import sentry_sdk
@@ -494,13 +493,67 @@ def ordered_dict_first(ordered_dict):
         return None
     return next(iter(ordered_dict))
 
+
 # class _CDATA(str):
     # pass
+
+def _serialize_xml(write, elem, qnames, namespaces, short_empty_elements, **kwargs):
+    tag = elem.tag
+    text = elem.text
+    if tag is ET.Comment:
+        write("<!--%s-->" % text)
+    elif tag is ET.ProcessingInstruction:
+        write("<?%s?>" % text)
+    elif text and text.startswith('<![CDATA['): # tag == 'post_html': #text and text.startswith('<![CDATA['): # isinstance(tag, _CDATA): # tag == 'post_html': # tag is CDATA:
+        write(text) # without escaping it
+    else:
+        tag = qnames[tag]
+        if tag is None:
+            if text:
+                write(ET._escape_cdata(text))
+            for e in elem:
+                _serialize_xml(write, e, qnames, None, short_empty_elements=short_empty_elements)
+        else:
+            write("<" + tag)
+            items = list(elem.items())
+            if items or namespaces:
+                if namespaces:
+                    for v, k in sorted(namespaces.items(), key=lambda x: x[1]):  # sort on prefix
+                        if k:
+                            k = ":" + k
+                        write(" xmlns%s=\"%s\"" % (
+                            k,
+                            ET._escape_attrib(v)
+                            ))
+                for k, v in items:
+                    if isinstance(k, QName):
+                        k = k.text
+                    if isinstance(v, QName):
+                        v = qnames[v.text]
+                    else:
+                        v = _escape_attrib(v)
+                    write(" %s=\"%s\"" % (qnames[k], v))
+            if text or len(elem) or not short_empty_elements:
+                write(">")
+                if text:
+                    write(ET._escape_cdata(text))
+                for e in elem:
+                    _serialize_xml(write, e, qnames, None, short_empty_elements=short_empty_elements)
+                write("</" + tag + ">")
+            else:
+                write(" />")
+    if elem.tail:
+        write(ET._escape_cdata(elem.tail))
+
+ET._serialize_xml = ET._serialize['xml'] = _serialize_xml
 
 # def CDATA(text=None):
 #     element = ET.Element(CDATA)
 #     element.text = text
 #     return element
+
+
+
 
 # class _ElementTreeCDATA(ET.ElementTree):
 #     def _write(self, file, node, encoding, namespaces):
@@ -509,38 +562,8 @@ def ordered_dict_first(ordered_dict):
 #             text = node.text.encode(encoding)
 #             file.write( "<![CDATA[ " + value + " ]]>")
 #         else:
-            # ET.ElementTree._write(self, file, node, encoding, namespaces)
-
-# class ElementTreeCDATA(etree.ElementTree):
-#     def _write(self, file, node, encoding, namespaces):
-#         if node.tag is CDATA:
-#             text = node.text.encode(encoding)
-#             file.write("\n<![CDATA[%s]]>\n" % text)
-#         else:
-#             etree.ElementTree._write(self, file, node, encoding, namespaces)
-
-class CDATAXMLGenerator(XMLGenerator):
-    def __init__(self, out, encoding="utf-8"):
-        super().__init__(out, encoding)
-
-    def characters(self, content):
-        # Override the characters method to handle CDATA sections
-        if isinstance(content, CDATA):
-            print("CDAD")
-            self._write(f"<![CDATA[{content}]]>")
-        else:
-            super().characters(content)
-
-# Define a CDATA wrapper class
-class CDATA(str):
-    pass
-
-# Function to write the XML with CDATA values
-def write_xml_with_cdata(root_element):
-    output = StringIO()
-    generator = CDATAXMLGenerator(output, encoding="unicode")
-    ET.ElementTree(root_element).write(output, encoding="unicode", xml_declaration=False, default_namespace=None, method="xml", short_empty_elements=True)
-    return output.getvalue()
+#             ET.ElementTree._write(self, file, node, encoding, namespaces)
+ 
 
 def convert_lod_to_xml(input_lod, item_name, **kwargs):
     root = ET.Element(kwargs.get('root_element', 'root'))
@@ -549,9 +572,8 @@ def convert_lod_to_xml(input_lod, item_name, **kwargs):
         for key, value in item.items():
             sub_element = ET.SubElement(data_item, key)
             if value and isinstance(value, str) and key in kwargs.get("cdata_keys", []):
-                sub_element.text = CDATA(value)
-                # sub_element.text = "<![CDATA[ " + value + " ]]>"
-            if isinstance(value, list):
+                sub_element.text = "<![CDATA[ " + ET._escape_cdata(value) + " ]]>"
+            elif isinstance(value, list):
                 for val in value:
                     child_sub_element = ET.SubElement(sub_element, 'item')
                     child_sub_element.text = val
@@ -565,15 +587,12 @@ def convert_lod_to_xml(input_lod, item_name, **kwargs):
             # data_item.tail = "\n\tbar"
 
     # if kwargs.get("cdata_keys", []):
-        # tree = ElementTreeCDATA(root)
+        # tree = _ElementTreeCDATA(root)
     # else:
-    # tree = ET.ElementTree(root)
-    tree = write_xml_with_cdata(root)
-    print(tree)
+    tree = ET.ElementTree(root)
 
     # if kwargs.get('prettify'):
         # ET.indent(tree, space="\t", level=0)
-    
     return tree
 
 
