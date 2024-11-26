@@ -505,7 +505,7 @@ def _serialize_xml(write, elem, qnames, namespaces, short_empty_elements, **kwar
     elif tag is ET.ProcessingInstruction:
         write("<?%s?>" % text)
     elif text and text.startswith('<![CDATA['):
-        write(text) # without escaping it
+        write("<" + tag + '>' + text + "</" + tag + ">") # without escaping it
     else:
         tag = qnames[tag]
         if tag is None:
