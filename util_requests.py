@@ -160,7 +160,7 @@ def cache_proxy_list(**kwargs):
         os.environ["_LAST_FETCHED_PROXIES"] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         return proxy_list
     else:
-        print('loading from cache')
+        logging.info('loading from cache')
         return json.loads(os.environ["_PROXY_LIST"])
 
 
@@ -269,7 +269,7 @@ def site_request(url, proxy, wait, **kwargs):
     elif not kwargs.get("http_proxy"):
         headers['upgrade-insecure-requests'] = "1"  # Allow redirects from HTTP -> HTTPS
     
-    for header_kwarg in ['origin', 'host', 'content-type', 'authorization']: # must be in headers, not separate k=v
+    for header_kwarg in ['origin', 'host', 'content-type', 'authorization', 'x-requested-with']: # must be in headers, not separate k=v
         if kwargs.get(header_kwarg):
             headers[header_kwarg] = kwargs.pop(header_kwarg)
 
@@ -286,7 +286,6 @@ def site_request(url, proxy, wait, **kwargs):
             request_kwargs["proxies"] = {"http": f"http://{proxy}", "https": f"https://{proxy}"}
 
         logging.debug(f"Now requesting {url}")
-
         if request_kwargs.pop('method', '') == 'POST':
             response = requests.post(url, headers=headers, **request_kwargs)
         else:
@@ -366,7 +365,7 @@ def extract_stripped_string(html_tag_or_str, **kwargs):
         return ez_strip_str(html_tag_or_str.find(text=True, recursive=False), **kwargs)
 
     elif isinstance(html_tag_or_str, Tag):
-        return ez_strip_str(html_tag_or_str.get_text(separator=kwargs.get("text_sep", " "), strip=True), **kwargs) #.replace(" \n", "").replace(" \r", "").replace("\n ", "").replace("\r ", "").replace("\n", " ").replace("\r", " ").replace('\\xa0', ' ').replace(r"\xa0", " ").replace(u'\xa0', ' ')
+        return ez_strip_str(html_tag_or_str.get_text(separator=kwargs.get("text_sep", " "), strip=True), **kwargs)
 
     return kwargs.get("null_value", html_tag_or_str)
 
@@ -486,7 +485,7 @@ def safely_find_all(parsed, html_type, property_type, identifier, null_value, **
     elif kwargs.get("get_onclick"):
         data = [x.get("onclick").strip() if x.get("onclick") else null_value for x in html_tags]
     elif kwargs.get("get_background_image_url"):
-        data = [ez_re_find('(background-image\:\s?url\(\"?)(.*?)(\"?\))', x.get('style'), group=1).strip('"').strip("'") if x.get('style') else null_value for x in html_tags]
+        data = [ez_re_find(r'(background-image\:\s?url\(\"?)(.*?)(\"?\))', x.get('style'), group=1).strip('"').strip("'") if x.get('style') else null_value for x in html_tags]
     elif html_type == "meta" and html_tags:
         data = [extract_stripped_string(x.get("content", null_value), **kwargs) for x in html_tags]
     else: # should this use extract_stripped_string? TODO [] 
@@ -549,7 +548,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
         elif kwargs.get("get_onclick"):
             return html_tag.get("onclick").strip() if html_tag.get("onclick") else null_value
         elif kwargs.get("get_background_image_url"):
-            return ez_re_find('(background-image\:\s?url\(\"?)(.*?)(\"?\))', html_tag.get('style'), group=1).strip('"').strip("'") if html_tag.get('style') else null_value
+            return ez_re_find(r'(background-image\:\s?url\(\"?)(.*?)(\"?\))', html_tag.get('style'), group=1).strip('"').strip("'") if html_tag.get('style') else null_value
         elif kwargs.get("get_classes"):
             return html_tag['class'] if html_tag.get('class') else null_value
         elif html_type == "meta" and html_tag:
@@ -565,13 +564,16 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
     return null_value
 
 
+# OK to ignore -  '' (the question boxes are different), '\uf0b7', 0x09, 0x0a, 0x0d
 def safely_encode_text(parsed, **kwargs):
     if not parsed:
         return "", None
 
-    truncate_at = kwargs.get('truncate_at', 1_000_000) # truncate to 1,000,000 characters to avoid Size of a 'single row or its columns cannot exceed 32 MB' Athena error
+    truncate_at = kwargs.get('truncate_at', 1_000_000) # truncate to 1,000,000 characters to avoid 'Size of a single row or its columns cannot exceed 32 MB' Athena error
     try:
-        if isinstance(parsed, str):
+        if isinstance(parsed, int) or isinstance(parsed, float):
+            return parsed, None
+        elif isinstance(parsed, str):
             text = parsed
         else:
             text = parsed.get_text(separator=" ", strip=True)                           # extract_full_site_text(parsed, drop_duplicates=True)
@@ -583,9 +585,9 @@ def safely_encode_text(parsed, **kwargs):
         if '\x00' in text:
             text = text.replace('\x00', '')
             encoding = 'utf-8 - WITH NUL BYTE' # most problematic - breaks CSV reads, which Athena needs
-        elif any(x for x in ['\x01', '\x02', '\x03', '\x07', '\x08', '\x0c', '\x1a', '\x1d', '\x1f'] if x in text): # \x1f may not appear in text
-            text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x07', '').replace('\x08', '').replace('\x0c', '').replace('\x1a', '').replace('\x1d', '').replace('\x1f', '') # x01 -> '•' ?
-            encoding = 'utf-8 - WITH CONTROL CHAR'
+        elif any(x for x in ['\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', '\x08', '\x10', '\x11', '\x12', '\x13', '\x14', '\x15', '\x16', '\x17', '\x18', '\x19', '\x0b', '\x0c', '\x0e', '\x0f', '\x1a', '\x1b', '\x1c', '\x1d', '\x1e', '\x1f', '\uf0e8', '￾', '￿'] if x in text): # The question mark boxes are '\U+FFFE'
+            text = text.replace('\x01', '').replace('\x02', '-').replace('\x03', '').replace('\x04', '').replace('\x05', '').replace('\x06', '').replace('\x07', '').replace('\x08', '').replace('\x10', '').replace('\x11', '').replace('\x12', '').replace('\x13', '').replace('\x14', '').replace('\x15', '').replace('\x16', '').replace('\x17', '').replace('\x18', '').replace('\x19', '').replace('\x0b', '').replace('\x0c', '').replace('\x0e', '').replace('\x0f', '').replace('\x1a', '').replace('\x1b', '').replace('\x1c', '').replace('\x1d', '').replace('\x1e', '').replace('\x1f', '').replace('\uf0e8', '').replace('￾', '').replace('￿', '')  # x01 -> '•' ?
+            encoding = 'utf-8 - WITH CONTROL CHAR' # breaks XML outputs
         else: 
             encoding = 'utf-8'
 

@@ -17,11 +17,13 @@ import csv
 import timeit
 import ast
 import gzip
+import copy
 
 from pprint import pprint
 from io import StringIO, BytesIO, TextIOWrapper
 from typing import List # Callable, Iterator, Union, Optional,
 from collections import defaultdict
+import xml.etree.ElementTree as ET
 
 import boto3
 from botocore.exceptions import ClientError
@@ -129,15 +131,12 @@ def paginate_athena_response(client, execution_id: str, **kwargs):# -> AthenaPag
  
 # Note: Athena SQL queries have a limit of 262144 bytes for the text of the SQL-to-be-run
 def query_athena_table(sql_query, database, **kwargs):
-    if database not in sql_query:
-        logging.warning(f"The provided database ({database}) is not in your provided SQL query")
-
     if kwargs.get("time_it"): start_time = timeit.default_timer()
 
     client = boto3.client('athena')
     query_started = client.start_query_execution(
         QueryString=sql_query,
-        QueryExecutionContext={'Database': database},
+        QueryExecutionContext={'Database': database} if database else {'Catalog': kwargs.get('catalog', 'AwsDataCatalog')},
         ResultConfiguration={"OutputLocation": kwargs.get("output_bucket", f"s3://{os.environ['AWS_ACCOUNT_ID']}-athena-query-results-bucket/")}
     )
 
@@ -646,6 +645,8 @@ def get_s3_file(bucket_name, filename, **kwargs):
             # return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
         elif kwargs.get("convert_json"):
             return json.loads(s3_obj.read().decode('utf-8'))
+        elif kwargs.get("convert_jsonl"):
+            return [json.loads(line) for line in s3_obj.read().splitlines(True)] # not sure why .decode('utf-8') is breaking here but it is
         else:
             return s3_obj.read().decode('utf-8')
 
@@ -661,7 +662,7 @@ def stream_s3_file(bucket_name, filename, **kwargs):
     return s3_object.get()['Body'] #body returns streaming string
 
 
-def execute_s3_write(bucket_name, filename, file_to_write, **kwargs):
+def _execute_s3_write(bucket_name, filename, file_to_write, **kwargs):
     try:
         s3_object = boto3.resource("s3").Object(bucket_name, filename)
         response = s3_object.put(Body=(file_to_write))
@@ -670,6 +671,7 @@ def execute_s3_write(bucket_name, filename, file_to_write, **kwargs):
         return status_code
     except Exception as e:
         logging.error(e, bucket_name, filename)
+
 
 def write_s3_file(bucket_name, filename, file_data, **kwargs):
     file_type = kwargs.get("file_type", "json").replace('json_gzip', 'json.gz')
@@ -686,22 +688,30 @@ def write_s3_file(bucket_name, filename, file_data, **kwargs):
             with TextIOWrapper(fh, encoding='utf-8') as wrapper:
                 wrapper.write(json.dumps(file_data, ensure_ascii=False, default=None))
         in_memory_obj.seek(0)
-        return execute_s3_write(bucket_name, filename, in_memory_obj, **kwargs)
+        return _execute_s3_write(bucket_name, filename, in_memory_obj, **kwargs)
     
     elif file_type == "csv": # TODO
         with open(f"/tmp/{filename}.txt", 'w') as output_file:
             dict_writer = csv.DictWriter(output_file, file_data[0].keys())
             dict_writer.writeheader()
             dict_writer.writerows(file_data)
-        file_to_write = open(f'/tmp/{filename}.txt', 'rb') # TODO - move to immediately return execute_s3_write while open handler still active
+        file_to_write = open(f'/tmp/{filename}.txt', 'rb') # TODO - move to immediately return _execute_s3_write while open handler still active
     
-    elif file_type == "xml":
+    elif file_type in ["xml", "xml.gz"]:
         tree = convert_lod_to_xml(file_data, kwargs.pop("item_name", "item"), **kwargs)
         file_to_write = BytesIO()
         tree.write(file_to_write, encoding="utf-8", xml_declaration=True)
         file_to_write.seek(0)
+    
+        if file_type == "xml.gz":
+            _file_to_write = copy.deepcopy(file_to_write) # specifically to avoid var name collision
+            file_to_write = BytesIO()
+            with gzip.GzipFile(fileobj=file_to_write, mode='wb') as fh:
+                fh.write(_file_to_write.getvalue())
 
-    return execute_s3_write(bucket_name, filename, file_to_write, **kwargs)
+            file_to_write.seek(0) # have to run again
+
+    return _execute_s3_write(bucket_name, filename, file_to_write, **kwargs)
 
 
 def get_s3_files_that_match_prefix(bucket_name, path, file_limit, **kwargs):
@@ -1312,7 +1322,7 @@ def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
         "startTime": int((datetime.today() - timedelta(hours=lookback_hours)).timestamp()),
         "endTime": int(datetime.now().timestamp()),
         "queryString": query,
-        "limit": kwargs.pop("limit", 1000),
+        "limit": kwargs.pop("limit", 10_000),
     }
     if isinstance(log_group, str):
         params_dict["logGroupName"] = log_group
@@ -1323,7 +1333,7 @@ def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
 
     response = None
     while response == None or response['status'] == 'Running':
-        sleep(0.15)
+        sleep(0.10)
         response = client.get_query_results(
             queryId=start_query_response['queryId']
         )

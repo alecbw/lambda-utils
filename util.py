@@ -11,6 +11,7 @@ from collections import Counter, defaultdict
 from string import hexdigits
 from urllib.parse import parse_qs, unquote
 import xml.etree.ElementTree as ET
+# import xml.etree.ElementTree as ET
 
 try:
     import sentry_sdk
@@ -79,8 +80,8 @@ def standardize_event(event, **kwargs):
     if event.get("queryStringParameters"):
         logging.info(f"All found querystrings (not including body): {event['queryStringParameters'].keys()}")
 
-        if any(x for x in list(event["queryStringParameters"].keys()) if x in event): # check to prevent collision with default keys
-            logging.error(f"Key collision of queryStringParameters with default API Gateway keys in standardize_event: {event['queryStringParameters'].keys()}")
+        if any(x for x in list(event["queryStringParameters"].keys()) if x in event and event[x] != event["queryStringParameters"][x]):
+            logging.error(f"Key collision of queryStringParameters with body keys and/or default API Gateway keys in standardize_event: {[ {k: [v, event[k]] } for k,v in event['queryStringParameters'].items() if k in event]}")
         if event.get("multiValueQueryStringParameters") and any(k for k,v in event["queryStringParameters"].items() if isinstance(v, str) and len(v.split(",")) != len(event["multiValueQueryStringParameters"][k]) and len(event["multiValueQueryStringParameters"][k]) > 1):
             logging.info({k:v for k,v in event.items() if k in ["queryStringParameters", "multiValueQueryStringParameters", "body", "httpMethod"]}) # throw out other k:vs to prevent logging API key
             logging.error(f"Key duplicates in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
@@ -366,6 +367,8 @@ def ez_re_find(pattern, text, **kwargs):
         return ""
     elif isinstance(kwargs.get("group"), int):
         return possible_match.groups()[kwargs["group"]]
+    elif kwargs.get("groups"):
+        return possible_match.groups()
     else:
         return possible_match.group()
 
@@ -486,45 +489,79 @@ def append_or_create_list(input_potential_list, item):
 
 
 def ordered_dict_first(ordered_dict):
-    '''Return the first element from an ordered collection
-       or an arbitrary element from an unordered collection.
-       Raise StopIteration if the collection is empty.
-    '''
     if not ordered_dict:
         return None
     return next(iter(ordered_dict))
 
 
-# def convert_item_to_xml(key, value, xml):
-#     if isinstance(value, list):
-#         xml += f"\t\t<{key}>\n"
-#         for subvalue in value:
-#             xml = convert_item_to_xml("item", subvalue, xml).replace(">\n\t\t<item",">\n\t\t\t<item")
-#         xml += f"\t\t</{key}>\n"
-#     elif isinstance(value, bool) or (isinstance(value, str) and value.lower() in ["true", "false"]):
-#         xml += f'\t\t<{key}>{str(value).lower()}</{key}>\n'
-#     elif isinstance(value, str) and value:
-#         xml += f"\t\t<{key}><![CDATA[ {value} ]]></{key}>\n"
-#     elif not value:
-#         xml += f'\t\t<{key}/>\n'
-#     else: # float, int, etc
-#         xml += f"\t\t<{key}>{value}</{key}>\n"
+# class _CDATA(str):
+    # pass
 
-#     return xml
+def _serialize_xml(write, elem, qnames, namespaces, short_empty_elements, **kwargs):
+    tag = elem.tag
+    text = elem.text
+    if tag is ET.Comment:
+        write("<!--%s-->" % text)
+    elif tag is ET.ProcessingInstruction:
+        write("<?%s?>" % text)
+    elif text and text.startswith('<![CDATA['):
+        write("<" + tag + '>' + text + "</" + tag + ">") # without escaping it
+    else:
+        tag = qnames[tag]
+        if tag is None:
+            if text:
+                write(ET._escape_cdata(text))
+            for e in elem:
+                _serialize_xml(write, e, qnames, None, short_empty_elements=short_empty_elements)
+        else:
+            write("<" + tag)
+            items = list(elem.items())
+            if items or namespaces:
+                if namespaces:
+                    for v, k in sorted(namespaces.items(), key=lambda x: x[1]):  # sort on prefix
+                        if k:
+                            k = ":" + k
+                        write(" xmlns%s=\"%s\"" % (
+                            k,
+                            ET._escape_attrib(v)
+                            ))
+                for k, v in items:
+                    if isinstance(k, ET.QName):
+                        k = k.text
+                    if isinstance(v, ET.QName):
+                        v = qnames[v.text]
+                    else:
+                        v = ET._escape_attrib(v)
+                    write(" %s=\"%s\"" % (qnames[k], v))
+            if text or len(elem) or not short_empty_elements:
+                write(">")
+                if text:
+                    write(ET._escape_cdata(text))
+                for e in elem:
+                    _serialize_xml(write, e, qnames, None, short_empty_elements=short_empty_elements)
+                write("</" + tag + ">")
+            else:
+                write(" />")
+    if elem.tail:
+        write(ET._escape_cdata(elem.tail))
+
+ET._serialize_xml = ET._serialize['xml'] = _serialize_xml
+
+# def CDATA(text=None):
+#     element = ET.Element(CDATA)
+#     element.text = text
+#     return element
 
 
-# def convert_lod_to_xml(input_lod, item_name, **kwargs):
-#     xml = f'<?xml version="1.0" encoding="utf-8"?>\n<{kwargs.get("root_element", "root")}>\n'
-
-#     for row in input_lod:
-#         xml += "\t<" + item_name + ">\n"
-#         for key, value in row.items():
-#             xml += convert_item_to_xml(key, value, "")
-#         xml += "\t</" + item_name + ">\n"
-
-#     xml += f"</{kwargs.get('root_element', 'root')}>\n"
-#     return xml
-
+# class _ElementTreeCDATA(ET.ElementTree):
+#     def _write(self, file, node, encoding, namespaces):
+#         if isinstance(node, _CDATA):
+#             print('caught node')
+#             text = node.text.encode(encoding)
+#             file.write( "<![CDATA[ " + value + " ]]>")
+#         else:
+#             ET.ElementTree._write(self, file, node, encoding, namespaces)
+ 
 
 def convert_lod_to_xml(input_lod, item_name, **kwargs):
     root = ET.Element(kwargs.get('root_element', 'root'))
@@ -532,8 +569,9 @@ def convert_lod_to_xml(input_lod, item_name, **kwargs):
         data_item = ET.SubElement(root, item_name)
         for key, value in item.items():
             sub_element = ET.SubElement(data_item, key)
-            if isinstance(value, str) and value and key in kwargs.get("cdata_keys", []):
+            if value and isinstance(value, str) and key in kwargs.get("cdata_keys", []):
                 sub_element.text = "<![CDATA[ " + value + " ]]>"
+                # sub_element.text = "<![CDATA[ " + ET._escape_cdata(value) + " ]]>"
             elif isinstance(value, list):
                 for val in value:
                     child_sub_element = ET.SubElement(sub_element, 'item')
@@ -547,10 +585,13 @@ def convert_lod_to_xml(input_lod, item_name, **kwargs):
         # if kwargs.get('prettify'):
             # data_item.tail = "\n\tbar"
 
+    # if kwargs.get("cdata_keys", []):
+        # tree = _ElementTreeCDATA(root)
+    # else:
     tree = ET.ElementTree(root)
+
     # if kwargs.get('prettify'):
         # ET.indent(tree, space="\t", level=0)
-
     return tree
 
 
@@ -712,6 +753,7 @@ def is_url(potential_url, **kwargs):
 
     return False
 
+
 """
 Keep in mind removals will stack - e.g. remove_tld will remove subsite, port, and trailing slash
 for kwargs remove_tld and remove_subdomain, you can fetch tld_list ahead of time and pass it in to save 1ms per
@@ -857,13 +899,20 @@ def format_timestamp(timestamp, **kwargs):
         [ ] '30-Ağu-2023'
         [ ] '16-5 月-2023' - has weird selector. chinese?
         [ ] '31 janv. 2023'  '31 juil. 2023', '17 févr. 2023' - must be some other locale? won't work with 'fr_FR' even though it should. think it's 4 chars vs 3
-        [ ] '24 augusti 2023'
+        [ ] '11. Mai 2024' - the same but uppercase?
+        [ ] '24 augusti 2023', '21 septembre 2023'
+        [ ] 'vrijdag 12 april 2024'
+        [ ] 'mardi 2 avril 2024'
+        [ ] '03 مايو, 2024'
+        [ ] 'jueves, 26 de octubre de 2023'
+        [ ] '2024년 5월 6일 월요일'
+        [ ] '22/mag/2024', '27/ott/2015'
+        [ ] '7 февраля 2023 г'
+        [ ] 'woensdag 31 juli 2024'
 
-[ ] '10 Aug 2023 (9:00 AM) '
+    [ ] '2024. 06. 05' 
     [ ] '09/05/2023 at 11:59 pm' - only seen one instance
-    [ ] '15 Sep', '08 Sep' - '%d %b' matches built will set year = 1900
-        [ ] '15.august'
-
+    [ ] '10/01/2024, 11:59PM ET' - ET not in supported timezone .replace()
     [ ] 'Sept. 28, 2022' - the 't' in 'Sept' rather than 'Sep' makes it not match
     [ ] '2022-09-12T00:21:48.0000000+00:00' - python can't handle 7 digit ms
     [ ] '2023-06-30T14:28:32.473144152-07:00'
@@ -873,6 +922,7 @@ def format_timestamp(timestamp, **kwargs):
     [ ] Feb 8, 2023 (HK Time)
     [ ] '2022-09-12T00:21:48.0000000+00:00', '2022-09-12T00:21:48.0000000+00:00'
     [ ] dumb, not going to add - '06 Jun 2023 2023 (4:55)', '01 Sep 2023 2023',  '18- Apr-2023' - dumbass internal space
+    [ ] Various without year - [ 'Friday 10th May', '15 Sep', '15.august']
 """
 def standardize_dt_str_to_utc(standard_dt_str, **kwargs):
     try:
@@ -886,15 +936,15 @@ def standardize_dt_str_to_utc(standard_dt_str, **kwargs):
         return kwargs.get("null_value", "")
 
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
-    LIST_OF_DT_FORMATS = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%SZ", "%Y-%m-%d %H:%M:%S %Z", "%Y-%m-%d %H:%M:%ST%z", "%Y-%m-%d %H:%M:%S %z %Z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f%z", "%a, %d %b %Y %H:%M:%S %Z", "%a %b %d, %Y", "%m/%d/%Y %H:%M:%S %p", "%A, %B %d, %Y, %H:%M %p",  "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.SSSZ", "%a %b %d %Y %H:%M:%S %Z%z", "%b %d, %Y", '%d-%b-%Y', '%Y/%m/%d', "%Y-%m-%dT%H:%M:%S %Z", "%a, %m/%d/%Y - %H:%M", "%B, %Y",  "%Y-%m-%d %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S", "%B %d, %Y", "%B %Y", "%Y-%m", "%Y-%m-%dT%H:%M:%ST%z", "%A, %d-%B-%Y %H:%M:%S %Z", "%Y", "%Y-%m-%d @ %H:%M:%S %Z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%d %H:%M:%S %z %Z", "%a, %d %b %Y %H:%M:%S%Z", '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', "%Y-%m-%d T %H:%M:%S %z", '%Y-%m-%d %H:%M:%S.%f', "%m/%d/%y %H:%M",  "%a %d %b %H:%M", "%Y-%m-%dT%H:%M", "%b %d %Y %H:%M:%S", "%A, %B %d, %Y %H:%M %p", "%Y-%m-%d@%H:%M:%S %Z", "%m/%d/%Y %H:%M %p %Z", "%a, %b %d", "%A, %B %d, %Y", "%Y-%m-%d", "%Y %m %d", '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%d %B %y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%dst %b, %Y', '%dnd %b, %Y', '%drd %b, %Y', '%dth %b, %Y',  '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y', '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y', '%d %B %Y (%I:%M %p)', '%b %d, %Y %H:%M', '%d.%b.%y, %I:%M:%S %p', '%b %d, %Y (%I:%M %p)', '%b %d %Y %H:%M', '%B %d, %Y %H:%M', '%Y-%m-%d %H:%M', '%Y.%m.%d', '%Ya%mm%dd', '%Ya%mm%dj', '%Y/%m/%d %H:%M:%S', '%Y%m%d', '%dst %B %Y', '%dnd %B %Y', '%drd %B %Y', '%dth %B %Y', '%dst %B %Y %I:%M %p', '%dnd %B %Y %I:%M %p', '%drd %B %Y %I:%M %p', '%dth %B %Y %I:%M %p']
+    LIST_OF_DT_FORMATS = ['%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%SZ', '%Y-%m-%d %H:%M:%S %Z', '%Y-%m-%d %H:%M:%ST%z', '%Y-%m-%d %H:%M:%S %z %Z', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f%z', '%a, %d %b %Y %H:%M:%S %Z', '%a %b %d, %Y', '%m/%d/%Y %H:%M:%S %p', '%A, %B %d, %Y, %H:%M %p',  '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S.SSSZ', '%a %b %d %Y %H:%M:%S %Z%z', '%b %d, %Y', '%d-%b-%Y', '%Y/%m/%d', '%Y-%m-%dT%H:%M:%S %Z', '%a, %m/%d/%Y - %H:%M', '%B, %Y',  '%Y-%m-%d %H:%M:%S %z', '%a, %d %b %Y %H:%M:%S %z', '%a, %d %b %Y %H:%M:%S', '%B %d, %Y', '%B %Y', '%Y-%m', '%Y-%m-%dT%H:%M:%ST%z', '%A, %d-%B-%Y %H:%M:%S %Z', '%Y', '%Y-%m-%d @ %H:%M:%S %Z', '%Y-%m-%dT%H:%M%z', '%Y-%m-%d %H:%M:%S %z %Z', '%a, %d %b %Y %H:%M:%S%Z', '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', '%Y-%m-%d T %H:%M:%S %z', '%Y-%m-%d %H:%M:%S.%f', '%m/%d/%y %H:%M',  '%a %d %b %H:%M', '%Y-%m-%dT%H:%M', '%b %d %Y %H:%M:%S', '%A, %B %d, %Y %H:%M %p', '%Y-%m-%d@%H:%M:%S %Z', '%m/%d/%Y %H:%M %p %Z', '%a, %b %d', '%A, %B %d, %Y', '%Y-%m-%d', '%Y %m %d', '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%d %B %y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%dst %b, %Y', '%dnd %b, %Y', '%drd %b, %Y', '%dth %b, %Y',  '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%A, %d %B %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y', '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y', '%d %B %Y (%I:%M %p)', '%b %d, %Y %H:%M', '%d.%b.%y, %I:%M:%S %p', '%b %d, %Y (%I:%M %p)', '%b %d %Y %H:%M', '%B %d, %Y %H:%M', '%Y-%m-%d %H:%M', '%Y.%m.%d', '%Ya%mm%dd', '%Ya%mm%dj', '%Y/%m/%d %H:%M:%S', '%Y%m%d', '%dst %B %Y', '%dnd %B %Y', '%drd %B %Y', '%dth %B %Y', '%dst %B %Y %I:%M %p', '%dnd %B %Y %I:%M %p', '%drd %B %Y %I:%M %p', '%dth %B %Y %I:%M %p', '%d %b %Y (%I:%M %p)']
     LIST_OF_LOCALE_FORMATS = ['fr_FR', 'de_DE', 'it_IT', 'es_ES', 'nl_NL', 'da_DK', 'ru_RU', 'pl_PL', 'hr_HR'] # 'zh_CN',
     LIST_OF_LOCALE_DT_FORMATS = ['%d-%B-%Y', '%d-%b-%Y', '%d %B %Y', '%d %b %Y', '%d %b. %Y', '%d. %B %Y', '%B %Y']
-    locale.setlocale(locale.LC_TIME, "")
+    locale.setlocale(locale.LC_TIME, '')
 
-    if kwargs.get("country") and kwargs['country'] != 'United States':
-        LIST_OF_DT_FORMATS[20:20] = ['%d/%m/%Y', '%m/%d/%Y', '%d/%m/%y', '%m/%d/%y', '%d-%m-%Y', '%m-%d-%Y', '%d-%m-%y', '%m-%d-%y', '%d.%m.%Y', '%m.%d.%Y', '%d.%m.%y', '%m.%d.%y', '%d/%m/%Y, %H:%M', '%m/%d/%Y, %H:%M', '(%d/%m/%Y)', '(%m/%d/%Y)', '%d/%m/%Y %I:%M %p', '%m/%d/%Y %I:%M %p', '%d-%m-%Y, %I:%M:%S %p', '%m-%d-%Y, %I:%M:%S %p', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%m, %I:%M:%S %p', '%Y-%m-%d, %I:%M:%S %p', '%d/%m/%Y, %H:%M:%S', '%m/%d/%Y, %H:%M:%S', '%d/%m/%Y %H:%M:%S', '%m/%d/%Y %H:%M:%S', '%d-%m-%Y %I:%M %p', '%m-%d-%Y %I:%M %p', '%d/%m/%Y %I:%M%p', '%m/%d/%Y %I:%M%p'] # 20:20 notion means insert the new list into the existing list, starting at index 20. this slightly speeds up processing of datetime_strs that match those selectors
+    if kwargs.get('country') and kwargs['country'] != 'United States':
+        LIST_OF_DT_FORMATS[20:20] = ['%d/%m/%Y', '%m/%d/%Y', '%d/%m/%y', '%m/%d/%y', '%d-%m-%Y', '%m-%d-%Y', '%d-%m-%y', '%m-%d-%y', '%d.%m.%Y', '%m.%d.%Y', '%d.%m.%y', '%m.%d.%y', '%d/%m/%Y, %H:%M', '%m/%d/%Y, %H:%M', '(%d/%m/%Y)', '(%m/%d/%Y)', '%d/%m/%Y %I:%M %p', '%m/%d/%Y %I:%M %p', '%d-%m-%Y, %I:%M:%S %p', '%m-%d-%Y, %I:%M:%S %p', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%m, %I:%M:%S %p', '%Y-%m-%d, %I:%M:%S %p', '%d/%m/%Y, %H:%M:%S', '%m/%d/%Y, %H:%M:%S', '%d/%m/%Y %H:%M:%S', '%m/%d/%Y %H:%M:%S', '%d-%m-%Y %I:%M %p', '%m-%d-%Y %I:%M %p', '%d/%m/%Y %I:%M%p', '%m/%d/%Y %I:%M%p', '%d/%m/%Y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p', '%d/%m/%y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p'] # 20:20 notion means insert the new list into the existing list, starting at index 20. this slightly speeds up processing of datetime_strs that match those selectors
     else: 
-        LIST_OF_DT_FORMATS[20:20] = ['%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%m-%d-%Y', '%d-%m-%Y', '%m-%d-%y', '%d-%m-%y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y', '%m/%d/%Y, %H:%M', '%d/%m/%Y, %H:%M', '(%m/%d/%Y)', '(%d/%m/%Y)', '%m/%d/%Y %I:%M %p', '%d/%m/%Y %I:%M %p', '%m-%d-%Y, %I:%M:%S %p', '%d-%m-%Y, %I:%M:%S %p', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%d, %I:%M:%S %p', '%Y-%d-%m, %I:%M:%S %p', '%m/%d/%Y, %H:%M:%S', '%d/%m/%Y, %H:%M:%S', '%m/%d/%Y %H:%M:%S', '%d/%m/%Y %H:%M:%S', '%m-%d-%Y %I:%M %p', '%d-%m-%Y %I:%M %p', '%m/%d/%Y %I:%M%p', '%d/%m/%Y %I:%M%p'] 
+        LIST_OF_DT_FORMATS[20:20] = ['%m/%d/%Y', '%d/%m/%Y', '%m/%d/%y', '%d/%m/%y', '%m-%d-%Y', '%d-%m-%Y', '%m-%d-%y', '%d-%m-%y', '%m.%d.%Y', '%d.%m.%Y', '%m.%d.%y', '%d.%m.%y', '%m/%d/%Y, %H:%M', '%d/%m/%Y, %H:%M', '(%m/%d/%Y)', '(%d/%m/%Y)', '%m/%d/%Y %I:%M %p', '%d/%m/%Y %I:%M %p', '%m-%d-%Y, %I:%M:%S %p', '%d-%m-%Y, %I:%M:%S %p', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%d-%mT%H:%M:%S.%fZ', '%Y-%m-%d, %I:%M:%S %p', '%Y-%d-%m, %I:%M:%S %p', '%m/%d/%Y, %H:%M:%S', '%d/%m/%Y, %H:%M:%S', '%m/%d/%Y %H:%M:%S', '%d/%m/%Y %H:%M:%S', '%m-%d-%Y %I:%M %p', '%d-%m-%Y %I:%M %p', '%m/%d/%Y %I:%M%p', '%d/%m/%Y %I:%M%p', '%m/%d/%Y, %I:%M:%S %p', '%d/%m/%Y, %I:%M:%S %p', '%m/%d/%y, %I:%M:%S %p', '%d/%m/%y, %I:%M:%S %p'] 
 
     if not datetime_str:
         return kwargs.get("null_value", "")
@@ -1028,11 +1078,13 @@ def combine_lists_unique_values(*args):
             output_set.add(item)
     return list(output_set)
 
+
 # from here: https://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-whilst-preserving-order
 def deduplicate_ordered_list(seq):
     seen = set()
     seen_add = seen.add
     return [x for x in seq if not (x in seen or seen_add(x))]
+
 
 # return max 1 item case-insensitive, but with its original casing. From here: https://stackoverflow.com/questions/48283295/how-to-remove-case-insensitive-duplicates-from-a-list-while-maintaining-the-ori
 def case_insensitive_deduplicate_list(input_list):
