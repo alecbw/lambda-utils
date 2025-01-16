@@ -595,7 +595,7 @@ def get_s3_bucket_file_count(bucket_name, path):
     It would appear the list is ordered (ie if you use limit=1 it will always be the same)
 """
 def list_s3_bucket_contents(bucket_name, path, **kwargs):
-    storage_classes = ["STANDARD"] if kwargs.get("ignore_glacier") else ["STANDARD", "STANDARD_IA", "GLACIER"]
+    # storage_classes = ["STANDARD"] if kwargs.get("ignore_glacier") else ["STANDARD", "STANDARD_IA", "GLACIER"]
 
     client = boto3.client("s3")
     filter_args = {"Bucket":bucket_name, "Prefix": path.lstrip("/")}

@@ -703,7 +703,10 @@ def is_url(potential_url, **kwargs):
     if not potential_url:
         return False
 
-    matched_tlds = find_substrings_in_string(potential_url, kwargs.get("tld_list", get_tld_list())) #and potential_url[0] != "."
+    potential_url = potential_url.lower()
+
+    matched_tlds = [sub_str for sub_str in kwargs.get("tld_list", get_tld_list()) if sub_str in potential_url]
+
     if ez_re_find("(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?|:|#)", potential_url, group=0):
         return True
 
