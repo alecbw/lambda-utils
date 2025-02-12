@@ -291,11 +291,9 @@ def site_request(url, proxy, wait, **kwargs):
         else:
             response = requests.get(url, headers=headers, **request_kwargs)
 
-
     except Exception as e:
         message, applied_status_code = handle_request_exception(e, proxy, url, kwargs.get("disable_error_messages"))
         return message, applied_status_code
-
 
     if response.status_code in [502, 503, 999] and not kwargs.get("disable_error_messages"):
         logging.warning(f'-----> ERROR. Url: {url}. Request Threw: {response.status_code}. ROTATE YOUR PROXY <-----')
