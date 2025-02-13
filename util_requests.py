@@ -290,6 +290,9 @@ def site_request(url, proxy, wait, **kwargs):
             response = requests.post(url, headers=headers, **request_kwargs)
         else:
             response = requests.get(url, headers=headers, **request_kwargs)
+        
+        print(request_kwargs['timeout'])
+        print(response.status_code)
 
     except Exception as e:
         message, applied_status_code = handle_request_exception(e, proxy, url, kwargs.get("disable_error_messages"))
