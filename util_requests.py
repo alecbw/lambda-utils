@@ -536,7 +536,7 @@ def safely_get_text(parsed, html_type, property_type, identifier, **kwargs):
             elif html_tag.a and html_tag.a.get("href"):
                 return html_tag.a.get("href").strip().rstrip("/") or null_value
         elif kwargs.get("get_src"):
-            return html_tag.get("src").strip() if html_tag.get("src") else null_value
+            return next((html_tag.get(x).strip() for x in ['src', 'data-src'] if html_tag.get(x)), null_value)
         elif kwargs.get("get_title"):
             return html_tag.get("title").strip() if html_tag.get("title") else null_value
         elif kwargs.get("get_alt"):

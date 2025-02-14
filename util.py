@@ -85,7 +85,7 @@ def standardize_event(event, **kwargs):
         if event.get("multiValueQueryStringParameters") and any(k for k,v in event["queryStringParameters"].items() if isinstance(v, str) and len(v.split(",")) != len(event["multiValueQueryStringParameters"][k]) and len(event["multiValueQueryStringParameters"][k]) > 1):
             logging.info({k:v for k,v in event.items() if k in ["queryStringParameters", "multiValueQueryStringParameters", "body", "httpMethod"]}) # throw out other k:vs to prevent logging API key
             logging.error(f"Key duplicates in queryStringParameters in standardize_event: {event['queryStringParameters'].keys()}")
-        enumerated_querystring_keys = [x for x in list(event["queryStringParameters"].keys()) if isinstance(x, str) and ez_re_find('\[\d\]', x)]
+        enumerated_querystring_keys = [x for x in list(event["queryStringParameters"].keys()) if isinstance(x, str) and ez_re_find(r'\[\d\]', x)]
         if len(enumerated_querystring_keys) > 1:
             logging.info(f"Found the following enumerated_querystring_keys in standardize_event: {enumerated_querystring_keys}")
             event["queryStringParameters"] = deal_with_enumerated_querystring_keys(event["queryStringParameters"])
@@ -328,7 +328,7 @@ def ez_coerce_to_int(input_var, **kwargs):
 
 def ez_coerce_to_float(possible_float, **kwargs):
     try:
-        possible_float = possible_float.replace(',', '') if possible_float and isinstance(possible_float, str) and not ez_re_find(',\d{2}$', possible_float) else possible_float # Avoids potential problem - way europeans handle decimals ('500,00') being passed in and interpreted as 50_000
+        possible_float = possible_float.replace(',', '') if possible_float and isinstance(possible_float, str) and not ez_re_find(r',\d{2}$', possible_float) else possible_float # Avoids potential problem - way europeans handle decimals ('500,00') being passed in and interpreted as 50_000
         return float(possible_float)
     except:
         return None
@@ -748,7 +748,7 @@ def is_url(potential_url, **kwargs):
 
     matched_tlds = [sub_str for sub_str in kwargs.get("tld_list", get_tld_list()) if sub_str in potential_url]
 
-    if ez_re_find("(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?|:|#)", potential_url, group=0):
+    if ez_re_find("(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + r"($|\/|\?|:|#)", potential_url, group=0):
         return True
 
     return False
@@ -778,7 +778,7 @@ def format_url(url, **kwargs):
     if kwargs.get("remove_tld"):
         url = ez_split(url, find_url_tld(url, kwargs["remove_tld"]), 0)
     if kwargs.get("remove_port") and ":" in url:
-        pattern = re.compile("(:\d{2,})")
+        pattern = re.compile(r"(:\d{2,})")
         url = pattern.sub('', url)
     if kwargs.get("remove_querystrings"):
         url = ez_split(ez_split(url, "?", 0), "&", 0)
@@ -823,7 +823,7 @@ def find_url_tld(url, tld_list, **kwargs):
     if len(tld_list) == 1:
         return tld_list[0]
     elif len(tld_list) > 1: # use regex to find the longest matching substr (tld) that is immediately followed by the end-of-line token OR start-of-querystrings OR backslash for subsite
-        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + "($|\/|\?|:|#)"
+        pattern = "(" + ez_join([re.escape(x) for x in matched_tlds], "|") + ")" + r"($|\/|\?|:|#)"
         return ez_re_find(pattern, url, group=0).rstrip("/").rstrip("?")
 
     return tld
@@ -851,7 +851,7 @@ def ez_add_utms(text, domain, utms):
         return match.group(0) + "&" + utms.lstrip("?")
 
     # finds every url incl querystrings with the domain specificied and appends the new UTMs
-    return re.sub(domain.replace(".", "\.") + "[^\"\s\<\>]*", add_utm, text)
+    return re.sub(domain.replace(".", r"\.") + r"[^\"\s\<\>]*", add_utm, text)
 
 
 ############################################# ~ Datetime/str handling ~ ##########################################################
@@ -936,7 +936,7 @@ def standardize_dt_str_to_utc(standard_dt_str, **kwargs):
         return kwargs.get("null_value", "")
 
 def detect_and_convert_datetime_str(datetime_str, **kwargs):
-    LIST_OF_DT_FORMATS = ['%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%SZ', '%Y-%m-%d %H:%M:%S %Z', '%Y-%m-%d %H:%M:%ST%z', '%Y-%m-%d %H:%M:%S %z %Z', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f%z', '%a, %d %b %Y %H:%M:%S %Z', '%a %b %d, %Y', '%m/%d/%Y %H:%M:%S %p', '%A, %B %d, %Y, %H:%M %p',  '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S.SSSZ', '%a %b %d %Y %H:%M:%S %Z%z', '%b %d, %Y', '%d-%b-%Y', '%Y/%m/%d', '%Y-%m-%dT%H:%M:%S %Z', '%a, %m/%d/%Y - %H:%M', '%B, %Y',  '%Y-%m-%d %H:%M:%S %z', '%a, %d %b %Y %H:%M:%S %z', '%a, %d %b %Y %H:%M:%S', '%B %d, %Y', '%B %Y', '%Y-%m', '%Y-%m-%dT%H:%M:%ST%z', '%A, %d-%B-%Y %H:%M:%S %Z', '%Y', '%Y-%m-%d @ %H:%M:%S %Z', '%Y-%m-%dT%H:%M%z', '%Y-%m-%d %H:%M:%S %z %Z', '%a, %d %b %Y %H:%M:%S%Z', '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', '%Y-%m-%d T %H:%M:%S %z', '%Y-%m-%d %H:%M:%S.%f', '%m/%d/%y %H:%M',  '%a %d %b %H:%M', '%Y-%m-%dT%H:%M', '%b %d %Y %H:%M:%S', '%A, %B %d, %Y %H:%M %p', '%Y-%m-%d@%H:%M:%S %Z', '%m/%d/%Y %H:%M %p %Z', '%a, %b %d', '%A, %B %d, %Y', '%Y-%m-%d', '%Y %m %d', '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%d %B %y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%dst %b, %Y', '%dnd %b, %Y', '%drd %b, %Y', '%dth %b, %Y',  '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%A, %d %B %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y', '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y', '%d %B %Y (%I:%M %p)', '%b %d, %Y %H:%M', '%d.%b.%y, %I:%M:%S %p', '%b %d, %Y (%I:%M %p)', '%b %d %Y %H:%M', '%B %d, %Y %H:%M', '%Y-%m-%d %H:%M', '%Y.%m.%d', '%Ya%mm%dd', '%Ya%mm%dj', '%Y/%m/%d %H:%M:%S', '%Y%m%d', '%dst %B %Y', '%dnd %B %Y', '%drd %B %Y', '%dth %B %Y', '%dst %B %Y %I:%M %p', '%dnd %B %Y %I:%M %p', '%drd %B %Y %I:%M %p', '%dth %B %Y %I:%M %p', '%d %b %Y (%I:%M %p)']
+    LIST_OF_DT_FORMATS = ['%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%SZ', '%Y-%m-%d %H:%M:%S %Z', '%Y-%m-%d %H:%M:%ST%z', '%Y-%m-%d %H:%M:%S %z %Z', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f%z', '%a, %d %b %Y %H:%M:%S %Z', '%a %b %d, %Y', '%m/%d/%Y %H:%M:%S %p', '%A, %B %d, %Y, %H:%M %p',  '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S.SSSZ', '%a %b %d %Y %H:%M:%S %Z%z', '%b %d, %Y', '%d-%b-%Y', '%Y/%m/%d', '%Y-%m-%dT%H:%M:%S %Z', '%a, %m/%d/%Y - %H:%M', '%B, %Y',  '%Y-%m-%d %H:%M:%S %z', '%a, %d %b %Y %H:%M:%S %z', '%a, %d %b %Y %H:%M:%S', '%B %d, %Y', '%B %Y', '%Y-%m', '%Y-%m-%dT%H:%M:%ST%z', '%A, %d-%B-%Y %H:%M:%S %Z', '%Y', '%Y-%m-%d @ %H:%M:%S %Z', '%Y-%m-%dT%H:%M%z', '%Y-%m-%d %H:%M:%S %z %Z', '%a, %d %b %Y %H:%M:%S%Z', '%a, %d %b %Y %H:%M:%S %z %Z', '%A, %d-%b-%Y %H:%M:%S %Z', '%Y-%m-%d T %H:%M:%S %z', '%Y-%m-%d %H:%M:%S.%f', '%m/%d/%y %H:%M',  '%a %d %b %H:%M', '%Y-%m-%dT%H:%M', '%b %d %Y %H:%M:%S', '%A, %B %d, %Y %H:%M %p', '%Y-%m-%d@%H:%M:%S %Z', '%m/%d/%Y %H:%M %p %Z', '%a, %b %d', '%A, %B %d, %Y', '%Y-%m-%d', '%Y %m %d', '%a %b %d %H:%M:%S %Z %Y', '%a %b %d %H:%M:%S %z %Y', '%d %b %Y %H:%M %p', '%d %b %Y', '%d %B %y', '%a, %d %b %y %H:%M:%S %z', '%dst %B, %Y', '%dnd %B, %Y', '%drd %B, %Y', '%dth %B, %Y', '%dst %b, %Y', '%dnd %b, %Y', '%drd %b, %Y', '%dth %b, %Y',  '%b %d %Y', '%b %d, %Y, %I:%M:%S %p', '%d %b. %Y', '%d/%b/%Y', '%B %d, %Y %I:%M %p', '%d-%b-%Y, %I:%M:%S %p', '%d/%b/%Y, %I:%M:%S %p', '%b-%d-%Y', '%Y-%m-%d %H:%M:%ST23:59', '%d %b %Y, %I:%M %p', '%d %b %Y %H:%M', '%B %d, %Y (%I:%M %p)', '%b. %d, %Y', '%d/%b/%y', '%Y-%m-%d@%H:%M:%S', '%d %b %Y %H:%M:%S %z', '%d/%b/%y, %I:%M:%S %p', '%b %d %Y %I:%M %p', '%b %d, %Y %I:%M %p', '%A %d %B, %Y %I:%M %p', '%A, %d %b %Y', '%A, %d %B %Y', '%a, %d %b %Y %H:%M:%S %z', '%d. %B %Y', '%d %B %Y', '%d-%b-%y', '%B %dst, %Y', '%B %dnd, %Y', '%B %drd, %Y', '%B %dth, %Y', '%d %B %Y (%I:%M %p)', '%b %d, %Y %H:%M', '%d.%b.%y, %I:%M:%S %p', '%b %d, %Y (%I:%M %p)', '%b %d %Y %H:%M', '%B %d, %Y %H:%M', '%Y-%m-%d %H:%M', '%Y.%m.%d', '%Ya%mm%dd', '%Ya%mm%dj', '%Y/%m/%d %H:%M:%S', '%Y%m%d', '%dst %B %Y', '%dnd %B %Y', '%drd %B %Y', '%dth %B %Y', '%dst %B %Y %I:%M %p', '%dnd %B %Y %I:%M %p', '%drd %B %Y %I:%M %p', '%dth %B %Y %I:%M %p', '%d %b %Y (%I:%M %p)', '%d %B, %Y', '%d %b, %Y']
     LIST_OF_LOCALE_FORMATS = ['fr_FR', 'de_DE', 'it_IT', 'es_ES', 'nl_NL', 'da_DK', 'ru_RU', 'pl_PL', 'hr_HR'] # 'zh_CN',
     LIST_OF_LOCALE_DT_FORMATS = ['%d-%B-%Y', '%d-%b-%Y', '%d %B %Y', '%d %b %Y', '%d %b. %Y', '%d. %B %Y', '%B %Y']
     locale.setlocale(locale.LC_TIME, '')
@@ -958,11 +958,11 @@ def detect_and_convert_datetime_str(datetime_str, **kwargs):
         output_dt = datetime.utcfromtimestamp(int(datetime_str))
         return datetime.strftime(output_dt, kwargs.get("output_format", "%Y-%m-%d %H:%M:%S"))
 
-    if len(datetime_str) == 33 and ez_re_find("\.[0-9]{7}\-", datetime_str): # python datetime can't handle 7 decimals in ms in 2021-03-04T13:17:19.5466667-06:00
+    if len(datetime_str) == 33 and ez_re_find(r"\.[0-9]{7}\-", datetime_str): # python datetime can't handle 7 decimals in ms in 2021-03-04T13:17:19.5466667-06:00
         datetime_str = datetime_str[:26] + datetime_str[27:]
-    elif len(datetime_str) == 27 and ez_re_find("\.[0-9]{7}$", datetime_str): # python datetime can't handle 7 decimals in ms in 2023-05-25T17:15:00.3686477
+    elif len(datetime_str) == 27 and ez_re_find(r"\.[0-9]{7}$", datetime_str): # python datetime can't handle 7 decimals in ms in 2023-05-25T17:15:00.3686477
         datetime_str = datetime_str[:26]
-    elif len(datetime_str) == 28 and ez_re_find("\.[0-9]{7}Z$", datetime_str): # python datetime can't handle 7 decimals in ms in 2023-05-25T17:15:00.3686477
+    elif len(datetime_str) == 28 and ez_re_find(r"\.[0-9]{7}Z$", datetime_str): # python datetime can't handle 7 decimals in ms in 2023-05-25T17:15:00.3686477
         datetime_str = datetime_str[:26] + datetime_str[27:]
 
     datetime_str = datetime_str.strip().rstrip('.').replace("&#43;", "+").replace('PST', '-0800').replace('MST', '-0700').replace('CST', '-0600').replace('CDT', '-0500').replace('EDT', '-0400').replace('EST', '-0500').replace('CEST', '+0200').replace('EET', '+0200').replace('YEKT', '+0500').replace('KST', "+0900")
