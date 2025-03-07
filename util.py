@@ -315,7 +315,7 @@ def ez_coerce_to_int(input_var, **kwargs):
         return int(input_var)
     elif isinstance(input_var, str) and input_var.strip().isdigit():
         return int(input_var.strip())
-    elif isinstance(input_var, str) and input_var.strip().replace(".", "", 1).isdigit(): # replace exactly one '.' to allow floats to trigger the .isdigit()
+    elif isinstance(input_var, str) and input_var.strip().replace(".", "", 1).isdigit(): # replace exactly one '.' to allow floats to trigger the .isdigit(). It will round down.
         return int(float(input_var.strip()))
     elif isinstance(input_var, str) and input_var.strip().replace(",", "").isdigit(): # long ints with commas
         return int(input_var.strip().replace(",", ""))
@@ -910,6 +910,7 @@ def format_timestamp(timestamp, **kwargs):
         [ ] '7 февраля 2023 г'
         [ ] 'woensdag 31 juli 2024'
 
+    [ ] 'Monday March 18, 2024 10:25:47 PM'
     [ ] '2024. 06. 05' 
     [ ] '09/05/2023 at 11:59 pm' - only seen one instance
     [ ] '10/01/2024, 11:59PM ET' - ET not in supported timezone .replace()
