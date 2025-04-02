@@ -1324,25 +1324,25 @@ def delete_glue_partition(db, table, partition_values_as_a_list):
 # log_group = '/aws/lambda/NAME_OF_YOUR_LAMBDA_FUNCTION'
 def query_cloudwatch_logs(query, log_group, time_window, **kwargs):
     client = boto3.client('logs')
-    params_dict = {
+    params = {
         "queryString": query,
         "limit": kwargs.pop("limit", 10_000),
     }
     if isinstance(time_window, int):
-        param_dict["startTime"] = int((datetime.today() - timedelta(hours=time_window)).timestamp())
-        param_dict["endTime"] = int(datetime.now().timestamp())
+        params["startTime"] = int((datetime.today() - timedelta(hours=time_window)).timestamp())
+        params["endTime"] = int(datetime.now().timestamp())
     elif isinstance(time_window, tuple) and isinstance(time_window[0], int) and isinstance(time_window[1], int):
-        param_dict["startTime"] = time_window[0]
-        param_dict["endTime"] = time_window[1]
+        params["startTime"] = time_window[0]
+        params["endTime"] = time_window[1]
     else:
         raise ValueError(f"Malformed value for time_window was passed to query_cloudwatch_logs: {time_window}")
 
     if isinstance(log_group, str):
-        params_dict["logGroupName"] = log_group
+        params["logGroupName"] = log_group
     elif isinstance(log_group, list):
-        params_dict["logGroupNames"] = log_group
+        params["logGroupNames"] = log_group
 
-    start_query_response = boto3.client('logs').start_query(**params_dict)
+    start_query_response = boto3.client('logs').start_query(**params)
 
     response = None
     while response == None or response['status'] == 'Running':
