@@ -1316,14 +1316,21 @@ def delete_glue_partition(db, table, partition_values_as_a_list):
 
 # query = "fields @timestamp, @message | parse @message \"username: * ClinicID: * nodename: *\" as username, ClinicID, nodename | filter ClinicID = 7667 and username='simran+test@abc.com'"
 # log_group = '/aws/lambda/NAME_OF_YOUR_LAMBDA_FUNCTION'
-def query_cloudwatch_logs(query, log_group, lookback_hours, **kwargs):
+def query_cloudwatch_logs(query, log_group, time_window, **kwargs):
     client = boto3.client('logs')
     params_dict = {
-        "startTime": int((datetime.today() - timedelta(hours=lookback_hours)).timestamp()),
-        "endTime": int(datetime.now().timestamp()),
         "queryString": query,
         "limit": kwargs.pop("limit", 10_000),
     }
+    if isinstance(time_window, int):
+        param_dict["startTime"] = int((datetime.today() - timedelta(hours=time_window)).timestamp())
+        param_dict["endTime"] = int(datetime.now().timestamp())
+    elif isinstance(time_window, tuple) and isinstance(time_window[0], int) and isinstance(time_window[1], int):
+        param_dict["startTime"] = time_window[0]
+        param_dict["endTime"] = time_window[1]
+    elif:
+        raise ValueError(f"Malformed value for time_window was passed to query_cloudwatch_logs: {time_window}")
+
     if isinstance(log_group, str):
         params_dict["logGroupName"] = log_group
     elif isinstance(log_group, list):
