@@ -1334,7 +1334,7 @@ def query_cloudwatch_logs(query, log_group, time_window, **kwargs):
     elif isinstance(time_window, tuple) and isinstance(time_window[0], int) and isinstance(time_window[1], int):
         param_dict["startTime"] = time_window[0]
         param_dict["endTime"] = time_window[1]
-    elif:
+    else:
         raise ValueError(f"Malformed value for time_window was passed to query_cloudwatch_logs: {time_window}")
 
     if isinstance(log_group, str):
