@@ -639,16 +639,22 @@ def get_s3_file(bucket_name, filename, **kwargs):
         s3_obj = boto3.client("s3").get_object(Bucket=bucket_name, Key=filename.lstrip("/"))["Body"]
         if kwargs.get("raw"):
             return s3_obj
-        elif kwargs.get("convert_csv"):
-            csv.field_size_limit(sys.maxsize) # circumvents `field larger than field limit (131072)` Error
-            return list(csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True))
-            # return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.read().decode('utf-8').splitlines(True), skipinitialspace=True)]
-        elif kwargs.get("convert_json"):
-            return json.loads(s3_obj.read().decode('utf-8'))
-        elif kwargs.get("convert_jsonl"):
-            return [json.loads(line) for line in s3_obj.read().splitlines(True)] # not sure why .decode('utf-8') is breaking here but it is
+        elif kwargs.get("unpack_gzip"):
+            with gzip.GzipFile(fileobj=BytesIO(s3_obj.read()), mode="rb") as gz:
+                s3_obj = gz.read()
         else:
-            return s3_obj.read().decode('utf-8')
+                s3_obj = s3_obj.read()
+        
+        if kwargs.get("convert_csv"):
+            csv.field_size_limit(sys.maxsize) # circumvents `field larger than field limit (131072)` Error
+            return list(csv.DictReader(s3_obj.decode('utf-8').splitlines(True), skipinitialspace=True))
+            # return [{k:v for k, v in row.items()} for row in csv.DictReader(s3_obj.decode('utf-8').splitlines(True), skipinitialspace=True)]
+        elif kwargs.get("convert_json"):
+            return json.loads(s3_obj.decode('utf-8'))
+        elif kwargs.get("convert_jsonl"):
+            return [json.loads(line) for line in s3_obj.splitlines(True)] # not sure why .decode('utf-8') is breaking here but it is
+        else:
+            return s3_obj.decode('utf-8')
 
     except Exception as e:
         logging.error(e)
