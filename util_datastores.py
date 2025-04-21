@@ -776,9 +776,8 @@ def delete_s3_file(bucket_name, filename, **kwargs):
         if not kwargs.get("disable_print"): logging.info(f"Successful delete of {filename} - Status Code: {status_code}")
         return status_code
 
-    except ClientError as e:
+    except Exception as e:
         logging.error(e)
-        return e
 
 
 # TODO - generalize this more
