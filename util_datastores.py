@@ -747,11 +747,12 @@ def copy_s3_file_to_different_bucket(start_bucket, start_path, dest_bucket, dest
 
 # Only operates on one file at a time. Pair with get_s3_files_that_match_prefix and a for loop to copy a subfolder recursively
 def move_s3_file(start_bucket, start_path, dest_bucket, dest_path, **kwargs):
-    destination_bucket = boto3.resource('s3').Bucket(dest_bucket)
-    destination_bucket.copy({'Bucket': start_bucket, 'Key': start_path}, dest_path)
-
-    # Delete original after copying over
-    delete_s3_file(start_bucket, start_path, disable_print=True)
+    try:
+        destination_bucket = boto3.resource('s3').Bucket(dest_bucket)
+        destination_bucket.copy({'Bucket': start_bucket, 'Key': start_path}, dest_path)
+        delete_s3_file(start_bucket, start_path, disable_print=True) # Delete original after copying over
+    except Exception as e:
+        logging.error(e)
 
     if not kwargs.get("disable_print"):
         logging.info(f"Move to {dest_path} appears to have been a success")
