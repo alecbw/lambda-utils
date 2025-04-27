@@ -755,7 +755,7 @@ def move_s3_file(start_bucket, start_path, dest_bucket, dest_path, **kwargs):
         logging.error(e)
 
     if not kwargs.get("disable_print"):
-        logging.info(f"Move to {dest_path} appears to have been a success")
+        logging.info(f"S3 file move to {dest_path} appears to have been a success")
 
 
 def move_s3_file_to_glacier(bucket_name, path):
