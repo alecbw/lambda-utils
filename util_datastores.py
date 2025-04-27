@@ -753,7 +753,8 @@ def move_s3_file(start_bucket, start_path, dest_bucket, dest_path, **kwargs):
         delete_s3_file(start_bucket, start_path, disable_print=True) # Delete original after copying over
     except Exception as e:
         logging.error(e)
-
+        return
+        
     if not kwargs.get("disable_print"):
         logging.info(f"S3 file move to {dest_path} appears to have been a success")
 
