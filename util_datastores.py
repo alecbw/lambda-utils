@@ -1496,7 +1496,7 @@ def associate_api_gateway_key_with_usage_plan(key_id, plan_id):
 
 def change_api_gateway_key_usage_plan(key_id, old_plan_id, new_plan_id):
     response = boto3.client('apigateway').delete_usage_plan_key(usagePlanId=old_plan_id, keyId=key_id)
-    logging.info(f"Disassociation of API Key id: {key_id} with old Usage Plan id: {plan_id} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
+    logging.info(f"Disassociation of API Key id: {key_id} with old Usage Plan id: {old_plan_id} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
     associate_api_gateway_key_with_usage_plan(key_id, new_plan_id)
 
 
