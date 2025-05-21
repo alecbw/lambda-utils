@@ -1494,6 +1494,12 @@ def associate_api_gateway_key_with_usage_plan(key_id, plan_id):
     return response
 
 
+def change_api_gateway_key_usage_plan(key_id, old_plan_id, new_plan_id):
+    response = boto3.client('apigateway').delete_usage_plan_key(usagePlanId=old_plan_id, keyId=key['id'])
+    logging.info(f"Disassociation of API Key id: {key_id} with old Usage Plan id: {plan_id} had status_code: {ez_get(response, 'ResponseMetadata', 'HTTPStatusCode')}")
+    associate_api_gateway_key_with_usage_plan(key_id, new_plan_id)
+
+
 # You can't directly associate with an API Gateway Usage Plan at creation
 def create_api_gateway_key(key_name, api_id, stage_name, **kwargs):
     response = boto3.client('apigateway').create_api_key(
